@@ -1,0 +1,13 @@
+{% macro prophecy_tmp_source(pipelineName, label, suffix) %}
+
+  {% set table_name =
+    "prophecy_tmp__" ~ var('prophecy_run_id', 'default_run_id') ~ "__" ~ pipelineName ~ "__" ~ label
+  %}
+
+  {% if suffix != '' %}
+    {% set table_name = table_name ~ "_" ~ suffix %}
+  {% endif %}
+
+  {{ return(table_name) }}
+
+{% endmacro %}
