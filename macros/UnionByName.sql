@@ -86,10 +86,10 @@
         {%- set parts = [] -%}
 
         {%- for norm in final_columns -%}
-            {%- set quoted_alias = DatabricksSqlBasics.quote_identifier(norm_to_original[norm]) -%}
+            {%- set quoted_alias = prophecy_basics.quote_identifier(norm_to_original[norm]) -%}
             {%- if norm in cur_norms -%}
                 {%- set actual_idx = cur_norms.index(norm) -%}
-                {%- set quoted_actual = DatabricksSqlBasics.quote_identifier(cur_cols[actual_idx]) -%}
+                {%- set quoted_actual = prophecy_basics.quote_identifier(cur_cols[actual_idx]) -%}
                 {%- do parts.append(quoted_actual ~ " as " ~ quoted_alias) -%}
             {%- else -%}
                 {%- do parts.append("null as " ~ quoted_alias) -%}
