@@ -1,4 +1,4 @@
-{% macro UnionByName(DataCleansing,
+{% macro DataCleansing(relation_name,
         schema,
         modifyCase,
         columnNames=[],
