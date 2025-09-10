@@ -1,7 +1,7 @@
 {% macro UnionByName(relation_names,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
-    {{ return(adapter.dispatch('UnionByName', 'dbt_utils')(relation_names, schemas, missingColumnOps)) }}
+    {{ return(adapter.dispatch('UnionByName', 'prophecy_basics')(relation_names, schemas, missingColumnOps)) }}
 {% endmacro %}
 
 {% macro databricks__UnionByName(relation_names,
