@@ -1,0 +1,49 @@
+---
+version: 2
+macros:
+  - name: "quote_identifier"
+    arguments:
+      - name: "identifier"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
+  - name: "unquote_identifier"
+    arguments:
+      - name: "identifier"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
+  - name: "safe_identifier"
+    arguments:
+      - name: "identifier"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
+  - name: "evaluate_expression"
+    arguments:
+      - name: "expression"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
+  - name: "generate_schema_name"
+    arguments:
+      - name: "custom_schema_name"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+      - name: "node"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
+  - name: "UnionByName"
+    arguments:
+      - name: "relation_name"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+      - name: "schemas"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+      - name: "missingColumnOps"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "query"
+
