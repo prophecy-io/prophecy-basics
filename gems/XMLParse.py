@@ -10,6 +10,12 @@ class XMLParse(MacroSpec):
     projectName: str = "prophecy_basics"
     category: str = "Parse"
     minNumOfInputPorts: int = 1
+    supportedProviderTypes: list[ProviderTypeEnum] = [
+        ProviderTypeEnum.Databricks
+        # ProviderTypeEnum.Snowflake,
+        # ProviderTypeEnum.BigQuery,
+        # ProviderTypeEnum.ProphecyManaged,
+    ]
 
     @dataclass(frozen=True)
     class XMLParseProperties(MacroProperties):

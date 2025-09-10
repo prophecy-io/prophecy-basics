@@ -11,6 +11,12 @@ class DataCleansing(MacroSpec):
     projectName: str = "prophecy_basics"
     category: str = "Prepare"
     minNumOfInputPorts: int = 1
+    supportedProviderTypes: list[ProviderTypeEnum] = [
+        ProviderTypeEnum.Databricks
+        # ProviderTypeEnum.Snowflake,
+        # ProviderTypeEnum.BigQuery,
+        # ProviderTypeEnum.ProphecyManaged,
+    ]
 
     @dataclass(frozen=True)
     class DataCleansingProperties(MacroProperties):
