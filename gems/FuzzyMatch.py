@@ -55,7 +55,9 @@ class FuzzyMatch(MacroSpec):
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
         _matchFields.append(self.AddMatchField())
-        return state.bindProperties(dataclasses.replace(state.properties, matchFields=_matchFields))
+        return state.bindProperties(
+            dataclasses.replace(state.properties, matchFields=_matchFields)
+        )
 
     def dialog(self) -> Dialog:
         configurations = (
@@ -64,7 +66,9 @@ class FuzzyMatch(MacroSpec):
             .addElement(
                 SelectBox("Merge/Purge Mode")
                 .addOption("Purge mode (All Records Compared)", "PURGE")
-                .addOption("Merge (Only Records from a Different Source are Compared)", "MERGE")
+                .addOption(
+                    "Merge (Only Records from a Different Source are Compared)", "MERGE"
+                )
                 .bindProperty("mode")
             )
             .addElement(
@@ -88,68 +92,68 @@ class FuzzyMatch(MacroSpec):
                 .showErrorsFor("recordIdCol")
             )
             .addElement(
-                NumberBox("Match Threshold percentage",
-                          placeholder="80",
-                          minValueVar=0,
-                          maxValueVar=100,
-                          )
-                .bindProperty("matchThresholdPercentage"),
+                NumberBox(
+                    "Match Threshold percentage",
+                    placeholder="80",
+                    minValueVar=0,
+                    maxValueVar=100,
+                ).bindProperty("matchThresholdPercentage"),
             )
             .addElement(
                 Checkbox("Include similarity score column").bindProperty(
-                    "includeSimilarityScore")
-            )
-        )
-
-        matchFunction = (SelectBox("Match Function")
-                         .addOption("Custom", "custom")
-                         .addOption("Exact", "exact")
-                         .addOption("Equals", "equals")
-                         .addOption("Address", "address")
-                         .addOption("Name", "name")
-                         .addOption("Phone", "phone")
-                         .bindProperty("record.AddMatchField.matchFunction")
-                         )
-
-        matchFields = StackLayout(gap=("1rem"), height=("100bh")) \
-            .addElement(TitleElement("Transformations")) \
-            .addElement(
-            OrderedList("Match Fields")
-            .bindProperty("matchFields")
-            .setEmptyContainerText("Add a match field")
-            .addElement(
-                ColumnsLayout(("1rem"), alignY=("end"))
-                .addColumn(
-                    ColumnsLayout("1rem")
-                    .addColumn(
-                        SchemaColumnsDropdown("Field Name")
-                        .bindSchema("component.ports.inputs[0].schema")
-                        .bindProperty("record.AddMatchField.columnName")
-                        , "0.5fr")
-                    .addColumn(
-                        matchFunction,
-                        "0.5fr"
-                    )
+                    "includeSimilarityScore"
                 )
-                .addColumn(ListItemDelete("delete"), width="content")
             )
-        ) \
-            .addElement(SimpleButtonLayout("Add Match Field", self.onButtonClick))
-
-        tabs = Tabs() \
-            .bindProperty("activeTab") \
-            .addTabPane(
-            TabPane("Configuration", "configuration").addElement(configurations)
-        ).addTabPane(
-            TabPane("Match Fields", "match_fields").addElement(matchFields)
         )
 
-        return Dialog("FuzzyMatch") \
+        matchFunction = (
+            SelectBox("Match Function")
+            .addOption("Custom", "custom")
+            .addOption("Exact", "exact")
+            .addOption("Equals", "equals")
+            .addOption("Address", "address")
+            .addOption("Name", "name")
+            .addOption("Phone", "phone")
+            .bindProperty("record.AddMatchField.matchFunction")
+        )
+
+        matchFields = (
+            StackLayout(gap=("1rem"), height=("100bh"))
+            .addElement(TitleElement("Transformations"))
             .addElement(
-            ColumnsLayout(gap=("1rem"), height=("100%"))
-            .addColumn(
-                Ports(), "content"
+                OrderedList("Match Fields")
+                .bindProperty("matchFields")
+                .setEmptyContainerText("Add a match field")
+                .addElement(
+                    ColumnsLayout(("1rem"), alignY=("end"))
+                    .addColumn(
+                        ColumnsLayout("1rem")
+                        .addColumn(
+                            SchemaColumnsDropdown("Field Name")
+                            .bindSchema("component.ports.inputs[0].schema")
+                            .bindProperty("record.AddMatchField.columnName"),
+                            "0.5fr",
+                        )
+                        .addColumn(matchFunction, "0.5fr")
+                    )
+                    .addColumn(ListItemDelete("delete"), width="content")
+                )
             )
+            .addElement(SimpleButtonLayout("Add Match Field", self.onButtonClick))
+        )
+
+        tabs = (
+            Tabs()
+            .bindProperty("activeTab")
+            .addTabPane(
+                TabPane("Configuration", "configuration").addElement(configurations)
+            )
+            .addTabPane(TabPane("Match Fields", "match_fields").addElement(matchFields))
+        )
+
+        return Dialog("FuzzyMatch").addElement(
+            ColumnsLayout(gap=("1rem"), height=("100%"))
+            .addColumn(Ports(), "content")
             .addColumn(VerticalDivider(), width="content")
             .addColumn(tabs)
         )
@@ -160,55 +164,95 @@ class FuzzyMatch(MacroSpec):
 
         if len(component.properties.mode) == 0:
             diagnostics.append(
-                Diagnostic("component.properties.mode", "Please select Merge/Purge mode",
-                           SeverityLevelEnum.Error))
+                Diagnostic(
+                    "component.properties.mode",
+                    "Please select Merge/Purge mode",
+                    SeverityLevelEnum.Error,
+                )
+            )
 
         if component.properties.mode == "PURGE":
             if len(component.properties.recordIdCol) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.recordIdCol", "Please select a Record Id",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.recordIdCol",
+                        "Please select a Record Id",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
             if len(component.properties.matchFields) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.matchFields", "Please add a match field",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.matchFields",
+                        "Please add a match field",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         if component.properties.mode == "MERGE":
             if len(component.properties.sourceIdCol) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.sourceIdCol", "Please select a Source Id",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.sourceIdCol",
+                        "Please select a Source Id",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
             if len(component.properties.recordIdCol) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.recordIdCol", "Please select a Record Id",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.recordIdCol",
+                        "Please select a Record Id",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
             if len(component.properties.matchFields) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.matchFields", "Please add a match field",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.matchFields",
+                        "Please add a match field",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         # Extract all column names from the schema
-        field_names = [field["name"] for field in component.ports.inputs[0].schema["fields"]]
+        field_names = [
+            field["name"] for field in component.ports.inputs[0].schema["fields"]
+        ]
 
         if len(component.properties.recordIdCol) > 0:
             if component.properties.recordIdCol not in field_names:
                 diagnostics.append(
-                    Diagnostic("component.properties.recordIdCol", f"Selected recordId column {component.properties.recordIdCol} are not present in input schema.",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.recordIdCol",
+                        f"Selected recordId column {component.properties.recordIdCol} are not present in input schema.",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         if len(component.properties.sourceIdCol) > 0:
             if component.properties.sourceIdCol not in field_names:
                 diagnostics.append(
-                    Diagnostic("component.properties.sourceIdCol", f"Selected sourceId column {component.properties.sourceIdCol} are not present in input schema.",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.sourceIdCol",
+                        f"Selected sourceId column {component.properties.sourceIdCol} are not present in input schema.",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         # Extract column names from matchFields
-        match_field_columns = [field.columnName for field in component.properties.matchFields if field.columnName]
+        match_field_columns = [
+            field.columnName
+            for field in component.properties.matchFields
+            if field.columnName
+        ]
         # Identify missing columns
-        missing_match_columns = [col for col in match_field_columns if col not in field_names]
+        missing_match_columns = [
+            col for col in match_field_columns if col not in field_names
+        ]
 
         # Append diagnostic if any are missing
         if missing_match_columns:
@@ -216,16 +260,21 @@ class FuzzyMatch(MacroSpec):
                 Diagnostic(
                     "component.properties.matchFields",
                     f"Selected matchField columns {missing_match_columns} are not present in input schema.",
-                    SeverityLevelEnum.Error
+                    SeverityLevelEnum.Error,
                 )
             )
 
         return diagnostics
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the component's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return (replace(newState, properties=replace(newState.properties, relation_name=relation_name)))
+        return replace(
+            newState,
+            properties=replace(newState.properties, relation_name=relation_name),
+        )
 
     def apply(self, props: FuzzyMatchProperties) -> str:
         # generate the actual macro call given the component's state
@@ -249,21 +298,24 @@ class FuzzyMatch(MacroSpec):
             "'" + props.recordIdCol + "'",
             str(match_fields_map),
             str(props.matchThresholdPercentage),
-            str(props.includeSimilarityScore).lower()
+            str(props.includeSimilarityScore).lower(),
         ]
         params = ",".join([param for param in arguments])
-        return f'{{{{ {resolved_macro_name}({params}) }}}}'
+        return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return FuzzyMatch.FuzzyMatchProperties(
-            relation_name=parametersMap.get('relation_name'),
-            mode=parametersMap.get('mode'),
-            sourceIdCol=parametersMap.get('sourceIdCol'),
-            recordIdCol=parametersMap.get('recordIdCol'),
-            matchThresholdPercentage=float(parametersMap.get('matchThresholdPercentage')),
-            includeSimilarityScore=parametersMap.get('includeSimilarityScore').lower() == 'true'
+            relation_name=parametersMap.get("relation_name"),
+            mode=parametersMap.get("mode"),
+            sourceIdCol=parametersMap.get("sourceIdCol"),
+            recordIdCol=parametersMap.get("recordIdCol"),
+            matchThresholdPercentage=float(
+                parametersMap.get("matchThresholdPercentage")
+            ),
+            includeSimilarityScore=parametersMap.get("includeSimilarityScore").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -276,11 +328,19 @@ class FuzzyMatch(MacroSpec):
                 MacroParameter("mode", properties.mode),
                 MacroParameter("sourceIdCol", properties.sourceIdCol),
                 MacroParameter("recordIdCol", properties.recordIdCol),
-                MacroParameter("matchThresholdPercentage", str(properties.matchThresholdPercentage)),
-                MacroParameter("includeSimilarityScore", str(properties.includeSimilarityScore).lower())
+                MacroParameter(
+                    "matchThresholdPercentage", str(properties.matchThresholdPercentage)
+                ),
+                MacroParameter(
+                    "includeSimilarityScore",
+                    str(properties.includeSimilarityScore).lower(),
+                ),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return (replace(component, properties=replace(component.properties, relation_name=relation_name)))
+        return replace(
+            component,
+            properties=replace(component.properties, relation_name=relation_name),
+        )

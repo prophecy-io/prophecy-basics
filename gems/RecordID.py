@@ -72,48 +72,48 @@ class RecordID(MacroSpec):
                     "Order By Columns",
                     "expression.expression",
                     ExpressionBox(ignoreTitle=True, language="sql")
-                        .bindPlaceholders()
-                        .withSchemaSuggestions()
-                        .bindLanguage("${record.expression.format}"),
-                        ),
+                    .bindPlaceholders()
+                    .withSchemaSuggestions()
+                    .bindLanguage("${record.expression.format}"),
+                ),
                 Column(
                     "Sort strategy",
                     "sortType",
                     SelectBox("")
-                        .addOption("ascending nulls first", "asc")
-                        .addOption("ascending nulls last", "asc_nulls_last")
-                        .addOption("descending nulls first", "desc_nulls_first")
-                        .addOption("descending nulls last", "desc"),
+                    .addOption("ascending nulls first", "asc")
+                    .addOption("ascending nulls last", "asc_nulls_last")
+                    .addOption("descending nulls first", "desc_nulls_first")
+                    .addOption("descending nulls last", "desc"),
                     width="25%",
-                        ),
+                ),
             ],
         )
 
         generationMethod = (
             Condition()
-                .ifEqual(
+            .ifEqual(
                 PropExpr("component.properties.method"),
                 StringExpr("incremental_id"),
             )
-                .then(
+            .then(
                 StepContainer().addElement(
                     Step().addElement(
                         StackLayout(height="100%").addElement(
                             RadioGroup("Record ID Generation Scope")
-                                .addOption(
+                            .addOption(
                                 "Across entire table",
                                 "tableLevel",
                                 description="Generate a unique record ID for each row across the full dataset (no grouping).",
                             )
-                                .addOption(
+                            .addOption(
                                 "Within each group",
                                 "groupLevel",
                                 description="Generate a unique record ID within each group defined by selected column(s).",
                             )
-                                .setOptionType("button")
-                                .setVariant("medium")
-                                .setButtonStyle("solid")
-                                .bindProperty("generationMethod")
+                            .setOptionType("button")
+                            .setVariant("medium")
+                            .setButtonStyle("solid")
+                            .bindProperty("generationMethod")
                         )
                     )
                 )
@@ -122,36 +122,41 @@ class RecordID(MacroSpec):
 
         return Dialog("Macro").addElement(
             ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
+            .addColumn(Ports(), "content")
+            .addColumn(
                 StackLayout(gap="1rem", height="100%")
-                    .addElement(
+                .addElement(
                     SelectBox("Record Id generation method")
-                        .addOption("UUID", "uuid")
-                        .addOption("Incremental ID", "incremental_id")
-                        .bindProperty("method")
-                ).addElement(
+                    .addOption("UUID", "uuid")
+                    .addOption("Incremental ID", "incremental_id")
+                    .bindProperty("method")
+                )
+                .addElement(
                     Condition()
-                        .ifEqual(
+                    .ifEqual(
                         PropExpr("component.properties.method"),
                         StringExpr("uuid"),
-                    ).then(
+                    )
+                    .then(
                         TextBox(
                             "Output Column Name", placeholder="RecordID"
                         ).bindProperty("incremental_id_column_name")
                     )
-                ).addElement(
+                )
+                .addElement(
                     Condition()
-                        .ifEqual(
+                    .ifEqual(
                         PropExpr("component.properties.method"),
                         StringExpr("incremental_id"),
-                    ).then(
+                    )
+                    .then(
                         ColumnsLayout(gap="1rem")
-                            .addColumn(
+                        .addColumn(
                             TextBox(
                                 "Output Column Name", placeholder="RecordID"
                             ).bindProperty("incremental_id_column_name")
-                        ).addColumn(
+                        )
+                        .addColumn(
                             NumberBox(
                                 "Starting Value",
                                 placeholder="1000",
@@ -160,28 +165,30 @@ class RecordID(MacroSpec):
                         )
                     )
                 )
-                    .addElement(
+                .addElement(
                     Condition()
-                        .ifEqual(
+                    .ifEqual(
                         PropExpr("component.properties.method"),
                         StringExpr("incremental_id"),
                     )
-                        .then(
+                    .then(
                         StackLayout().addElement(
                             ColumnsLayout(gap="1rem")
-                                .addColumn(
+                            .addColumn(
                                 SelectBox("Data type")
-                                    .addOption("string", "string")
-                                    .addOption("integer", "integer")
-                                    .bindProperty("incremental_id_type")
+                                .addOption("string", "string")
+                                .addOption("integer", "integer")
+                                .bindProperty("incremental_id_type")
                             )
-                                .addColumn(
+                            .addColumn(
                                 Condition()
-                                    .ifEqual(
-                                    PropExpr("component.properties.incremental_id_type"),
+                                .ifEqual(
+                                    PropExpr(
+                                        "component.properties.incremental_id_type"
+                                    ),
                                     StringExpr("string"),
                                 )
-                                    .then(
+                                .then(
                                     NumberBox(
                                         "Left-pad length",
                                         placeholder="6",
@@ -193,37 +200,39 @@ class RecordID(MacroSpec):
                         )
                     )
                 )
-                    .addElement(
+                .addElement(
                     SelectBox("Column position")
-                        .addOption("add as first column", "first_column")
-                        .addOption("add as last column", "last_column")
-                        .bindProperty("position")
+                    .addOption("add as first column", "first_column")
+                    .addOption("add as last column", "last_column")
+                    .bindProperty("position")
                 )
-                    .addElement(generationMethod)
-                    .addElement(
+                .addElement(generationMethod)
+                .addElement(
                     Condition()
-                        .ifEqual(
+                    .ifEqual(
                         PropExpr("component.properties.generationMethod"),
                         StringExpr("groupLevel"),
                     )
-                        .then(
+                    .then(
                         StepContainer().addElement(
                             Step().addElement(
                                 StackLayout(height="100%")
-                                    .addElement(
+                                .addElement(
                                     TitleElement("Configure Grouping and Sorting")
                                 )
-                                    .addElement(TitleElement("Group By Columns"))
-                                    .addElement(
+                                .addElement(TitleElement("Group By Columns"))
+                                .addElement(
                                     SchemaColumnsDropdown("")
-                                        .withMultipleSelection()
-                                        .bindSchema("component.ports.inputs[0].schema")
-                                        .bindProperty("groupByColumnNames")
+                                    .withMultipleSelection()
+                                    .bindSchema("component.ports.inputs[0].schema")
+                                    .bindProperty("groupByColumnNames")
                                 )
-                                    .addElement(
-                                    TitleElement("Order rows within each group (Optional)")
+                                .addElement(
+                                    TitleElement(
+                                        "Order rows within each group (Optional)"
+                                    )
                                 )
-                                    .addElement(order_by_table.bindProperty("orders"))
+                                .addElement(order_by_table.bindProperty("orders"))
                             )
                         )
                     )
@@ -285,11 +294,18 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     # State change handler
     # -------------------------------------------------------------------------
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         relation_name = self.get_relation_names(newState, context)
-        newProperties = dataclasses.replace(newState.properties, relation_name=relation_name)
+        newProperties = dataclasses.replace(
+            newState.properties, relation_name=relation_name
+        )
 
-        if oldState.properties.method == "incremental_id" and newState.properties.method == "uuid":
+        if (
+            oldState.properties.method == "incremental_id"
+            and newState.properties.method == "uuid"
+        ):
             return newState.bindProperties(
                 dataclasses.replace(newProperties, generationMethod="tableLevel")
             )
@@ -337,10 +353,14 @@ class RecordID(MacroSpec):
             incremental_id_column_name=parametersMap.get("incremental_id_column_name"),
             incremental_id_type=parametersMap.get("incremental_id_type"),
             incremental_id_size=float(parametersMap.get("incremental_id_size")),
-            incremental_id_starting_val=float(parametersMap.get("incremental_id_starting_val")),
+            incremental_id_starting_val=float(
+                parametersMap.get("incremental_id_starting_val")
+            ),
             generationMethod=parametersMap.get("generationMethod"),
             position=parametersMap.get("position"),
-            groupByColumnNames=json.loads(parametersMap.get("groupByColumnNames").replace("'", '"')),
+            groupByColumnNames=json.loads(
+                parametersMap.get("groupByColumnNames").replace("'", '"')
+            ),
             orders=parametersMap.get("orders"),
         )
 
@@ -351,13 +371,22 @@ class RecordID(MacroSpec):
             parameters=[
                 MacroParameter("relation_name", str(properties.relation_name)),
                 MacroParameter("method", properties.method),
-                MacroParameter("incremental_id_column_name", properties.incremental_id_column_name),
+                MacroParameter(
+                    "incremental_id_column_name", properties.incremental_id_column_name
+                ),
                 MacroParameter("incremental_id_type", properties.incremental_id_type),
-                MacroParameter("incremental_id_size", str(properties.incremental_id_size)),
-                MacroParameter("incremental_id_starting_val", str(properties.incremental_id_starting_val)),
+                MacroParameter(
+                    "incremental_id_size", str(properties.incremental_id_size)
+                ),
+                MacroParameter(
+                    "incremental_id_starting_val",
+                    str(properties.incremental_id_starting_val),
+                ),
                 MacroParameter("generationMethod", properties.generationMethod),
                 MacroParameter("position", properties.position),
-                MacroParameter("groupByColumnNames", json.dumps(properties.groupByColumnNames)),
+                MacroParameter(
+                    "groupByColumnNames", json.dumps(properties.groupByColumnNames)
+                ),
                 MacroParameter("orders", str(properties.orders)),
             ],
         )
@@ -367,5 +396,7 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        newProperties = dataclasses.replace(component.properties, relation_name=relation_name)
+        newProperties = dataclasses.replace(
+            component.properties, relation_name=relation_name
+        )
         return component.bindProperties(newProperties)

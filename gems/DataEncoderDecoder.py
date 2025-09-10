@@ -15,7 +15,7 @@ class DataEncoderDecoder(MacroSpec):
     class DataEncoderDecoderProperties(MacroProperties):
         # properties for the component with default values
         relation_name: List[str] = field(default_factory=list)
-        schema: str = ''
+        schema: str = ""
         column_names: List[str] = field(default_factory=list)
         prefix_suffix_option: str = "Prefix"
         new_column_add_method: str = "inplace_substitute"
@@ -55,31 +55,48 @@ class DataEncoderDecoder(MacroSpec):
             PropExpr("component.properties.new_column_add_method"), BooleanExpr(False)
         )
 
-        selectBoxNewColumns = (RadioGroup("")
-                               .addOption("Substitute the new columns in place", "inplace_substitute",
-                                          description=(
-                                              "This option will substitute the original columns to have encoded/decoded value with same name"))
-                               .addOption("Add new columns with a prefix/suffix attached", "prefix_suffix_substitute",
-                                          description="This option will keep the original columns intact and add new columns with added prefix/suffix to respective columns"
-                                          )
-                               .setOptionType("button")
-                               .setVariant("medium")
-                               .setButtonStyle("solid")
-                               .bindProperty("new_column_add_method")
-                               )
+        selectBoxNewColumns = (
+            RadioGroup("")
+            .addOption(
+                "Substitute the new columns in place",
+                "inplace_substitute",
+                description=(
+                    "This option will substitute the original columns to have encoded/decoded value with same name"
+                ),
+            )
+            .addOption(
+                "Add new columns with a prefix/suffix attached",
+                "prefix_suffix_substitute",
+                description="This option will keep the original columns intact and add new columns with added prefix/suffix to respective columns",
+            )
+            .setOptionType("button")
+            .setVariant("medium")
+            .setButtonStyle("solid")
+            .bindProperty("new_column_add_method")
+        )
 
-        encode_decode_params_ui = (
-            StackLayout(gap="1rem", height="100%", direction="vertical", width="100%")
-            .addElement(
-                SelectBox("Charset to use to encode/decode").bindProperty("enc_dec_charSet").withDefault("UTF-8")
-                .addOption("'US-ASCII': Seven-bit ASCII, ISO646-US", "US-ASCII")
-                .addOption("'ISO-8859-1': ISO Latin Alphabet No. 1, ISO-LATIN-1", "ISO-8859-1")
-                .addOption("'UTF-8': Eight-bit UCS Transformation Format", "UTF-8")
-                .addOption("'UTF-16BE': Sixteen-bit UCS Transformation Format, big-endian byte order", "UTF-16BE")
-                .addOption("'UTF-16LE': Sixteen-bit UCS Transformation Format, little-endian byte order", "UTF-16LE")
-                .addOption(
-                    "'UTF-16': Sixteen-bit UCS Transformation Format, byte order identified by an optional byte-order mark",
-                    "UTF-16")
+        encode_decode_params_ui = StackLayout(
+            gap="1rem", height="100%", direction="vertical", width="100%"
+        ).addElement(
+            SelectBox("Charset to use to encode/decode")
+            .bindProperty("enc_dec_charSet")
+            .withDefault("UTF-8")
+            .addOption("'US-ASCII': Seven-bit ASCII, ISO646-US", "US-ASCII")
+            .addOption(
+                "'ISO-8859-1': ISO Latin Alphabet No. 1, ISO-LATIN-1", "ISO-8859-1"
+            )
+            .addOption("'UTF-8': Eight-bit UCS Transformation Format", "UTF-8")
+            .addOption(
+                "'UTF-16BE': Sixteen-bit UCS Transformation Format, big-endian byte order",
+                "UTF-16BE",
+            )
+            .addOption(
+                "'UTF-16LE': Sixteen-bit UCS Transformation Format, little-endian byte order",
+                "UTF-16LE",
+            )
+            .addOption(
+                "'UTF-16': Sixteen-bit UCS Transformation Format, byte order identified by an optional byte-order mark",
+                "UTF-16",
             )
         )
 
@@ -182,74 +199,67 @@ class DataEncoderDecoder(MacroSpec):
         aes_encrypt_params_ui = (
             StackLayout(gap="1rem", height="100%", direction="vertical", width="100%")
             .addElement(
-                StepContainer()
-                .addElement(
-                    Step()
-                    .addElement(
+                StepContainer().addElement(
+                    Step().addElement(
                         StackLayout(height="100%")
-                        .addElement(TitleElement(
-                            "Provide Databricks secret scope/key for encryption key, It must be 16, 24, or 32 bytes long *"))
+                        .addElement(
+                            TitleElement(
+                                "Provide Databricks secret scope/key for encryption key, It must be 16, 24, or 32 bytes long *"
+                            )
+                        )
                         .addElement(
                             ColumnsLayout(gap="1rem", height="100%")
                             .addColumn(
-                                TextBox("Secret Scope").bindProperty("aes_enc_dec_secretScope_key").bindPlaceholder(""),
-                                "50%"
+                                TextBox("Secret Scope")
+                                .bindProperty("aes_enc_dec_secretScope_key")
+                                .bindPlaceholder(""),
+                                "50%",
                             )
                             .addColumn(
-                                TextBox("Secret Key").bindProperty("aes_enc_dec_secretKey_key").bindPlaceholder(""),
-                                "50%"
-                            )
-                        )
-                    )
-                )
-            )
-            .addElement(SelectBox("mode").bindProperty("aes_enc_dec_mode").withDefault("GCM")
-                        .addOption("Galois/Counter Mode (GCM)", "GCM")
-                        .addOption("Cipher-Block Chaining (CBC)", "CBC")
-                        .addOption("Electronic CodeBook (ECB)", "ECB")
-                        )
-            .addElement(
-                Condition().ifEqual(PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("GCM")).then(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
-                            StackLayout(height="100%")
-                            .addElement(TitleElement(
-                                "Provide Databricks secret scope/key for encryption authenticated additional data(AAD)"))
-                            .addElement(
-                                ColumnsLayout(gap="1rem", height="100%")
-                                .addColumn(
-                                    TextBox("Secret Scope").bindProperty("aes_enc_dec_secretScope_aad").bindPlaceholder(
-                                        ""), "50%"
-                                )
-                                .addColumn(
-                                    TextBox("Secret Key").bindProperty("aes_enc_dec_secretKey_aad").bindPlaceholder(""),
-                                    "50%"
-                                )
+                                TextBox("Secret Key")
+                                .bindProperty("aes_enc_dec_secretKey_key")
+                                .bindPlaceholder(""),
+                                "50%",
                             )
                         )
                     )
                 )
             )
             .addElement(
-                Condition().ifEqual(PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("GCM")).then(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
+                SelectBox("mode")
+                .bindProperty("aes_enc_dec_mode")
+                .withDefault("GCM")
+                .addOption("Galois/Counter Mode (GCM)", "GCM")
+                .addOption("Cipher-Block Chaining (CBC)", "CBC")
+                .addOption("Electronic CodeBook (ECB)", "ECB")
+            )
+            .addElement(
+                Condition()
+                .ifEqual(
+                    PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("GCM")
+                )
+                .then(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
-                            .addElement(TitleElement(
-                                "Provide Databricks secret scope/key for initialization vector(iv), STRING expression when specified, must be 12-bytes long"))
+                            .addElement(
+                                TitleElement(
+                                    "Provide Databricks secret scope/key for encryption authenticated additional data(AAD)"
+                                )
+                            )
                             .addElement(
                                 ColumnsLayout(gap="1rem", height="100%")
                                 .addColumn(
-                                    TextBox("Secret Scope").bindProperty("aes_enc_dec_secretScope_iv").bindPlaceholder(
-                                        ""), "50%"
+                                    TextBox("Secret Scope")
+                                    .bindProperty("aes_enc_dec_secretScope_aad")
+                                    .bindPlaceholder(""),
+                                    "50%",
                                 )
                                 .addColumn(
-                                    TextBox("Secret Key").bindProperty("aes_enc_dec_secretKey_iv").bindPlaceholder(""),
-                                    "50%"
+                                    TextBox("Secret Key")
+                                    .bindProperty("aes_enc_dec_secretKey_aad")
+                                    .bindPlaceholder(""),
+                                    "50%",
                                 )
                             )
                         )
@@ -257,23 +267,65 @@ class DataEncoderDecoder(MacroSpec):
                 )
             )
             .addElement(
-                Condition().ifEqual(PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("CBC")).then(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
+                Condition()
+                .ifEqual(
+                    PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("GCM")
+                )
+                .then(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
-                            .addElement(TitleElement(
-                                "Provide Databricks secret scope/key for initialization vector(iv), STRING expression when specified, must be 16-bytes"))
+                            .addElement(
+                                TitleElement(
+                                    "Provide Databricks secret scope/key for initialization vector(iv), STRING expression when specified, must be 12-bytes long"
+                                )
+                            )
                             .addElement(
                                 ColumnsLayout(gap="1rem", height="100%")
                                 .addColumn(
-                                    TextBox("Secret Scope").bindProperty("aes_enc_dec_secretScope_iv").bindPlaceholder(
-                                        ""), "50%"
+                                    TextBox("Secret Scope")
+                                    .bindProperty("aes_enc_dec_secretScope_iv")
+                                    .bindPlaceholder(""),
+                                    "50%",
                                 )
                                 .addColumn(
-                                    TextBox("Secret Key").bindProperty("aes_enc_dec_secretKey_iv").bindPlaceholder(""),
-                                    "50%"
+                                    TextBox("Secret Key")
+                                    .bindProperty("aes_enc_dec_secretKey_iv")
+                                    .bindPlaceholder(""),
+                                    "50%",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+            .addElement(
+                Condition()
+                .ifEqual(
+                    PropExpr("component.properties.aes_enc_dec_mode"), StringExpr("CBC")
+                )
+                .then(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%")
+                            .addElement(
+                                TitleElement(
+                                    "Provide Databricks secret scope/key for initialization vector(iv), STRING expression when specified, must be 16-bytes"
+                                )
+                            )
+                            .addElement(
+                                ColumnsLayout(gap="1rem", height="100%")
+                                .addColumn(
+                                    TextBox("Secret Scope")
+                                    .bindProperty("aes_enc_dec_secretScope_iv")
+                                    .bindPlaceholder(""),
+                                    "50%",
+                                )
+                                .addColumn(
+                                    TextBox("Secret Key")
+                                    .bindProperty("aes_enc_dec_secretKey_iv")
+                                    .bindPlaceholder(""),
+                                    "50%",
                                 )
                             )
                         )
@@ -288,10 +340,8 @@ class DataEncoderDecoder(MacroSpec):
             .addColumn(
                 StackLayout(height="100%")
                 .addElement(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
                             .addElement(TitleElement("Select columns to encode/decode"))
                             .addElement(
@@ -301,12 +351,11 @@ class DataEncoderDecoder(MacroSpec):
                                 .bindProperty("column_names")
                             )
                         )
-                    ))
+                    )
+                )
                 .addElement(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
                             .addElement(TitleElement("Select encode / decode option"))
                             .addElement(
@@ -325,9 +374,7 @@ class DataEncoderDecoder(MacroSpec):
                                 # .addOption("try_aes_decrypt", "try_aes_decrypt")
                             )
                             .addElement(
-                                aes_encrypt_condition.then(
-                                    aes_encrypt_params_ui
-                                )
+                                aes_encrypt_condition.then(aes_encrypt_params_ui)
                             )
                             # .addElement(
                             #     aes_decrypt_condition.then(
@@ -339,42 +386,40 @@ class DataEncoderDecoder(MacroSpec):
                             #         try_aes_decrypt_params_ui
                             #     )
                             # )
-                            .addElement(
-                                encode_condition.then(
-                                    encode_decode_params_ui
-                                )
-                            )
-                            .addElement(
-                                decode_condition.then(
-                                    encode_decode_params_ui
-                                )
-                            )
+                            .addElement(encode_condition.then(encode_decode_params_ui))
+                            .addElement(decode_condition.then(encode_decode_params_ui))
                         )
                     )
                 )
                 .addElement(
-                    StepContainer()
-                    .addElement(
-                        Step()
-                        .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
                             .addElement(TitleElement("Transformed column options"))
+                            .addElement(selectBoxNewColumns)
                             .addElement(
-                                selectBoxNewColumns
-                            )
-                            .addElement(
-                                Condition().ifEqual(PropExpr("component.properties.new_column_add_method"),
-                                                    StringExpr("prefix_suffix_substitute")).then(
+                                Condition()
+                                .ifEqual(
+                                    PropExpr(
+                                        "component.properties.new_column_add_method"
+                                    ),
+                                    StringExpr("prefix_suffix_substitute"),
+                                )
+                                .then(
                                     StackLayout(height="100%").addElement(
                                         ColumnsLayout(gap="1rem", height="100%")
                                         .addColumn(
-                                            SelectBox("Select type").addOption("Prefix", "Prefix").addOption("Suffix",
-                                                                                                             "Suffix").bindProperty(
-                                                "prefix_suffix_option"), "50%"
+                                            SelectBox("Select type")
+                                            .addOption("Prefix", "Prefix")
+                                            .addOption("Suffix", "Suffix")
+                                            .bindProperty("prefix_suffix_option"),
+                                            "50%",
                                         )
                                         .addColumn(
-                                            TextBox("Enter the value").bindPlaceholder("Example: new_").bindProperty(
-                                                "prefix_suffix_added"), "50%"
+                                            TextBox("Enter the value")
+                                            .bindPlaceholder("Example: new_")
+                                            .bindProperty("prefix_suffix_added"),
+                                            "50%",
                                         )
                                     )
                                 )
@@ -410,73 +455,102 @@ class DataEncoderDecoder(MacroSpec):
 
         if len(component.properties.column_names) == 0:
             diagnostics.append(
-                Diagnostic("component.properties.column_names",
-                           f"Select atleast one column from the input port dataset dropdown", SeverityLevelEnum.Error)
+                Diagnostic(
+                    "component.properties.column_names",
+                    f"Select atleast one column from the input port dataset dropdown",
+                    SeverityLevelEnum.Error,
+                )
             )
         if len(component.properties.column_names) > 0:
-            missingKeyColumns = [col for col in component.properties.column_names if
-                                 col not in schema_columns]
+            missingKeyColumns = [
+                col
+                for col in component.properties.column_names
+                if col not in schema_columns
+            ]
             if missingKeyColumns:
                 diagnostics.append(
-                    Diagnostic("component.properties.column_names",
-                               f"Selected columns {missingKeyColumns} are not present in input schema.",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.column_names",
+                        f"Selected columns {missingKeyColumns} are not present in input schema.",
+                        SeverityLevelEnum.Error,
+                    )
                 )
         if component.properties.new_column_add_method == "prefix_suffix_substitute":
             if component.properties.prefix_suffix_option is None:
                 diagnostics.append(
-                    Diagnostic("component.properties.prefix_suffix_option",
-                               f"Select atleast one option Prefix/Suffix for new column names", SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.prefix_suffix_option",
+                        f"Select atleast one option Prefix/Suffix for new column names",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if component.properties.prefix_suffix_added is None:
                 diagnostics.append(
-                    Diagnostic("component.properties.prefix_suffix_option",
-                               f"Enter the prefix/suffix text to be added to new column", SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.prefix_suffix_option",
+                        f"Enter the prefix/suffix text to be added to new column",
+                        SeverityLevelEnum.Error,
+                    )
                 )
         if enc_dec_method == "":
             diagnostics.append(
-                Diagnostic("component.properties.enc_dec_method",
-                           f"Select one encoding/decoding method from the listed dropdown", SeverityLevelEnum.Error)
+                Diagnostic(
+                    "component.properties.enc_dec_method",
+                    f"Select one encoding/decoding method from the listed dropdown",
+                    SeverityLevelEnum.Error,
+                )
             )
 
         if doing_aes_encryption is not None:
             if aes_enc_dec_secretScope_key == "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretScope_key",
-                               f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} key should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretScope_key",
+                        f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} key should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if aes_enc_dec_secretKey_key == "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretKey_key",
-                               f"Secret key for {'encryption' if doing_aes_encryption == True else 'decryption'} key should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretKey_key",
+                        f"Secret key for {'encryption' if doing_aes_encryption == True else 'decryption'} key should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
 
             if aes_enc_dec_secretScope_aad == "" and aes_enc_dec_secretKey_aad != "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretScope_aad",
-                               f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} AAD should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretScope_aad",
+                        f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} AAD should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if aes_enc_dec_secretScope_aad != "" and aes_enc_dec_secretKey_aad == "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretKey_aad",
-                               f"Secret Key for {'encryption' if doing_aes_encryption == True else 'decryption'} AAD should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretKey_aad",
+                        f"Secret Key for {'encryption' if doing_aes_encryption == True else 'decryption'} AAD should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
 
             if aes_enc_dec_secretScope_iv == "" and aes_enc_dec_secretKey_iv != "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretScope_iv",
-                               f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} iv should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretScope_iv",
+                        f"Secret scope for {'encryption' if doing_aes_encryption == True else 'decryption'} iv should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if aes_enc_dec_secretScope_iv != "" and aes_enc_dec_secretKey_iv == "":
                 diagnostics.append(
-                    Diagnostic("component.properties.aes_enc_dec_secretKey_iv",
-                               f"Secret Key for {'encryption' if doing_aes_encryption == True else 'decryption'} iv should not be empty",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.aes_enc_dec_secretKey_iv",
+                        f"Secret Key for {'encryption' if doing_aes_encryption == True else 'decryption'} iv should not be empty",
+                        SeverityLevelEnum.Error,
+                    )
                 )
 
         return diagnostics
@@ -500,20 +574,44 @@ class DataEncoderDecoder(MacroSpec):
 
         return relation_name
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
-        old_enc_method, old_enc_mode = oldState.properties.enc_dec_method, oldState.properties.aes_enc_dec_mode
-        new_enc_method, new_enc_mode = newState.properties.enc_dec_method, newState.properties.aes_enc_dec_mode
+        old_enc_method, old_enc_mode = (
+            oldState.properties.enc_dec_method,
+            oldState.properties.aes_enc_dec_mode,
+        )
+        new_enc_method, new_enc_mode = (
+            newState.properties.enc_dec_method,
+            newState.properties.aes_enc_dec_mode,
+        )
 
         if old_enc_method != new_enc_method or old_enc_mode != new_enc_mode:
-            aes_enc_dec_secretScope_key, aes_enc_dec_secretKey_key, aes_enc_dec_secretScope_iv, aes_enc_dec_secretKey_iv, aes_enc_dec_secretScope_aad, aes_enc_dec_secretKey_aad = "", "", "", "", "", ""
+            (
+                aes_enc_dec_secretScope_key,
+                aes_enc_dec_secretKey_key,
+                aes_enc_dec_secretScope_iv,
+                aes_enc_dec_secretKey_iv,
+                aes_enc_dec_secretScope_aad,
+                aes_enc_dec_secretKey_aad,
+            ) = ("", "", "", "", "", "")
         else:
-            aes_enc_dec_secretScope_iv, aes_enc_dec_secretKey_iv = newState.properties.aes_enc_dec_secretScope_iv, newState.properties.aes_enc_dec_secretKey_iv
-            aes_enc_dec_secretScope_aad, aes_enc_dec_secretKey_aad = newState.properties.aes_enc_dec_secretScope_aad, newState.properties.aes_enc_dec_secretKey_aad
+            aes_enc_dec_secretScope_iv, aes_enc_dec_secretKey_iv = (
+                newState.properties.aes_enc_dec_secretScope_iv,
+                newState.properties.aes_enc_dec_secretKey_iv,
+            )
+            aes_enc_dec_secretScope_aad, aes_enc_dec_secretKey_aad = (
+                newState.properties.aes_enc_dec_secretScope_aad,
+                newState.properties.aes_enc_dec_secretKey_aad,
+            )
 
         newProperties = dataclasses.replace(
             newState.properties,
@@ -522,7 +620,7 @@ class DataEncoderDecoder(MacroSpec):
             aes_enc_dec_secretScope_iv=aes_enc_dec_secretScope_iv,
             aes_enc_dec_secretKey_iv=aes_enc_dec_secretKey_iv,
             aes_enc_dec_secretScope_aad=aes_enc_dec_secretScope_aad,
-            aes_enc_dec_secretKey_aad=aes_enc_dec_secretKey_aad
+            aes_enc_dec_secretKey_aad=aes_enc_dec_secretKey_aad,
         )
         return newState.bindProperties(newProperties)
 
@@ -530,8 +628,10 @@ class DataEncoderDecoder(MacroSpec):
         # Generate the actual macro call given the component's state
         table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        schema_columns = [js['name'] for js in json.loads(props.schema)]
-        remaining_columns = ", ".join(list(set(schema_columns) - set(props.column_names)))
+        schema_columns = [js["name"] for js in json.loads(props.schema)]
+        remaining_columns = ", ".join(
+            list(set(schema_columns) - set(props.column_names))
+        )
 
         def safe_str(val):
             if val is None or val == "":
@@ -555,7 +655,7 @@ class DataEncoderDecoder(MacroSpec):
             safe_str(props.aes_enc_dec_secretKey_iv),
             safe_str(props.prefix_suffix_option),
             safe_str(props.new_column_add_method),
-            safe_str(props.prefix_suffix_added)
+            safe_str(props.prefix_suffix_added),
         ]
 
         params = ",".join(arguments)
@@ -565,21 +665,27 @@ class DataEncoderDecoder(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return DataEncoderDecoder.DataEncoderDecoderProperties(
-            relation_name=parametersMap.get('relation_name'),
-            schema=parametersMap.get('schema'),
-            column_names=json.loads(parametersMap.get('column_names').replace("'", '"')),
-            enc_dec_method=parametersMap.get('enc_dec_method'),
-            enc_dec_charSet=parametersMap.get('enc_dec_charSet'),
-            aes_enc_dec_secretScope_key=parametersMap.get('aes_enc_dec_secretScope_key'),
-            aes_enc_dec_secretKey_key=parametersMap.get('aes_enc_dec_secretKey_key'),
-            aes_enc_dec_mode=parametersMap.get('aes_enc_dec_mode'),
-            aes_enc_dec_secretScope_aad=parametersMap.get('aes_enc_dec_secretScope_aad'),
-            aes_enc_dec_secretKey_aad=parametersMap.get('aes_enc_dec_secretKey_aad'),
-            aes_enc_dec_secretScope_iv=parametersMap.get('aes_enc_dec_secretScope_iv'),
-            aes_enc_dec_secretKey_iv=parametersMap.get('aes_enc_dec_secretKey_iv'),
-            prefix_suffix_option=parametersMap.get('prefix_suffix_option'),
-            new_column_add_method=parametersMap.get('new_column_add_method'),
-            prefix_suffix_added=parametersMap.get('prefix_suffix_added')
+            relation_name=parametersMap.get("relation_name"),
+            schema=parametersMap.get("schema"),
+            column_names=json.loads(
+                parametersMap.get("column_names").replace("'", '"')
+            ),
+            enc_dec_method=parametersMap.get("enc_dec_method"),
+            enc_dec_charSet=parametersMap.get("enc_dec_charSet"),
+            aes_enc_dec_secretScope_key=parametersMap.get(
+                "aes_enc_dec_secretScope_key"
+            ),
+            aes_enc_dec_secretKey_key=parametersMap.get("aes_enc_dec_secretKey_key"),
+            aes_enc_dec_mode=parametersMap.get("aes_enc_dec_mode"),
+            aes_enc_dec_secretScope_aad=parametersMap.get(
+                "aes_enc_dec_secretScope_aad"
+            ),
+            aes_enc_dec_secretKey_aad=parametersMap.get("aes_enc_dec_secretKey_aad"),
+            aes_enc_dec_secretScope_iv=parametersMap.get("aes_enc_dec_secretScope_iv"),
+            aes_enc_dec_secretKey_iv=parametersMap.get("aes_enc_dec_secretKey_iv"),
+            prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
+            new_column_add_method=parametersMap.get("new_column_add_method"),
+            prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -593,27 +699,53 @@ class DataEncoderDecoder(MacroSpec):
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("enc_dec_method", str(properties.enc_dec_method)),
                 MacroParameter("enc_dec_charSet", str(properties.enc_dec_charSet)),
-                MacroParameter("aes_enc_dec_secretScope_key", str(properties.aes_enc_dec_secretScope_key)),
-                MacroParameter("aes_enc_dec_secretKey_key", str(properties.aes_enc_dec_secretKey_key)),
+                MacroParameter(
+                    "aes_enc_dec_secretScope_key",
+                    str(properties.aes_enc_dec_secretScope_key),
+                ),
+                MacroParameter(
+                    "aes_enc_dec_secretKey_key",
+                    str(properties.aes_enc_dec_secretKey_key),
+                ),
                 MacroParameter("aes_enc_dec_mode", str(properties.aes_enc_dec_mode)),
-                MacroParameter("aes_enc_dec_secretScope_aad", str(properties.aes_enc_dec_secretScope_aad)),
-                MacroParameter("aes_enc_dec_secretKey_aad", str(properties.aes_enc_dec_secretKey_aad)),
-                MacroParameter("aes_enc_dec_secretScope_iv", str(properties.aes_enc_dec_secretScope_iv)),
-                MacroParameter("aes_enc_dec_secretKey_iv", str(properties.aes_enc_dec_secretKey_iv)),
-                MacroParameter("prefix_suffix_option", str(properties.prefix_suffix_option)),
-                MacroParameter("new_column_add_method", str(properties.new_column_add_method)),
-                MacroParameter("prefix_suffix_added", str(properties.prefix_suffix_added))
+                MacroParameter(
+                    "aes_enc_dec_secretScope_aad",
+                    str(properties.aes_enc_dec_secretScope_aad),
+                ),
+                MacroParameter(
+                    "aes_enc_dec_secretKey_aad",
+                    str(properties.aes_enc_dec_secretKey_aad),
+                ),
+                MacroParameter(
+                    "aes_enc_dec_secretScope_iv",
+                    str(properties.aes_enc_dec_secretScope_iv),
+                ),
+                MacroParameter(
+                    "aes_enc_dec_secretKey_iv", str(properties.aes_enc_dec_secretKey_iv)
+                ),
+                MacroParameter(
+                    "prefix_suffix_option", str(properties.prefix_suffix_option)
+                ),
+                MacroParameter(
+                    "new_column_add_method", str(properties.new_column_add_method)
+                ),
+                MacroParameter(
+                    "prefix_suffix_added", str(properties.prefix_suffix_added)
+                ),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return component.bindProperties(newProperties)

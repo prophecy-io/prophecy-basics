@@ -15,58 +15,67 @@ class CountRecords(MacroSpec):
     class CountRecordsProperties(MacroProperties):
         # properties for the component with default values
         relation_name: List[str] = field(default_factory=list)
-        schema: str = ''
+        schema: str = ""
         column_names: List[str] = field(default_factory=list)
         count_method: str = "count_all_records"
 
     def dialog(self) -> Dialog:
-        count_radio_box = (RadioGroup("Select count option")
-                           .addOption("Count total number of records", "count_all_records",
-                                      description=("This option will return the total row count of input table"))
-                           .addOption("Count non-null records in selected columns",
-                                      "count_non_null_records",
-                                      description="This option will return the total row count excluding NULLs for the selected column(s)"
-                                      )
-                           .addOption("Count distinct non-null records in selected columns",
-                                      "count_distinct_records",
-                                      description="This option will return the distinct row count excluding NULLs for the selected column(s)"
-                                      )
-                           .setOptionType("button")
-                           .setVariant("medium")
-                           .setButtonStyle("solid")
-                           .bindProperty("count_method")
-                           )
+        count_radio_box = (
+            RadioGroup("Select count option")
+            .addOption(
+                "Count total number of records",
+                "count_all_records",
+                description=(
+                    "This option will return the total row count of input table"
+                ),
+            )
+            .addOption(
+                "Count non-null records in selected columns",
+                "count_non_null_records",
+                description="This option will return the total row count excluding NULLs for the selected column(s)",
+            )
+            .addOption(
+                "Count distinct non-null records in selected columns",
+                "count_distinct_records",
+                description="This option will return the distinct row count excluding NULLs for the selected column(s)",
+            )
+            .setOptionType("button")
+            .setVariant("medium")
+            .setButtonStyle("solid")
+            .bindProperty("count_method")
+        )
 
         dialog = Dialog("count_records_dialog_box").addElement(
             ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
+            .addColumn(Ports(), "content")
+            .addColumn(
                 StackLayout(height="100%")
-                    .addElement(
-                    StepContainer()
-                        .addElement(
-                        Step()
-                            .addElement(
-                            count_radio_box
-                        )
-                    )
+                .addElement(
+                    StepContainer().addElement(Step().addElement(count_radio_box))
                 )
-                    .addElement(
-                    Condition().ifNotEqual(PropExpr("component.properties.count_method"),
-                                        StringExpr("count_all_records")).then(
-                        StepContainer()
-                            .addElement(
-                            Step()
-                                .addElement(
-                                Condition().ifNotEqual(
-                                    PropExpr("component.properties.count_method"), StringExpr("count_all_records")
-                                ).then(
+                .addElement(
+                    Condition()
+                    .ifNotEqual(
+                        PropExpr("component.properties.count_method"),
+                        StringExpr("count_all_records"),
+                    )
+                    .then(
+                        StepContainer().addElement(
+                            Step().addElement(
+                                Condition()
+                                .ifNotEqual(
+                                    PropExpr("component.properties.count_method"),
+                                    StringExpr("count_all_records"),
+                                )
+                                .then(
                                     StackLayout(height="100%")
-                                        .addElement(TitleElement("Select columns to count"))
-                                        .addElement(SchemaColumnsDropdown("", appearance="minimal")
-                                                    .withMultipleSelection()
-                                                    .bindSchema("component.ports.inputs[0].schema")
-                                                    .bindProperty("column_names"))
+                                    .addElement(TitleElement("Select columns to count"))
+                                    .addElement(
+                                        SchemaColumnsDropdown("", appearance="minimal")
+                                        .withMultipleSelection()
+                                        .bindSchema("component.ports.inputs[0].schema")
+                                        .bindProperty("column_names")
+                                    )
                                 )
                             )
                         )
@@ -82,17 +91,25 @@ class CountRecords(MacroSpec):
         if component.properties.count_method == "count_non_null_records":
             if len(component.properties.column_names) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.column_names", f"Select atleast one column to get count",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.column_names",
+                        f"Select atleast one column to get count",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             elif len(component.properties.column_names) > 0:
-                missingKeyColumns = [col for col in component.properties.column_names if
-                                     col not in component.properties.schema]
+                missingKeyColumns = [
+                    col
+                    for col in component.properties.column_names
+                    if col not in component.properties.schema
+                ]
                 if missingKeyColumns:
                     diagnostics.append(
-                        Diagnostic("component.properties.column_names",
-                                   f"Selected columns {missingKeyColumns} are not present in input schema - {component.properties.schema}.",
-                                   SeverityLevelEnum.Error)
+                        Diagnostic(
+                            "component.properties.column_names",
+                            f"Selected columns {missingKeyColumns} are not present in input schema - {component.properties.schema}.",
+                            SeverityLevelEnum.Error,
+                        )
                     )
         return diagnostics
 
@@ -115,16 +132,21 @@ class CountRecords(MacroSpec):
 
         return relation_name
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
             newState.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return newState.bindProperties(newProperties)
 
@@ -143,7 +165,7 @@ class CountRecords(MacroSpec):
         arguments = [
             safe_str(table_name),
             safe_str(props.column_names),
-            safe_str(props.count_method)
+            safe_str(props.count_method),
         ]
 
         params = ",".join(arguments)
@@ -153,10 +175,12 @@ class CountRecords(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return CountRecords.CountRecordsProperties(
-            relation_name=parametersMap.get('relation_name'),
-            schema=parametersMap.get('schema'),
-            column_names=json.loads(parametersMap.get('column_names').replace("'", '"')),
-            count_method=parametersMap.get('count_method')
+            relation_name=parametersMap.get("relation_name"),
+            schema=parametersMap.get("schema"),
+            column_names=json.loads(
+                parametersMap.get("column_names").replace("'", '"')
+            ),
+            count_method=parametersMap.get("count_method"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -168,18 +192,21 @@ class CountRecords(MacroSpec):
                 MacroParameter("relation_name", str(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
-                MacroParameter("count_method", str(properties.count_method))
-            ]
+                MacroParameter("count_method", str(properties.count_method)),
+            ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
