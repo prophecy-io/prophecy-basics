@@ -16,7 +16,7 @@ class Transpose(MacroSpec):
     @dataclass(frozen=True)
     class TransposeProperties(MacroProperties):
         # properties for the component with default values
-        schema: str = ''
+        schema: str = ""
         relation_name: List[str] = field(default_factory=list)
         keyColumns: Optional[List[str]] = field(default_factory=list)
         dataColumns: Optional[List[str]] = field(default_factory=list)
@@ -47,55 +47,66 @@ class Transpose(MacroSpec):
         # Define the UI dialog structure for the component
         return Dialog("Transpose").addElement(
             ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
+            .addColumn(Ports(), "content")
+            .addColumn(
                 StackLayout(height=("100%"))
-                    .addElement(
-                    StepContainer()
-                        .addElement(
-                        Step()
-                            .addElement(
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
                             StackLayout(height="100%")
-                                .addElement(
-                                SchemaColumnsDropdown("Key Columns", appearance="minimal")
-                                    .withMultipleSelection()
-                                    .bindSchema("component.ports.inputs[0].schema")
-                                    .bindProperty("keyColumns")
-                                    .showErrorsFor("keyColumns")
+                            .addElement(
+                                SchemaColumnsDropdown(
+                                    "Key Columns", appearance="minimal"
+                                )
+                                .withMultipleSelection()
+                                .bindSchema("component.ports.inputs[0].schema")
+                                .bindProperty("keyColumns")
+                                .showErrorsFor("keyColumns")
                             )
-                                .addElement(
-                                SchemaColumnsDropdown("Data Columns", appearance="minimal")
-                                    .withMultipleSelection()
-                                    .bindSchema("component.ports.inputs[0].schema")
-                                    .bindProperty("dataColumns")
-                                    .showErrorsFor("dataColumns")
+                            .addElement(
+                                SchemaColumnsDropdown(
+                                    "Data Columns", appearance="minimal"
+                                )
+                                .withMultipleSelection()
+                                .bindSchema("component.ports.inputs[0].schema")
+                                .bindProperty("dataColumns")
+                                .showErrorsFor("dataColumns")
                             )
                         )
                     )
                 )
-                    .addElement(
-                    Checkbox("Use custom output column names for Name & Value pairs").bindProperty("customNames"))
-                    .addElement(
+                .addElement(
+                    Checkbox(
+                        "Use custom output column names for Name & Value pairs"
+                    ).bindProperty("customNames")
+                )
+                .addElement(
                     Condition()
-                        .ifEqual(
+                    .ifEqual(
                         PropExpr("component.properties.customNames"),
                         BooleanExpr(True),
                     )
-                        .then(
-                        StepContainer()
-                            .addElement(
-                            Step()
-                                .addElement(
+                    .then(
+                        StepContainer().addElement(
+                            Step().addElement(
                                 ColumnsLayout(gap="1rem", height="100%")
-                                    .addColumn(TextBox("Name Column", placeholder="Name").bindProperty("nameColumn"),
-                                               "1fr")
-                                    .addColumn(TextBox("Value Column", placeholder="Value").bindProperty("valueColumn"),
-                                               "1fr")
+                                .addColumn(
+                                    TextBox(
+                                        "Name Column", placeholder="Name"
+                                    ).bindProperty("nameColumn"),
+                                    "1fr",
+                                )
+                                .addColumn(
+                                    TextBox(
+                                        "Value Column", placeholder="Value"
+                                    ).bindProperty("valueColumn"),
+                                    "1fr",
+                                )
                             )
                         )
                     )
                 )
-                    .addElement(
+                .addElement(
                     AlertBox(
                         variant="success",
                         _children=[
@@ -113,10 +124,10 @@ class Transpose(MacroSpec):
                                 "| 1  | USA     | sales | 100   |\n"
                                 "| 1  | USA     | cost  | 50    |"
                             )
-                        ]
+                        ],
                     )
                 ),
-                "5fr"
+                "5fr",
             )
         )
 
@@ -126,20 +137,40 @@ class Transpose(MacroSpec):
 
         if not component.properties.dataColumns:
             diagnostics.append(
-                Diagnostic("properties.dataColumns", f"Data columns can't be empty.", SeverityLevelEnum.Error)
+                Diagnostic(
+                    "properties.dataColumns",
+                    f"Data columns can't be empty.",
+                    SeverityLevelEnum.Error,
+                )
             )
 
-        if component.properties.customNames and len(component.properties.nameColumn) == 0:
+        if (
+            component.properties.customNames
+            and len(component.properties.nameColumn) == 0
+        ):
             diagnostics.append(
-                Diagnostic("properties.nameColumn", f"Name column can't be empty.", SeverityLevelEnum.Error)
+                Diagnostic(
+                    "properties.nameColumn",
+                    f"Name column can't be empty.",
+                    SeverityLevelEnum.Error,
+                )
             )
 
-        if component.properties.customNames and len(component.properties.valueColumn) == 0:
+        if (
+            component.properties.customNames
+            and len(component.properties.valueColumn) == 0
+        ):
             diagnostics.append(
-                Diagnostic("properties.valueColumn", f"Value column can't be empty.", SeverityLevelEnum.Error)
+                Diagnostic(
+                    "properties.valueColumn",
+                    f"Value column can't be empty.",
+                    SeverityLevelEnum.Error,
+                )
             )
 
-        schemaFields = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schemaFields = json.loads(
+            str(component.ports.inputs[0].schema).replace("'", '"')
+        )
         fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
         missingDataColumns = []
         for col in component.properties.dataColumns:
@@ -148,9 +179,11 @@ class Transpose(MacroSpec):
 
         if missingDataColumns:
             diagnostics.append(
-                Diagnostic("properties.dataColumns",
-                           f"Data columns {missingDataColumns} are not present in input schema.",
-                           SeverityLevelEnum.Error)
+                Diagnostic(
+                    "properties.dataColumns",
+                    f"Data columns {missingDataColumns} are not present in input schema.",
+                    SeverityLevelEnum.Error,
+                )
             )
 
         missingKeyColumns = []
@@ -160,24 +193,40 @@ class Transpose(MacroSpec):
 
         if missingKeyColumns:
             diagnostics.append(
-                Diagnostic("properties.keyColumns", f"Key columns {missingKeyColumns} are not present in input schema.",
-                           SeverityLevelEnum.Error)
+                Diagnostic(
+                    "properties.keyColumns",
+                    f"Key columns {missingKeyColumns} are not present in input schema.",
+                    SeverityLevelEnum.Error,
+                )
             )
 
         return diagnostics
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
             newState.properties,
             schema=json.dumps(fields_array),
-            nameColumn="Name" if not newState.properties.customNames else newState.properties.nameColumn,
-            valueColumn="Value" if not newState.properties.customNames else newState.properties.valueColumn,
-            relation_name=relation_name
+            nameColumn=(
+                "Name"
+                if not newState.properties.customNames
+                else newState.properties.nameColumn
+            ),
+            valueColumn=(
+                "Value"
+                if not newState.properties.customNames
+                else newState.properties.valueColumn
+            ),
+            relation_name=relation_name,
         )
         return newState.bindProperties(newProperties)
 
@@ -196,23 +245,23 @@ class Transpose(MacroSpec):
             str(props.dataColumns),
             "'" + props.nameColumn + "'",
             "'" + props.valueColumn + "'",
-            str(allColumnNames)
+            str(allColumnNames),
         ]
 
         params = ",".join([param for param in arguments])
-        return f'{{{{ {resolved_macro_name}({params}) }}}}'
+        return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
 
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return Transpose.TransposeProperties(
-            relation_name=parametersMap.get('relation_name'),
-            schema=parametersMap.get('schema'),
-            nameColumn=parametersMap.get('nameColumn'),
-            valueColumn=parametersMap.get('valueColumn'),
-            keyColumns=json.loads(parametersMap.get('keyColumns').replace("'", '"')),
-            dataColumns=json.loads(parametersMap.get('dataColumns').replace("'", '"'))
+            relation_name=parametersMap.get("relation_name"),
+            schema=parametersMap.get("schema"),
+            nameColumn=parametersMap.get("nameColumn"),
+            valueColumn=parametersMap.get("valueColumn"),
+            keyColumns=json.loads(parametersMap.get("keyColumns").replace("'", '"')),
+            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -226,18 +275,21 @@ class Transpose(MacroSpec):
                 MacroParameter("nameColumn", str(properties.nameColumn)),
                 MacroParameter("valueColumn", str(properties.valueColumn)),
                 MacroParameter("keyColumns", json.dumps(properties.keyColumns)),
-                MacroParameter("dataColumns", json.dumps(properties.dataColumns))
+                MacroParameter("dataColumns", json.dumps(properties.dataColumns)),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return component.bindProperties(newProperties)

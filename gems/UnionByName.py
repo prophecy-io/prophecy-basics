@@ -6,6 +6,7 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+
 class UnionByName(MacroSpec):
     name: str = "UnionByName"
     projectName: str = "prophecy_basics"
@@ -14,12 +15,13 @@ class UnionByName(MacroSpec):
 
     @dataclass(frozen=True)
     class UnionByNameProperties(MacroProperties):
-        relation_name: List[str] = field(default_factory=list)   # labels of upstream nodes
-        schemas: List[str]       = field(default_factory=list)   # JSON strings, one per port
-        missingColumnOps: str    = "allowMissingColumns"
+        relation_name: List[str] = field(
+            default_factory=list
+        )  # labels of upstream nodes
+        schemas: List[str] = field(default_factory=list)  # JSON strings, one per port
+        missingColumnOps: str = "allowMissingColumns"
 
-
-    def get_relation_names(self,component: Component, context: SqlContext):
+    def get_relation_names(self, component: Component, context: SqlContext):
         all_upstream_nodes = []
         for inputPort in component.ports.inputs:
             upstreamNode = None
@@ -38,34 +40,29 @@ class UnionByName(MacroSpec):
 
         return relation_name
 
-
     def dialog(self) -> Dialog:
-        return (
-            Dialog("Macro")
-                .addElement(
-                ColumnsLayout(gap="1rem", height="100%")
-                    .addColumn(Ports(allowInputAddOrDelete=True), "content")
-                    .addColumn(
-                    StackLayout()
-                        .addElement(
-                        RadioGroup("")
-                            .addOption(
-                            "Union By Name (No Missing Column)",
-                            "nameBasedUnionOperation",
-                            ("UnionAll"),
-                            ("Union of DataFrames with identical column sets")
-                        )
-                            .addOption(
-                            "Union By Name (Allow Missing Columns)",
-                            "allowMissingColumns",
-                            ("UnionAll"),
-                            ("Aligns by name; fills missing columns with NULLs")
-                        )
-                            .setOptionType("button")
-                            .setVariant("large")
-                            .setButtonStyle("solid")
-                            .bindProperty("missingColumnOps")
+        return Dialog("Macro").addElement(
+            ColumnsLayout(gap="1rem", height="100%")
+            .addColumn(Ports(allowInputAddOrDelete=True), "content")
+            .addColumn(
+                StackLayout().addElement(
+                    RadioGroup("")
+                    .addOption(
+                        "Union By Name (No Missing Column)",
+                        "nameBasedUnionOperation",
+                        ("UnionAll"),
+                        ("Union of DataFrames with identical column sets"),
                     )
+                    .addOption(
+                        "Union By Name (Allow Missing Columns)",
+                        "allowMissingColumns",
+                        ("UnionAll"),
+                        ("Aligns by name; fills missing columns with NULLs"),
+                    )
+                    .setOptionType("button")
+                    .setVariant("large")
+                    .setButtonStyle("solid")
+                    .bindProperty("missingColumnOps")
                 )
             )
         )
@@ -73,7 +70,6 @@ class UnionByName(MacroSpec):
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(UnionByName, self).validate(context, component)
         return diagnostics
-
 
     def _extract_schemas(self, component: Component):
         """Return list[str] – one compact JSON blob per input port."""
@@ -91,14 +87,13 @@ class UnionByName(MacroSpec):
         new_props = dataclasses.replace(
             newState.properties,
             relation_name=self.get_relation_names(newState, context),
-            schemas=self._extract_schemas(newState)
+            schemas=self._extract_schemas(newState),
         )
         return newState.bindProperties(new_props)
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(UnionByName, self).validate(context, component)
         return diagnostics
-
 
     def apply(self, props: UnionByNameProperties) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -111,7 +106,6 @@ class UnionByName(MacroSpec):
 
         call = f"{{{{ {resolved_macro_name}({relation_arg}, {schemas_arg}, '{props.missingColumnOps}') }}}}"
         return call
-
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         pm = self.convertToParameterMap(properties.parameters)
@@ -127,16 +121,15 @@ class UnionByName(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("schemas",       json.dumps(properties.schemas)),
+                MacroParameter("schemas", json.dumps(properties.schemas)),
                 MacroParameter("missingColumnOps", properties.missingColumnOps),
             ],
         )
-
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         new_props = dataclasses.replace(
             component.properties,
             relation_name=self.get_relation_names(component, context),
-            schemas=self._extract_schemas(component)
+            schemas=self._extract_schemas(component),
         )
         return component.bindProperties(new_props)

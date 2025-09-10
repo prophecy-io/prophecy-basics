@@ -20,7 +20,7 @@ class JSONParse(MacroSpec):
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
-    def get_relation_names(self,component: Component, context: SqlContext):
+    def get_relation_names(self, component: Component, context: SqlContext):
         all_upstream_nodes = []
         for inputPort in component.ports.inputs:
             upstreamNode = None
@@ -40,18 +40,29 @@ class JSONParse(MacroSpec):
         return relation_name
 
     def dialog(self) -> Dialog:
-        methodRadioGroup = RadioGroup("Parsing method") \
-            .addOption("Parse from sample record", "parseFromSampleRecord", description=(
-            "Provide a sample record to parse the schema from")) \
-            .addOption("Parse from schema", "parseFromSchema",
-                       description="Provide sample schema in SQL struct format to parse the data with") \
-            .setOptionType("button") \
-            .setVariant("medium") \
-            .setButtonStyle("solid") \
+        methodRadioGroup = (
+            RadioGroup("Parsing method")
+            .addOption(
+                "Parse from sample record",
+                "parseFromSampleRecord",
+                description=("Provide a sample record to parse the schema from"),
+            )
+            .addOption(
+                "Parse from schema",
+                "parseFromSchema",
+                description="Provide sample schema in SQL struct format to parse the data with",
+            )
+            .setOptionType("button")
+            .setVariant("medium")
+            .setButtonStyle("solid")
             .bindProperty("parsingMethod")
+        )
 
-        sampleRecordTextJSON = TextArea("Sample JSON record to parse schema from", 20).bindProperty(
-            "sampleRecord").bindPlaceholder("""{
+        sampleRecordTextJSON = (
+            TextArea("Sample JSON record to parse schema from", 20)
+            .bindProperty("sampleRecord")
+            .bindPlaceholder(
+                """{
   "root": {
     "person": {
       "id": 1,
@@ -66,38 +77,47 @@ class JSONParse(MacroSpec):
       }
     }
   }
-}""")
+}"""
+            )
+        )
         return Dialog("ColumnParser").addElement(
             ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
+            .addColumn(Ports(), "content")
+            .addColumn(
                 StackLayout(height="100%")
-                    .addElement(
-                    TitleElement("Select Column to Parse")
-                )
-                    .addElement(StepContainer()
-                    .addElement(
-                    Step()
-                        .addElement(
-                        StackLayout(height="100%")
-                            .addElement(
-                            SchemaColumnsDropdown("", appearance = "minimal")
+                .addElement(TitleElement("Select Column to Parse"))
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%").addElement(
+                                SchemaColumnsDropdown("", appearance="minimal")
                                 .bindSchema("component.ports.inputs[0].schema")
                                 .bindProperty("columnName")
                                 .showErrorsFor("columnName")
+                            )
                         )
                     )
                 )
-                ).addElement(methodRadioGroup)
-                    .addElement(
+                .addElement(methodRadioGroup)
+                .addElement(
                     Condition()
-                        .ifEqual(PropExpr("component.properties.parsingMethod"), StringExpr("parseFromSampleRecord"))
-                        .then(sampleRecordTextJSON))
-                    .addElement(
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSampleRecord"),
+                    )
+                    .then(sampleRecordTextJSON)
+                )
+                .addElement(
                     Condition()
-                        .ifEqual(PropExpr("component.properties.parsingMethod"), StringExpr("parseFromSchema"))
-                        .then(
-                        TextArea("Schema struct to parse the column", 20).bindProperty("sampleSchema").bindPlaceholder("""STRUCT<
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSchema"),
+                    )
+                    .then(
+                        TextArea("Schema struct to parse the column", 20)
+                        .bindProperty("sampleSchema")
+                        .bindPlaceholder(
+                            """STRUCT<
   root: STRUCT<
     person: STRUCT<
       id: INT,
@@ -112,52 +132,98 @@ class JSONParse(MacroSpec):
       >
     >
   >
->"""))),
-                "1fr"
+>"""
+                        )
+                    )
+                ),
+                "1fr",
             )
         )
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(JSONParse, self).validate(context, component)
 
-        if component.properties.columnName is None or component.properties.columnName == '':
+        if (
+            component.properties.columnName is None
+            or component.properties.columnName == ""
+        ):
             diagnostics.append(
-                Diagnostic("component.properties.columnName", "Please select a column for the operation",
-                           SeverityLevelEnum.Error))
+                Diagnostic(
+                    "component.properties.columnName",
+                    "Please select a column for the operation",
+                    SeverityLevelEnum.Error,
+                )
+            )
         else:
             # Extract all column names from the schema
-            field_names = [field["name"] for field in component.ports.inputs[0].schema["fields"]]
+            field_names = [
+                field["name"] for field in component.ports.inputs[0].schema["fields"]
+            ]
             if component.properties.columnName not in field_names:
                 diagnostics.append(
-                    Diagnostic("component.properties.columnName", f"Selected column {component.properties.columnName} is not present in input schema.", SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.columnName",
+                        f"Selected column {component.properties.columnName} is not present in input schema.",
+                        SeverityLevelEnum.Error,
+                    )
                 )
 
-        if component.properties.parsingMethod is None or component.properties.parsingMethod == '':
+        if (
+            component.properties.parsingMethod is None
+            or component.properties.parsingMethod == ""
+        ):
             diagnostics.append(
-                Diagnostic("component.properties.parsingMethod", "Please select a parsing method",
-                           SeverityLevelEnum.Error))
+                Diagnostic(
+                    "component.properties.parsingMethod",
+                    "Please select a parsing method",
+                    SeverityLevelEnum.Error,
+                )
+            )
         else:
-            if component.properties.parsingMethod == 'parseFromSchema':
-                if component.properties.sampleSchema is None or component.properties.sampleSchema == "":
+            if component.properties.parsingMethod == "parseFromSchema":
+                if (
+                    component.properties.sampleSchema is None
+                    or component.properties.sampleSchema == ""
+                ):
                     diagnostics.append(
-                        Diagnostic("component.properties.sampleSchema", "Please provide a valid SQL struct schema",
-                                   SeverityLevelEnum.Error))
-            elif component.properties.parsingMethod == 'parseFromSampleRecord':
-                if component.properties.sampleRecord is None or component.properties.sampleRecord == "":
+                        Diagnostic(
+                            "component.properties.sampleSchema",
+                            "Please provide a valid SQL struct schema",
+                            SeverityLevelEnum.Error,
+                        )
+                    )
+            elif component.properties.parsingMethod == "parseFromSampleRecord":
+                if (
+                    component.properties.sampleRecord is None
+                    or component.properties.sampleRecord == ""
+                ):
                     diagnostics.append(
-                        Diagnostic("component.properties.sampleRecord", "Please provide a valid sample json record",
-                                   SeverityLevelEnum.Error))
+                        Diagnostic(
+                            "component.properties.sampleRecord",
+                            "Please provide a valid sample json record",
+                            SeverityLevelEnum.Error,
+                        )
+                    )
             else:
                 diagnostics.append(
-                    Diagnostic("component.properties.parsingMethod", "Invalid Parsing method selected",
-                               SeverityLevelEnum.Error))
+                    Diagnostic(
+                        "component.properties.parsingMethod",
+                        "Invalid Parsing method selected",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         return diagnostics
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return (replace(newState, properties=replace(newState.properties,relation_name=relation_name)))
+        return replace(
+            newState,
+            properties=replace(newState.properties, relation_name=relation_name),
+        )
 
     def apply(self, props: JSONParseProperties) -> str:
         # You can now access self.relation_name here
@@ -173,20 +239,20 @@ class JSONParse(MacroSpec):
             "'" + props.columnName + "'",
             "'" + props.parsingMethod + "'",
             "'" + sampleRecord + "'",
-            "'" + sampleSchema + "'"
+            "'" + sampleSchema + "'",
         ]
         params = ",".join([param for param in arguments])
-        return f'{{{{ {resolved_macro_name}({params}) }}}}'
+        return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return JSONParse.JSONParseProperties(
-            relation_name=parametersMap.get('relation_name'),
-            columnName=parametersMap.get('columnName'),
-            parsingMethod=parametersMap.get('parsingMethod'),
-            sampleRecord=parametersMap.get('sampleRecord'),
-            sampleSchema=parametersMap.get('sampleSchema')
+            relation_name=parametersMap.get("relation_name"),
+            columnName=parametersMap.get("columnName"),
+            parsingMethod=parametersMap.get("parsingMethod"),
+            sampleRecord=parametersMap.get("sampleRecord"),
+            sampleSchema=parametersMap.get("sampleSchema"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -198,10 +264,13 @@ class JSONParse(MacroSpec):
                 MacroParameter("columnName", properties.columnName),
                 MacroParameter("parsingMethod", properties.parsingMethod),
                 MacroParameter("sampleRecord", properties.sampleRecord),
-                MacroParameter("sampleSchema", properties.sampleSchema)
+                MacroParameter("sampleSchema", properties.sampleSchema),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        relation_name = self.get_relation_names(component,context)
-        return (replace(component, properties=replace(component.properties,relation_name=relation_name)))
+        relation_name = self.get_relation_names(component, context)
+        return replace(
+            component,
+            properties=replace(component.properties, relation_name=relation_name),
+        )

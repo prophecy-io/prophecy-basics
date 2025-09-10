@@ -27,7 +27,7 @@ class FindDuplicates(MacroSpec):
     class FindDuplicatesProperties(MacroProperties):
         # properties for the component with default values
         relation_name: List[str] = field(default_factory=list)
-        schema: str = ''
+        schema: str = ""
         generationMethod: str = "allCols"
         groupByColumnNames: List[str] = field(default_factory=list)
         orderByColumns: List[OrderByRule] = field(default_factory=list)
@@ -50,7 +50,7 @@ class FindDuplicates(MacroSpec):
                     .bindPlaceholders()
                     .withSchemaSuggestions()
                     .bindLanguage("${record.expression.format}"),
-                    ),
+                ),
                 Column(  # 2nd column – ASC / DESC etc.
                     "Sort strategy",
                     "sortType",
@@ -60,51 +60,55 @@ class FindDuplicates(MacroSpec):
                     .addOption("descending nulls first", "desc_nulls_first")
                     .addOption("descending nulls last", "desc"),
                     width="25%",
-                    ),
+                ),
             ],
         )
 
-        generationMethod = (
-            StepContainer().addElement(
-                Step().addElement(
-                    StackLayout(height="100%").addElement(
-                        SelectBox("Unique rows generation scope")
-                        .addOption(
-                            "Uniqueness across all columns",
-                            "allCols"
-                        )
-                        .addOption(
-                            "Uniqueness across selected columns",
-                            "selectedCols"
-                        )
-                        .bindProperty("generationMethod")
-                    )
+        generationMethod = StepContainer().addElement(
+            Step().addElement(
+                StackLayout(height="100%").addElement(
+                    SelectBox("Unique rows generation scope")
+                    .addOption("Uniqueness across all columns", "allCols")
+                    .addOption("Uniqueness across selected columns", "selectedCols")
+                    .bindProperty("generationMethod")
                 )
             )
         )
 
         between_condition = Condition().ifEqual(
-            PropExpr("component.properties.column_group_rownum_condition"), StringExpr("between")
+            PropExpr("component.properties.column_group_rownum_condition"),
+            StringExpr("between"),
         )
 
-        selectBox = (RadioGroup("Output records selection strategy ")
-                     .addOption("Unique", "unique",
-                                description=(
-                                    "Returns the unique records from the dataset based on the selected columns combination"))
-                     .addOption("Duplicate", "duplicate",
-                                description="Returns the duplicate records from the dataset based on the selected columns combination"
-                                )
-                     .addOption("Custom group count", "custom_group_count",
-                                description="Returns the records with grouped column count as per below selected options"
-                                )
-                     .addOption("Custom row number", "custom_row_number",
-                                description="Filter records by custom row number condition"
-                                )
-                     .setOptionType("button")
-                     .setVariant("medium")
-                     .setButtonStyle("solid")
-                     .bindProperty("output_type")
-                     )
+        selectBox = (
+            RadioGroup("Output records selection strategy ")
+            .addOption(
+                "Unique",
+                "unique",
+                description=(
+                    "Returns the unique records from the dataset based on the selected columns combination"
+                ),
+            )
+            .addOption(
+                "Duplicate",
+                "duplicate",
+                description="Returns the duplicate records from the dataset based on the selected columns combination",
+            )
+            .addOption(
+                "Custom group count",
+                "custom_group_count",
+                description="Returns the records with grouped column count as per below selected options",
+            )
+            .addOption(
+                "Custom row number",
+                "custom_row_number",
+                description="Filter records by custom row number condition",
+            )
+            .setOptionType("button")
+            .setVariant("medium")
+            .setButtonStyle("solid")
+            .bindProperty("output_type")
+        )
 
         return Dialog("FindDuplicates").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -116,8 +120,9 @@ class FindDuplicates(MacroSpec):
                     Condition()
                     .ifEqual(
                         PropExpr("component.properties.generationMethod"),
-                        StringExpr("selectedCols")
-                    ).then(
+                        StringExpr("selectedCols"),
+                    )
+                    .then(
                         StepContainer().addElement(
                             Step().addElement(
                                 StackLayout(height="100%")
@@ -132,81 +137,154 @@ class FindDuplicates(MacroSpec):
                                     .bindProperty("groupByColumnNames")
                                 )
                                 .addElement(
-                                    TitleElement(
-                                        "Order rows within each group"
-                                    )
+                                    TitleElement("Order rows within each group")
                                 )
-                                .addElement(order_by_table.bindProperty("orderByColumns"))
+                                .addElement(
+                                    order_by_table.bindProperty("orderByColumns")
+                                )
                             )
                         )
                     )
                 )
-
                 .addElement(
-                    StepContainer(gap="1rem")
-                    .addElement(
-                        Step()
-                        .addElement(
+                    StepContainer(gap="1rem").addElement(
+                        Step().addElement(
                             StackLayout(height="100%", gap="1rem")
-                            .addElement(selectBox).addElement(
-                                Condition().ifEqual(PropExpr("component.properties.output_type"), StringExpr("custom_group_count")).then(
+                            .addElement(selectBox)
+                            .addElement(
+                                Condition()
+                                .ifEqual(
+                                    PropExpr("component.properties.output_type"),
+                                    StringExpr("custom_group_count"),
+                                )
+                                .then(
                                     StackLayout(height="100%", gap="1rem")
-                                    .addElement(TitleElement("Select options for grouped count records"))
+                                    .addElement(
+                                        TitleElement(
+                                            "Select options for grouped count records"
+                                        )
+                                    )
                                     .addElement(
                                         StackLayout(height="100%", gap="1rem")
                                         .addElement(
-                                            SelectBox("Select the Filter type for column group count")
-                                            .bindProperty("column_group_rownum_condition")
+                                            SelectBox(
+                                                "Select the Filter type for column group count"
+                                            )
+                                            .bindProperty(
+                                                "column_group_rownum_condition"
+                                            )
                                             .withStyle({"width": "100%"})
                                             .withDefault("")
-                                            .addOption("Group count equal to", "equal_to")
-                                            .addOption("Group count less than", "less_than")
-                                            .addOption("Group count greater than", "greater_than")
-                                            .addOption("Group count not equal to", "not_equal_to")
+                                            .addOption(
+                                                "Group count equal to", "equal_to"
+                                            )
+                                            .addOption(
+                                                "Group count less than", "less_than"
+                                            )
+                                            .addOption(
+                                                "Group count greater than",
+                                                "greater_than",
+                                            )
+                                            .addOption(
+                                                "Group count not equal to",
+                                                "not_equal_to",
+                                            )
                                             .addOption("Group count between", "between")
                                         )
                                         .addElement(
-                                            Condition().ifEqual(PropExpr("component.properties.column_group_rownum_condition"),
-                                                                StringExpr("between")).then(
-                                                TextBox("Lower limit (inclusive)").bindProperty(
-                                                    "lower_limit").bindPlaceholder("")
-                                            ).otherwise(
-                                                TextBox("Grouped count").bindProperty("grouped_count_rownum").bindPlaceholder(""))
+                                            Condition()
+                                            .ifEqual(
+                                                PropExpr(
+                                                    "component.properties.column_group_rownum_condition"
+                                                ),
+                                                StringExpr("between"),
+                                            )
+                                            .then(
+                                                TextBox("Lower limit (inclusive)")
+                                                .bindProperty("lower_limit")
+                                                .bindPlaceholder("")
+                                            )
+                                            .otherwise(
+                                                TextBox("Grouped count")
+                                                .bindProperty("grouped_count_rownum")
+                                                .bindPlaceholder("")
+                                            )
                                         )
-                                        .addElement(between_condition.then(
-                                            TextBox("Upper limit (inclusive)").bindProperty("upper_limit").bindPlaceholder(
-                                                ""))
+                                        .addElement(
+                                            between_condition.then(
+                                                TextBox("Upper limit (inclusive)")
+                                                .bindProperty("upper_limit")
+                                                .bindPlaceholder("")
+                                            )
                                         )
                                     )
                                 )
-                            ).addElement(
-                                Condition().ifEqual(PropExpr("component.properties.output_type"), StringExpr("custom_row_number")).then(
+                            )
+                            .addElement(
+                                Condition()
+                                .ifEqual(
+                                    PropExpr("component.properties.output_type"),
+                                    StringExpr("custom_row_number"),
+                                )
+                                .then(
                                     StackLayout(height="100%", gap="1rem")
-                                    .addElement(TitleElement("Select options for custom row number records"))
+                                    .addElement(
+                                        TitleElement(
+                                            "Select options for custom row number records"
+                                        )
+                                    )
                                     .addElement(
                                         StackLayout(height="100%", gap="1rem")
                                         .addElement(
-                                            SelectBox("Select the Filter type for custom row number records")
-                                            .bindProperty("column_group_rownum_condition")
+                                            SelectBox(
+                                                "Select the Filter type for custom row number records"
+                                            )
+                                            .bindProperty(
+                                                "column_group_rownum_condition"
+                                            )
                                             .withStyle({"width": "100%"})
                                             .withDefault("")
-                                            .addOption("Row number equal to", "equal_to")
-                                            .addOption("Row number less than", "less_than")
-                                            .addOption("Row number greater than", "greater_than")
-                                            .addOption("Row number not equal to", "not_equal_to")
+                                            .addOption(
+                                                "Row number equal to", "equal_to"
+                                            )
+                                            .addOption(
+                                                "Row number less than", "less_than"
+                                            )
+                                            .addOption(
+                                                "Row number greater than",
+                                                "greater_than",
+                                            )
+                                            .addOption(
+                                                "Row number not equal to",
+                                                "not_equal_to",
+                                            )
                                             .addOption("Row number between", "between")
                                         )
                                         .addElement(
-                                            Condition().ifEqual(PropExpr("component.properties.column_group_rownum_condition"),
-                                                                StringExpr("between")).then(
-                                                TextBox("Lower limit (inclusive)").bindProperty(
-                                                    "lower_limit").bindPlaceholder("")
-                                            ).otherwise(
-                                                TextBox("Row number").bindProperty("grouped_count_rownum").bindPlaceholder(""))
+                                            Condition()
+                                            .ifEqual(
+                                                PropExpr(
+                                                    "component.properties.column_group_rownum_condition"
+                                                ),
+                                                StringExpr("between"),
+                                            )
+                                            .then(
+                                                TextBox("Lower limit (inclusive)")
+                                                .bindProperty("lower_limit")
+                                                .bindPlaceholder("")
+                                            )
+                                            .otherwise(
+                                                TextBox("Row number")
+                                                .bindProperty("grouped_count_rownum")
+                                                .bindPlaceholder("")
+                                            )
                                         )
-                                        .addElement(between_condition.then(
-                                            TextBox("Upper limit (inclusive)").bindProperty("upper_limit").bindPlaceholder(
-                                                ""))
+                                        .addElement(
+                                            between_condition.then(
+                                                TextBox("Upper limit (inclusive)")
+                                                .bindProperty("upper_limit")
+                                                .bindPlaceholder("")
+                                            )
                                         )
                                     )
                                 )
@@ -214,7 +292,8 @@ class FindDuplicates(MacroSpec):
                         )
                     )
                 )
-            ))
+            )
+        )
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         # Validate the component's state
@@ -228,44 +307,75 @@ class FindDuplicates(MacroSpec):
         if component.properties.generationMethod != "allCols":
             if len(component.properties.groupByColumnNames) == 0:
                 diagnostics.append(
-                    Diagnostic("component.properties.groupByColumnNames", f"Select atleast one column from the dropdown",
-                               SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.groupByColumnNames",
+                        f"Select atleast one column from the dropdown",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if len(component.properties.groupByColumnNames) > 0:
-                missingKeyColumns = [col for col in component.properties.groupByColumnNames if
-                                     col not in component.properties.schema]
+                missingKeyColumns = [
+                    col
+                    for col in component.properties.groupByColumnNames
+                    if col not in component.properties.schema
+                ]
                 if missingKeyColumns:
                     diagnostics.append(
-                        Diagnostic("component.properties.groupByColumnNames",
-                                   f"Selected columns {missingKeyColumns} are not present in input schema.",
-                                   SeverityLevelEnum.Error)
+                        Diagnostic(
+                            "component.properties.groupByColumnNames",
+                            f"Selected columns {missingKeyColumns} are not present in input schema.",
+                            SeverityLevelEnum.Error,
+                        )
                     )
-        if component.properties.output_type in ("custom_group_count", "custom_row_number"):
+        if component.properties.output_type in (
+            "custom_group_count",
+            "custom_row_number",
+        ):
             if component.properties.column_group_rownum_condition == "":
                 diagnostics.append(
-                    Diagnostic("component.properties.column_group_rownum_condition",
-                               f"Select one option from the given dropdown for custom filter", SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.column_group_rownum_condition",
+                        f"Select one option from the given dropdown for custom filter",
+                        SeverityLevelEnum.Error,
+                    )
                 )
             if component.properties.column_group_rownum_condition == "between":
                 if (component.properties.lower_limit).isdigit() == False:
                     diagnostics.append(
-                        Diagnostic("component.properties.lower_limit",
-                                   f"Specify the lower limit value for grouped column count.", SeverityLevelEnum.Error)
+                        Diagnostic(
+                            "component.properties.lower_limit",
+                            f"Specify the lower limit value for grouped column count.",
+                            SeverityLevelEnum.Error,
+                        )
                     )
                 if (component.properties.upper_limit).isdigit() == False:
                     diagnostics.append(
-                        Diagnostic("component.properties.upper_limit",
-                                   f"Specify the upper limit value for grouped column count.", SeverityLevelEnum.Error)
+                        Diagnostic(
+                            "component.properties.upper_limit",
+                            f"Specify the upper limit value for grouped column count.",
+                            SeverityLevelEnum.Error,
+                        )
                     )
-                if (component.properties.upper_limit).isdigit() and (component.properties.lower_limit).isdigit() and int(component.properties.upper_limit) < int(component.properties.lower_limit):
+                if (
+                    (component.properties.upper_limit).isdigit()
+                    and (component.properties.lower_limit).isdigit()
+                    and int(component.properties.upper_limit)
+                    < int(component.properties.lower_limit)
+                ):
                     diagnostics.append(
-                        Diagnostic("component.properties.column_group_rownum_condition",
-                                   f"upper limit value should be greater than lower limit value for grouped column count.", SeverityLevelEnum.Error)
+                        Diagnostic(
+                            "component.properties.column_group_rownum_condition",
+                            f"upper limit value should be greater than lower limit value for grouped column count.",
+                            SeverityLevelEnum.Error,
+                        )
                     )
             elif (component.properties.grouped_count_rownum).isdigit() == False:
                 diagnostics.append(
-                    Diagnostic("component.properties.grouped_count_rownum",
-                               f"Group count should be a non-negative integer value", SeverityLevelEnum.Error)
+                    Diagnostic(
+                        "component.properties.grouped_count_rownum",
+                        f"Group count should be a non-negative integer value",
+                        SeverityLevelEnum.Error,
+                    )
                 )
 
         for idx, rule in enumerate(component.properties.orderByColumns):
@@ -300,16 +410,21 @@ class FindDuplicates(MacroSpec):
 
         return relation_name
 
-    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+    def onChange(
+        self, context: SqlContext, oldState: Component, newState: Component
+    ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
             newState.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return newState.bindProperties(newProperties)
 
@@ -347,7 +462,7 @@ class FindDuplicates(MacroSpec):
             safe_str(props.upper_limit),
             safe_str(props.generationMethod),
             safe_str(schema_columns),
-            safe_str(order_rules)
+            safe_str(order_rules),
         ]
 
         params = ",".join(arguments)
@@ -357,16 +472,22 @@ class FindDuplicates(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return FindDuplicates.FindDuplicatesProperties(
-            relation_name=parametersMap.get('relation_name'),
-            schema=parametersMap.get('schema'),
-            groupByColumnNames=json.loads(parametersMap.get('groupByColumnNames').replace("'", '"')),
-            column_group_rownum_condition=parametersMap.get('column_group_rownum_condition'),
-            grouped_count_rownum=parametersMap.get('grouped_count_rownum'),
-            lower_limit=parametersMap.get('lower_limit'),
-            upper_limit=parametersMap.get('upper_limit'),
-            output_type=parametersMap.get('output_type'),
-            generationMethod=parametersMap.get('generationMethod'),
-            orderByColumns=json.loads(parametersMap.get('orderByColumns').replace("'", '"'))
+            relation_name=parametersMap.get("relation_name"),
+            schema=parametersMap.get("schema"),
+            groupByColumnNames=json.loads(
+                parametersMap.get("groupByColumnNames").replace("'", '"')
+            ),
+            column_group_rownum_condition=parametersMap.get(
+                "column_group_rownum_condition"
+            ),
+            grouped_count_rownum=parametersMap.get("grouped_count_rownum"),
+            lower_limit=parametersMap.get("lower_limit"),
+            upper_limit=parametersMap.get("upper_limit"),
+            output_type=parametersMap.get("output_type"),
+            generationMethod=parametersMap.get("generationMethod"),
+            orderByColumns=json.loads(
+                parametersMap.get("orderByColumns").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -377,25 +498,37 @@ class FindDuplicates(MacroSpec):
             parameters=[
                 MacroParameter("relation_name", str(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("groupByColumnNames", json.dumps(properties.groupByColumnNames)),
-                MacroParameter("column_group_rownum_condition", str(properties.column_group_rownum_condition)),
-                MacroParameter("grouped_count_rownum", str(properties.grouped_count_rownum)),
+                MacroParameter(
+                    "groupByColumnNames", json.dumps(properties.groupByColumnNames)
+                ),
+                MacroParameter(
+                    "column_group_rownum_condition",
+                    str(properties.column_group_rownum_condition),
+                ),
+                MacroParameter(
+                    "grouped_count_rownum", str(properties.grouped_count_rownum)
+                ),
                 MacroParameter("lower_limit", str(properties.lower_limit)),
                 MacroParameter("upper_limit", str(properties.upper_limit)),
                 MacroParameter("output_type", str(properties.output_type)),
                 MacroParameter("generationMethod", str(properties.generationMethod)),
-                MacroParameter("orderByColumns", json.dumps(properties.generationMethod))
+                MacroParameter(
+                    "orderByColumns", json.dumps(properties.generationMethod)
+                ),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
             schema=json.dumps(fields_array),
-            relation_name=relation_name
+            relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
