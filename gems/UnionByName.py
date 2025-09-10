@@ -11,6 +11,13 @@ class UnionByName(MacroSpec):
     projectName: str = "prophecy_basics"
     category: str = "Join/Split"
     minNumOfInputPorts: int = 2
+    supportedProviderTypes: list[ProviderTypeEnum] = [
+        ProviderTypeEnum.BigQuery
+        # ProviderTypeEnum.Snowflake,
+        # ProviderTypeEnum.Databricks,
+        # ProviderTypeEnum.Trino,
+        # ProviderTypeEnum.Redshift
+    ]
 
     @dataclass(frozen=True)
     class UnionByNameProperties(MacroProperties):
