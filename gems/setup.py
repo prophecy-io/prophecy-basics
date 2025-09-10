@@ -1,10 +1,10 @@
 
 from setuptools import setup, find_packages
 setup(
-    name = 'ProphecyBasics',
-    version = '0.0.1.dev0',
-    packages = ['ProphecyBasics'],
-    package_dir = {'ProphecyBasics': '.'},
+    name = 'prophecy_basics',
+    version = '0.0.1',
+    packages = ['prophecy_basics'],
+    package_dir = {'prophecy_basics': '.'},
     description = '',
     install_requires = [],
 )

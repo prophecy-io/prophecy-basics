@@ -1,7 +1,7 @@
 # ==================
 # Project Details
 # ==================
-name: "ProphecyBasics"
+name: "prophecy_basics"
 config-version: 2
 require-dbt-version:
 - ">=1.0.0"
