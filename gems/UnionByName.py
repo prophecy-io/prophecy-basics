@@ -8,7 +8,7 @@ from prophecy.cb.ui.uispec import *
 
 class UnionByName(MacroSpec):
     name: str = "UnionByName"
-    projectName: str = "DatabricksSqlBasics"
+    projectName: str = "prophecy_basics"
     category: str = "Join/Split"
     minNumOfInputPorts: int = 2
 
