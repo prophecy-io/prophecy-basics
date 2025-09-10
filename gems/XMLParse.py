@@ -14,7 +14,7 @@ class XMLParse(MacroSpec):
         ProviderTypeEnum.Databricks
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.DuckDB,
+        # ProviderTypeEnum.ProphecyManaged,
     ]
 
     @dataclass(frozen=True)
