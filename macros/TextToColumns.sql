@@ -46,7 +46,7 @@
     WITH source AS (
         SELECT *,
             SPLIT(
-                REGEXP_REPLACE(`{{ quoted_column_name }}`, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
+                REGEXP_REPLACE({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
                 '%%DELIM%%'
             ) AS tokens
         FROM {{ relation_name }}
@@ -82,7 +82,7 @@
     SELECT r.*,
         REGEXP_REPLACE(TRIM(split_value), r'[{}_]', ' ') AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
     FROM {{ relation_name }} r,
-    UNNEST(SPLIT(COALESCE(r.`{{ quoted_column_name }}`, ''), '{{ pattern }}')) AS split_value
+    UNNEST(SPLIT(COALESCE(r.{{ quoted_column_name }}, ''), '{{ pattern }}')) AS split_value
 
 {%- else -%}
 SELECT * FROM {{ relation_name }}
