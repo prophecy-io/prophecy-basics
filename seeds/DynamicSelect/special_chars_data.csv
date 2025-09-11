@@ -1,0 +1,5 @@
+id,"user name","user-email","data field","sales amount","is active","created date"
+1,"John Doe","john@email.com","user data",50000.50,true,"2023-01-15"
+2,"Jane Smith","jane@email.com","admin data",75000.75,true,"2023-02-20"
+3,"Bob Johnson","bob@email.com","guest data",60000.00,false,"2023-03-10"
+4,"Alice Brown","alice@email.com","user data",85000.25,true,"2023-04-05"

@@ -1,0 +1,4 @@
+id,log_line
+1,"2024-01-15 10:30:45|ERROR|Database connection failed"
+2,"2024-01-15 10:31:02|INFO|User login successful"
+3,"2024-01-15 10:31:15|WARN|Memory usage high"

@@ -1,0 +1,6 @@
+id,employee_name,skills
+1,"John Doe","Python,SQL,Docker,AWS"
+2,"Jane Smith","JavaScript,React,Node.js"
+3,"Bob Wilson","Java,Spring,Kubernetes,PostgreSQL,Redis"
+4,"Alice Brown",""
+5,"Tom Green",

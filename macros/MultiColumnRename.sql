@@ -71,3 +71,54 @@
         {{ output_columns | join(',\n    ') }}
     from {{ relation_name }}
 {% endmacro %}
+
+{% macro duckdb__MultiColumnRename(
+    relation_name,
+    columnNames,
+    renameMethod,
+    schema,
+    editType = '',
+    editWith = '',
+    customExpression=''
+) %}
+    {%- set renamed_columns = [] -%}
+    {{ log(">>> MultiColumnRename called ", info=True) }}
+    {%- for column in columnNames -%}
+        {%- set renamed_column = "" -%}
+        {%- if renameMethod == 'editPrefixSuffix' -%}
+            {%- if editType == 'Prefix' -%}
+                {%- set renamed_column = prophecy_basics.quote_identifier(column) ~ ' AS ' ~ prophecy_basics.quote_identifier(editWith ~ column) -%}
+            {%- else -%}
+                {%- set renamed_column = prophecy_basics.quote_identifier(column) ~ ' AS ' ~ prophecy_basics.quote_identifier(column ~ editWith) -%}
+            {%- endif -%}
+        {%- elif renameMethod == 'advancedRename' -%}
+            {# substitute column_name placeholder with actual column #}
+            {%- set expr = prophecy_basics.evaluate_expression(customExpression | replace('column_name', prophecy_basics.quote_identifier(column))) -%}
+            {%- set renamed_column = prophecy_basics.quote_identifier(column) ~ ' AS ' ~ expr -%}
+        {%- endif -%}
+
+        {%- do renamed_columns.append(renamed_column) -%}
+    {%- endfor -%}
+
+    {# Final projection in schema order #}
+    {%- set output_columns = [] -%}
+    {%- for col_name_val in schema -%}
+        {%- set matched = false -%}
+        {%- for expr in renamed_columns -%}
+            {%- set parts = expr.split(' AS ') -%}
+            {%- set orig_col_name = parts[0] | trim | replace('"','') | upper -%}
+            {%- if col_name_val | trim | upper == orig_col_name -%}
+                {%- do output_columns.append(expr) -%}
+                {%- set matched = true -%}
+                {%- break -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {%- if not matched -%}
+            {%- do output_columns.append(prophecy_basics.quote_identifier(col_name_val)) -%}
+        {%- endif -%}
+    {%- endfor -%}
+
+    select
+        {{ output_columns | join(',\n    ') }}
+    from {{ relation_name }}
+{% endmacro %}

@@ -1,0 +1,4 @@
+id,"user-name","data field","order_date","product-category","sales amount"
+1,"john-doe","admin|manager|user","2024-01-15","electronics|gadgets","1500.50"
+2,"jane-smith","user|guest","2024-01-16","books|fiction","25.99"
+3,"bob-wilson","moderator|admin","2024-01-17","clothing|shoes","89.95"

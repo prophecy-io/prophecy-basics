@@ -86,4 +86,77 @@
 SELECT * FROM {{ relation_name }}
 {%- endif -%}
 
-{% endmacro %}
+{%- endmacro -%}
+
+{%- macro duckdb__TextToColumns(
+    relation_name,
+    columnName,
+    delimiter,
+    split_strategy,
+    noOfColumns,
+    leaveExtraCharLastCol,
+    splitColumnPrefix,
+    splitColumnSuffix,
+    splitRowsColumnName
+) -%}
+
+{%- set pattern = delimiter -%}
+{%- set quoted_column = prophecy_basics.quote_identifier(columnName) -%}
+
+{%- if split_strategy == 'splitColumns' -%}
+  WITH r AS (
+    SELECT * FROM {{ relation_name }}
+  )
+  SELECT
+    r.*,
+    {# First N-1 split columns #}
+    {%- for i in range(1, noOfColumns) %}
+      regexp_replace(
+        trim( (string_split(r.{{ quoted_column }}, '{{ pattern }}'))[{{ i }}] ),
+        '^"|"$',
+        '',
+        'g'
+      ) AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix) }}{% if not loop.last or leaveExtraCharLastCol %},{% endif %}
+    {%- endfor %}
+    {%- if leaveExtraCharLastCol %}
+      {# Special case: if noOfColumns=1, return the entire original string #}
+      {%- if noOfColumns == 1 %}
+      r.{{ quoted_column }} AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+      {%- else %}
+      CASE
+        WHEN (string_split(r.{{ quoted_column }}, '{{ pattern }}'))[{{ noOfColumns }}] IS NOT NULL
+          THEN array_to_string(
+                 (string_split(r.{{ quoted_column }}, '{{ pattern }}'))[{{ noOfColumns }}:],
+                 '{{ delimiter }}'
+               )
+        ELSE NULL
+      END AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+      {%- endif %}
+    {%- else %}{% if noOfColumns > 1 %},{% endif %}
+      (string_split(r.{{ quoted_column }}, '{{ pattern }}'))[{{ noOfColumns }}]
+        AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+    {%- endif %}
+  FROM r
+
+{%- elif split_strategy == 'splitRows' -%}
+  SELECT
+    r.*,
+    -- replace { } _ globally with spaces, collapse repeats, then trim
+    trim(
+      regexp_replace(
+        regexp_replace(s.col, '[{}_]', ' ', 'g'),
+        '\s+',
+        ' ',
+        'g'
+      )
+    ) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
+  FROM {{ relation_name }} r
+  CROSS JOIN UNNEST(
+    string_split(coalesce(r.{{ quoted_column }}, ''), '{{ pattern }}')
+  ) AS s(col)
+
+{%- else -%}
+  SELECT * FROM {{ relation_name }}
+{%- endif -%}
+
+{%- endmacro -%}

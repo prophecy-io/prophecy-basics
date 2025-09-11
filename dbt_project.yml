@@ -24,3 +24,9 @@ model-paths:
 macro-paths:
 - "macros"
 target-path: "target"
+
+# ==================
+# Variables
+# ==================
+vars:
+  new_name: "'new_name_col'"

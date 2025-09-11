@@ -1,0 +1,6 @@
+id,name,age,bio,joined_on,last_seen_at
+1,Alice,30,"Hello, World!",2020-05-01,2023-05-01 12:34:56
+2,,25,"Line1 Line2",2021-03-15,2023-06-10 08:00:00
+3,Bob,40,"Tabs and spaces",,2020-01-01 00:00:00
+4,,,,,
+5,Elodie,28,"Punctuations",2022-12-31,
