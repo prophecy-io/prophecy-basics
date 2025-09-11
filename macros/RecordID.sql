@@ -20,6 +20,7 @@
         orderByRules)) }}
 {% endmacro %}
 
+
 {%- macro bigquery__RecordID(
         relation_name,
         method,

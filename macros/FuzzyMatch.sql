@@ -15,7 +15,6 @@
 {% endmacro %}
 
 
--- Replace with common column quoting macro
 {% macro bigquery__FuzzyMatch(
     relation,
     mode,
