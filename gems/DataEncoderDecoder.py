@@ -14,7 +14,7 @@ class DataEncoderDecoder(MacroSpec):
         ProviderTypeEnum.Databricks
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged,
     ]
 
     @dataclass(frozen=True)

@@ -1,0 +1,6 @@
+employee_id,department,math_score,english_score,science_score,history_score
+101,Engineering,85,78,92,88
+102,Marketing,72,89,76,82
+103,Sales,68,75,71,79
+104,HR,90,85,88,91
+105,Finance,88,82,85,87

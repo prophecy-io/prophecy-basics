@@ -1,0 +1,7 @@
+source_id,record_id,name,email,phone,address
+A,1,John Smith,john.smith@email.com,555-1234,123 Main St
+A,2,Jon Smith,jon.smith@email.com,555-1234,123 Main Street
+B,3,Jane Doe,jane.doe@email.com,555-5678,456 Oak Ave
+B,4,John Doe,john.doe@email.com,555-5678,456 Oak Avenue
+C,5,Bob Johnson,bob.johnson@email.com,555-9999,789 Pine Rd
+C,6,Robert Johnson,robert.johnson@email.com,555-9999,789 Pine Road

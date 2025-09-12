@@ -1,0 +1,9 @@
+id,name,email,phone,address
+1,John Smith,john.smith@email.com,555-1234,123 Main St
+2,Jon Smith,jon.smith@email.com,555-1234,123 Main Street
+3,Jane Doe,jane.doe@email.com,555-5678,456 Oak Ave
+4,John Doe,john.doe@email.com,555-5678,456 Oak Avenue
+5,Bob Johnson,bob.johnson@email.com,555-9999,789 Pine Rd
+6,Robert Johnson,robert.johnson@email.com,555-9999,789 Pine Road
+7,Alice Brown,alice.brown@email.com,555-1111,321 Elm St
+8,Alice Smith,alice.smith@email.com,555-2222,654 Maple Ave

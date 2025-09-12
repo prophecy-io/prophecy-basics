@@ -1,0 +1,6 @@
+id,product,region,q1_sales,q2_sales,q3_sales,q4_sales
+1,Laptop,North,1000,1200,1100,1300
+2,Phone,South,800,900,950,1000
+3,Tablet,East,600,700,650,750
+4,Monitor,West,400,450,500,550
+5,Keyboard,North,200,250,300,350

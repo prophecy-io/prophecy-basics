@@ -17,7 +17,7 @@ class DataMasking(MacroSpec):
         ProviderTypeEnum.Databricks
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged,
     ]
 
     @dataclass(frozen=True)
