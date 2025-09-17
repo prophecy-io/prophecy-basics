@@ -1,7 +1,7 @@
 -- Test Case: Parse addresses into street, city, state, zip
 -- Functional scenario: Address standardization for shipping/billing
 with actual as (
-  {{ TextToColumns(
+  {{ prophecy_basics.TextToColumns(
       relation_name=ref('addresses'),
       columnName='address',
       delimiter='|',

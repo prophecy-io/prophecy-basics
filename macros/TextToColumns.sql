@@ -100,7 +100,10 @@ SELECT * FROM {{ relation_name }}
     splitRowsColumnName
 ) -%}
 
-{%- set pattern = delimiter -%}
+{# Handle escaped delimiters from Python - remove backslashes entirely #}
+{%- set pattern = delimiter.replace('\\', '') -%}
+{# Handle string boolean parameter from Python #}
+{%- set leaveExtraCharLastCol = leaveExtraCharLastCol == 'Leave extra in last column' -%}
 {%- set quoted_column = prophecy_basics.quote_identifier(columnName) -%}
 
 {%- if split_strategy == 'splitColumns' -%}
