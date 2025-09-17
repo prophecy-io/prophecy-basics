@@ -86,7 +86,10 @@ class CountRecords(MacroSpec):
                             )
                         )
                     )
-                )
+                ).addElement(Condition()
+                             .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("BigQuery"))
+                             .then(TitleElement("BigQuery"))
+                             .otherwise(TitleElement("Databricks")))
             )
         )
         return dialog
