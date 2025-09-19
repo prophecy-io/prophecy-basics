@@ -3,7 +3,7 @@
 {% endmacro %}
 
 
-{%- macro databricks__DynamicSelect(relation, schema, targetTypes, selectUsing, customExpression='') -%}
+{%- macro default__DynamicSelect(relation, schema, targetTypes, selectUsing, customExpression='') -%}
 
     {%- set enriched_schema = [] -%}
     {%- for column in schema -%}
