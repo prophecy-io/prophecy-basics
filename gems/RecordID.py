@@ -25,10 +25,10 @@ class RecordID(MacroSpec):
     category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
+        ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)

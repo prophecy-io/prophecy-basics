@@ -6,7 +6,7 @@
     count_method)) }}
 {% endmacro %}
 
-{%- macro databricks__CountRecords(relation_name,
+{%- macro default__CountRecords(relation_name,
     column_names,
     count_method
 ) %}

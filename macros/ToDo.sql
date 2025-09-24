@@ -10,3 +10,11 @@
     ) AS dummy
     WHERE raise_error('ToDo: {{ diag_message }}') IS NULL
 {% endmacro %}
+
+{% macro duckdb__ToDo(diag_message) %}
+    SELECT *
+    FROM (
+        SELECT CAST(1 AS VARCHAR) AS error_message
+    ) AS dummy
+    WHERE error('ToDo: {{ diag_message }}') IS NULL
+{% endmacro %}

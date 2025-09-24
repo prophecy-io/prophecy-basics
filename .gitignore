@@ -9,3 +9,8 @@ models/*
 prophecy-sources/*
 !prophecy-sources/unreferencedSources.yml
 .idea/
+
+# dbt ignore files
+profiles.yml
+.user.yml
+

@@ -10,10 +10,10 @@ class ToDo(MacroSpec):
     projectName: str = "prophecy_basics"
     category: str = "Custom"
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
+        ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
