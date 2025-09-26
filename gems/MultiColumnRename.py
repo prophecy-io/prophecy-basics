@@ -13,8 +13,8 @@ class MultiColumnRename(MacroSpec):
     category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Databricks,
+        ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
         # ProviderTypeEnum.ProphecyManaged,
     ]
