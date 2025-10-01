@@ -11,7 +11,7 @@
 {% endmacro %}
 
 
-{% macro databricks__JSONParse(
+{% macro default__JSONParse(
     relation_name,
     columnName,
     parsingMethod,

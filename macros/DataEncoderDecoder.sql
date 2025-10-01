@@ -31,7 +31,7 @@
 {% endmacro %}
 
 
-{% macro databricks__DataEncoderDecoder(
+{% macro default__DataEncoderDecoder(
     relation_name,
     column_names,
     remaining_columns,
