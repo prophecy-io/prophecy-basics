@@ -13,9 +13,9 @@ class UnionByName(MacroSpec):
     category: str = "Join/Split"
     minNumOfInputPorts: int = 2
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
+        ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         # ProviderTypeEnum.ProphecyManaged,
     ]
 

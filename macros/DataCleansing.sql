@@ -38,8 +38,7 @@
         replaceNullTimeWith)) }}
 {% endmacro %}
 
-
-{% macro databricks__DataCleansing(
+{% macro default__DataCleansing(
         relation_name,
         schema,
         modifyCase,
