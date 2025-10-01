@@ -21,7 +21,7 @@
 {% endmacro %}
 
 
-{%- macro databricks__FindDuplicates(
+{%- macro default__FindDuplicates(
     relation_name,
     column_names,
     column_group_rownum_condition,

@@ -15,7 +15,7 @@
 {% endmacro %}
 
 
-{% macro databricks__MultiColumnRename(
+{% macro default__MultiColumnRename(
     relation_name,
     columnNames,
     renameMethod,

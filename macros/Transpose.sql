@@ -13,7 +13,7 @@
 {% endmacro %}
 
 
-{%- macro databricks__Transpose(
+{%- macro default__Transpose(
         relation_name,
         keyColumns,
         dataColumns,

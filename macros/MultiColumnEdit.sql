@@ -15,7 +15,7 @@
 {% endmacro %}
 
 
-{%- macro databricks__MultiColumnEdit(
+{%- macro default__MultiColumnEdit(
     relation,
     expressionToBeApplied,
     allColumnNames=[],
