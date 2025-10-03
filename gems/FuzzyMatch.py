@@ -19,7 +19,7 @@ class FuzzyMatch(MacroSpec):
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
@@ -124,7 +124,7 @@ class FuzzyMatch(MacroSpec):
         )
 
         matchFields = (
-            StackLayout(gap=("1rem"), height=("100%"))
+            StackLayout(gap=("1rem"), height=("100bh"))
             .addElement(TitleElement("Transformations"))
             .addElement(
                 OrderedList("Match Fields")

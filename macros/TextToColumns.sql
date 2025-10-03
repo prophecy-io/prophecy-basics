@@ -27,10 +27,10 @@
     leaveExtraCharLastCol,
     splitColumnPrefix,
     splitColumnSuffix,
-    splitRowsColumnName    
+    splitRowsColumnName
     ) %}
 
-{# 
+{#
   Build the regex pattern for matching the delimiter.
 #}
 {%- set pattern = delimiter -%}
@@ -157,3 +157,70 @@ SELECT * FROM {{ relation_name }}
 {%- endif -%}
 
 {% endmacro %}
+
+
+{%- macro duckdb__TextToColumns(
+    relation_name,
+    columnName,
+    delimiter,
+    split_strategy,
+    noOfColumns,
+    leaveExtraCharLastCol,
+    splitColumnPrefix,
+    splitColumnSuffix,
+    splitRowsColumnName
+) -%}
+
+{# Handle escaped delimiters from Python - remove backslashes entirely #}
+{%- set pattern = delimiter.replace('\\', '') -%}
+{# Handle string boolean parameter from Python - check string directly #}
+{%- set quoted_column = prophecy_basics.quote_identifier(columnName) -%}
+
+{%- if split_strategy == 'splitColumns' -%}
+    WITH source AS (
+        SELECT *,
+            string_split({{ quoted_column }}, '{{ pattern }}') AS tokens
+        FROM {{ relation_name }}
+    ),
+    all_data AS (
+    SELECT *,
+        {# Extract tokens positionally (DuckDB arrays are 1-indexed) #}
+        {%- for i in range(1, noOfColumns) %}
+            regexp_replace(trim(tokens[{{ i }}]), '^"|"$', '')
+            AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix) }}{% if not loop.last or leaveExtraCharLastCol == 'Leave extra in last column' %},{% endif %}
+        {%- endfor %}
+        {%- if leaveExtraCharLastCol == 'Leave extra in last column' %}
+            CASE
+                WHEN array_length(tokens) >= {{ noOfColumns }}
+                    THEN array_to_string(tokens[{{ noOfColumns }}:], '{{ pattern }}')
+                ELSE null
+            END AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+        {%- else %}{% if noOfColumns > 1 %},{% endif %}
+            tokens[{{ noOfColumns }}] AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+        {%- endif %}
+    FROM source
+    )
+    SELECT * EXCLUDE(tokens) FROM all_data
+
+{%- elif split_strategy == 'splitRows' -%}
+  SELECT
+    r.*,
+    -- replace { } _ globally with spaces, collapse repeats, then trim
+    trim(
+      regexp_replace(
+        regexp_replace(s.col, '[{}_]', ' ', 'g'),
+        '\s+',
+        ' ',
+        'g'
+      )
+    ) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
+  FROM {{ relation_name }} r
+  CROSS JOIN UNNEST(
+    string_split(coalesce(r.{{ quoted_column }}, ''), '{{ pattern }}')
+  ) AS s(col)
+
+{%- else -%}
+  SELECT * FROM {{ relation_name }}
+{%- endif -%}
+
+{%- endmacro -%}

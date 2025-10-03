@@ -14,10 +14,10 @@ class DataMasking(MacroSpec):
     category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
+        ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
@@ -139,13 +139,23 @@ class DataMasking(MacroSpec):
         sha2_params_ui = StackLayout(
             gap="1rem", height="100%", direction="vertical", width="100%"
         ).addElement(
-            SelectBox("Select the bit length")
-            .bindProperty("sha2_bit_length")
-            .withDefault("")
-            .addOption("224", "224")
-            .addOption("256", "256")
-            .addOption("384", "384")
-            .addOption("512", "512")
+            Condition()
+                .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("ProphecyManaged"))
+                .then(
+                    SelectBox("Select the bit length")
+                    .bindProperty("sha2_bit_length")
+                    .withDefault("256")
+                    .addOption("256", "256")                
+                )
+                .otherwise(
+                    SelectBox("Select the bit length")
+                    .bindProperty("sha2_bit_length")
+                    .withDefault("")
+                    .addOption("224", "224")
+                    .addOption("256", "256")
+                    .addOption("384", "384")
+                    .addOption("512", "512")                    
+                )
         )
 
         dialog = Dialog("masking_dialog_box").addElement(
@@ -173,16 +183,30 @@ class DataMasking(MacroSpec):
                             StackLayout(height="100%")
                             .addElement(TitleElement("Masking configuration"))
                             .addElement(
-                                SelectBox("Select masking strategy")
-                                .bindProperty("masking_method")
-                                .withStyle({"width": "100%"})
-                                .withDefault("")
-                                .addOption("hash", "hash")
-                                .addOption("sha", "sha")
-                                .addOption("sha2", "sha2")
-                                .addOption("md5", "md5")
-                                .addOption("mask", "mask")
-                                .addOption("crc32", "crc32")
+                                Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("ProphecyManaged"))
+                                    .then(
+                                        SelectBox("Select masking strategy")
+                                        .bindProperty("masking_method")
+                                        .withStyle({"width": "100%"})
+                                        .withDefault("")
+                                        .addOption("hash", "hash")
+                                        .addOption("sha", "sha")
+                                        .addOption("sha2", "sha2")
+                                        .addOption("md5", "md5")
+                                    )
+                                    .otherwise(
+                                        SelectBox("Select masking strategy")
+                                        .bindProperty("masking_method")
+                                        .withStyle({"width": "100%"})
+                                        .withDefault("")
+                                        .addOption("hash", "hash")
+                                        .addOption("sha", "sha")
+                                        .addOption("sha2", "sha2")
+                                        .addOption("md5", "md5")
+                                        .addOption("mask", "mask")
+                                        .addOption("crc32", "crc32")                                        
+                                    )
                             )
                             .addElement(mask_condition.then(mask_params_ui))
                             .addElement(sha2_condition.then(sha2_params_ui))

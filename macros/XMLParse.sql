@@ -57,3 +57,12 @@
     {%- endif -%}
 
 {% endmacro %}
+
+{%- macro duckdb__XMLParse(relation_name,
+    columnName,
+    parsingMethod,
+    sampleRecord,
+    sampleSchema) -%}
+    {# Simple XML parsing implementation for DuckDB - returns original data #}
+    SELECT * FROM {{ relation_name }}
+{%- endmacro -%}

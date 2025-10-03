@@ -11,10 +11,10 @@ class DataEncoderDecoder(MacroSpec):
     category: str = "Transform"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
+        ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
@@ -365,19 +365,33 @@ class DataEncoderDecoder(MacroSpec):
                             StackLayout(height="100%")
                             .addElement(TitleElement("Select encode / decode option"))
                             .addElement(
-                                SelectBox("Choose your encoding/decoding method")
-                                .bindProperty("enc_dec_method")
-                                .withStyle({"width": "100%"})
-                                .withDefault("")
-                                .addOption("base64", "base64")
-                                .addOption("unbase64", "unbase64")
-                                .addOption("hex", "hex")
-                                .addOption("unhex", "unhex")
-                                .addOption("encode", "encode")
-                                .addOption("decode", "decode")
-                                .addOption("aes_encrypt", "aes_encrypt")
-                                # .addOption("aes_decrypt", "aes_decrypt")
-                                # .addOption("try_aes_decrypt", "try_aes_decrypt")
+                                Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("ProphecyManaged"))
+                                    .then(
+                                        SelectBox("Choose your encoding/decoding method")
+                                        .bindProperty("enc_dec_method")
+                                        .withStyle({"width": "100%"})
+                                        .withDefault("")
+                                        .addOption("base64", "base64")
+                                        .addOption("unbase64", "unbase64")
+                                        .addOption("hex", "hex")
+                                        .addOption("unhex", "unhex")                                        
+                                    )
+                                    .otherwise(
+                                        SelectBox("Choose your encoding/decoding method")
+                                        .bindProperty("enc_dec_method")
+                                        .withStyle({"width": "100%"})
+                                        .withDefault("")
+                                        .addOption("base64", "base64")
+                                        .addOption("unbase64", "unbase64")
+                                        .addOption("hex", "hex")
+                                        .addOption("unhex", "unhex")
+                                        .addOption("encode", "encode")
+                                        .addOption("decode", "decode")
+                                        .addOption("aes_encrypt", "aes_encrypt")
+                                        # .addOption("aes_decrypt", "aes_decrypt")
+                                        # .addOption("try_aes_decrypt", "try_aes_decrypt")
+                                    )                       
                             )
                             .addElement(
                                 aes_encrypt_condition.then(aes_encrypt_params_ui)
