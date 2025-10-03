@@ -27,7 +27,7 @@
 {% endmacro %}
 
 
-{%- macro databricks__DataMasking(
+{%- macro default__DataMasking(
     relation_name,
     column_names,
     remaining_columns,

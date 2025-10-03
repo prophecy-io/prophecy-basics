@@ -3,7 +3,7 @@
 {% endmacro %}
 
 
-{% macro databricks__ToDo(diag_message) %}
+{% macro default__ToDo(diag_message) %}
     SELECT *
     FROM (
         SELECT cast(1 as string) as error_message

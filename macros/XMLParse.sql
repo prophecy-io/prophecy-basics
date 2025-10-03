@@ -11,7 +11,7 @@
 {% endmacro %}
 
 
-{% macro databricks__XMLParse(
+{% macro default__XMLParse(
     relation_name,
     columnName,
     parsingMethod,
