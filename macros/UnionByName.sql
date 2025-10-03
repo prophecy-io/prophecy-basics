@@ -107,7 +107,7 @@
 
 {%- endmacro %}
 
-{%- endmacro %}{% macro duckdb__UnionByName(relation_names,
+{% macro duckdb__UnionByName(relation_names,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
 
