@@ -2,7 +2,7 @@
     {{ return(adapter.dispatch('evaluate_expression', 'prophecy_basics')(expression, column)) }}
 {%- endmacro %}
 
-{% macro databricks__evaluate_expression(expression, column='') %}
+{% macro default__evaluate_expression(expression, column='') %}
 {#
   Evaluate a SQL expression and return the result for Databricks.
   
