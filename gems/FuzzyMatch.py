@@ -124,7 +124,7 @@ class FuzzyMatch(MacroSpec):
         )
 
         matchFields = (
-            StackLayout(gap=("1rem"), height=("100bh"))
+            StackLayout(gap=("1rem"), height=("100%"))
             .addElement(TitleElement("Transformations"))
             .addElement(
                 OrderedList("Match Fields")
