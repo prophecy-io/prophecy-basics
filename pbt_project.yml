@@ -1,6 +1,6 @@
 name: prophecy_basics
 description: ''
-version: 0.0.1.dev3
+version: 0.0.1.dev4
 author: abhisheks+e2etests@prophecy.io
 language: sql
 buildSystem: ''
@@ -222,6 +222,17 @@ sqlMacros:
       - .prophecy/ide/macros/DataEncoderDecoder.json
       - macros/macros.yml
       - gems/DataEncoderDecoder.py
+    createdAt: '2025-06-09 04:59:45'
+  .prophecy/metadata/sqlmacros/Regex:
+    name: Regex
+    macroType: expression
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/Regex.sql
+      - .prophecy/ide/macros/Regex.json
+      - macros/macros.yml
+      - gems/Regex.py
     createdAt: '2025-06-09 04:59:45'
 sqlSeeds: {}
 sqlSources: {}
