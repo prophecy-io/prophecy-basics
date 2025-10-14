@@ -1,23 +1,8 @@
-{% macro JSONParse(relation_name,
+{%- macro duckdb__JSONParse(relation_name,
     columnName,
     parsingMethod,
     sampleRecord,
     sampleSchema) -%}
-    {{ return(adapter.dispatch('JSONParse', 'prophecy_basics')(relation_name,
-    columnName,
-    parsingMethod,
-    sampleRecord,
-    sampleSchema)) }}
-{% endmacro %}
-
-
-{% macro default__JSONParse(
-    relation_name,
-    columnName,
-    parsingMethod,
-    sampleRecord,
-    sampleSchema
-) %}
 
     {{ log("Parsing JSON using method: " ~ parsingMethod, info=True) }}
 
@@ -31,19 +16,19 @@
         select * from {{ relation_name }}
 
     {%- else -%}
-        {%- set quoted_col = adapter.quote(columnName) -%}
-        {%- set alias_col = adapter.quote(columnName ~ '_parsed') -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
                 *,
-                from_json({{ quoted_col }}, '{{ sampleSchema | replace("\n", " ") }}') as {{ alias_col }}
+                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
             from {{ relation_name }}
 
         {%- elif parsingMethod == 'parseFromSampleRecord' -%}
             select
                 *,
-                from_json({{ quoted_col }}, schema_of_json('{{ sampleRecord | replace("\n", " ") }}')) as {{ alias_col }}
+                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
             from {{ relation_name }}
 
         {%- elif parsingMethod == 'none' or not parsingMethod -%}
@@ -56,4 +41,4 @@
         {%- endif -%}
     {%- endif -%}
 
-{% endmacro %}
+{%- endmacro -%}%
