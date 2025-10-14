@@ -115,17 +115,6 @@ sqlMacros:
       - macros/macros.yml
       - gems/UnionByName.py
     createdAt: '2024-11-28 04:59:45'
-  .prophecy/metadata/sqlmacros/JSONParse:
-    name: JSONParse
-    macroType: query
-    description: null
-    author: abhinav@prophecy.io
-    files:
-      - macros/JSONParse.sql
-      - .prophecy/ide/macros/JSONParse.json
-      - macros/macros.yml
-      - gems/JSONParse.py
-    createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/XMLParse:
     name: XMLParse
     macroType: query
