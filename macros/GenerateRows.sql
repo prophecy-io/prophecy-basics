@@ -11,7 +11,7 @@
     loop_expr,
     column_name,
     max_rows,
-    focus_mode) }}
+    focus_mode)) }}
 {% endmacro %}
 
 {% macro default__GenerateRows(
