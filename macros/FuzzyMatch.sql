@@ -60,9 +60,6 @@
             {%- else -%}
                 {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
             {%- endif -%}
-            -- TODO: ??Properly quote recordIdCol and sourceIdCol with??:
-            -- TODO: {%- set quoted_record_id_col = prophecy_basics.quote_identifier(recordIdCol) -%}
-            -- TODO: {%- set quoted_source_id_col = prophecy_basics.quote_identifier(sourceIdCol) -%}
             {%- if mode == 'PURGE' -%}
                 {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
             {%- elif mode == 'MERGE' -%}
