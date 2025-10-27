@@ -37,7 +37,7 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# keep using your unquote helper #}
+    {# use your helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
@@ -65,7 +65,7 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Use helper macros to build quoted variants --- #}
+    {# --- Build quoted variants using helpers and plain/backtick/double/single forms --- #}
     {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
@@ -93,6 +93,13 @@
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
+    {# --- NEW: build output alias, quoting it when it isn't a plain identifier --- #}
+    {% if (unquoted_col | regex_search('[^A-Za-z0-9_]')) %}
+        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% else %}
+        {% set output_col_alias = unquoted_col %}
+    {% endif %}
+
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -113,13 +120,12 @@
             where _iter < {{ max_rows | int }}
         )
         select
-            -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
             {% if column_name in ['a','b','c','d'] %}
                 payload.* EXCEPT ({{ except_col }}),
             {% else %}
                 payload.*,
             {% endif %}
-            {{ internal_col }} as {{ unquoted_col }}
+            {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
     {% else %}
@@ -132,7 +138,7 @@
             from gen
             where _iter < {{ max_rows | int }}
         )
-        select {{ internal_col }} as {{ unquoted_col }}
+        select {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
     {% endif %}
