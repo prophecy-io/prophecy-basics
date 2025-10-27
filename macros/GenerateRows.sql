@@ -64,6 +64,32 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
+    {# --- New: build quoted variants and safe replacements --- #}
+    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
+    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
+    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+
+    {% set condition_expr_sql = condition_expr_sql
+        | replace(backtick_col, internal_col)
+        | replace(doubleq_col, internal_col)
+        | replace(singleq_col, internal_col)
+        | replace(unquoted_col, internal_col)
+    %}
+
+    {% set loop_expr_replaced = loop_expr
+        | replace(backtick_col, 'gen.' ~ internal_col)
+        | replace(doubleq_col, 'gen.' ~ internal_col)
+        | replace(singleq_col, 'gen.' ~ internal_col)
+        | replace(unquoted_col, 'gen.' ~ internal_col)
+    %}
+
+    {# For EXCEPT() we must include backticks if the column name has spaces or non-standard characters #}
+    {% if (unquoted_col | regex_search('[^A-Za-z0-9_]')) %}
+        {% set except_col = backtick_col %}
+    {% else %}
+        {% set except_col = unquoted_col %}
+    {% endif %}
+
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -78,7 +104,7 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
+                {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
@@ -86,25 +112,25 @@
         select
             -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
             {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ unquoted_col }}),
+                payload.* EXCEPT ({{ except_col }}),
             {% else %}
                 payload.*,
             {% endif %}
             {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
+        where {{ condition_expr_sql }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
+                {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
         select {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
+        where {{ condition_expr_sql }}
     {% endif %}
 {% endmacro %}
