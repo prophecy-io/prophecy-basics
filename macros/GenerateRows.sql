@@ -37,7 +37,7 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {% set unquoted_col = DatabricksSqlBasics.unquote_identifier(column_name) | trim %}
+    {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
     {% set is_timestamp = " " in init_expr %}
