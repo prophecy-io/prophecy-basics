@@ -37,6 +37,7 @@
     {% endif %}
 
     {% set alias = "src" %}
+    {# keep using your unquote helper #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
@@ -64,31 +65,33 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- New: build quoted variants and safe replacements --- #}
+    {# --- Use helper macros to build quoted variants --- #}
+    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+    {% set plain_col = unquoted_col %}
 
-    {% set condition_expr_sql = condition_expr_sql
-        | replace(backtick_col, internal_col)
-        | replace(doubleq_col, internal_col)
-        | replace(singleq_col, internal_col)
-        | replace(unquoted_col, internal_col)
-    %}
+    {# Replace condition expression step-by-step to reference the internal generated column #}
+    {% set _cond_tmp = condition_expr_sql %}
+    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set condition_expr_sql = _cond_tmp %}
 
-    {% set loop_expr_replaced = loop_expr
-        | replace(backtick_col, 'gen.' ~ internal_col)
-        | replace(doubleq_col, 'gen.' ~ internal_col)
-        | replace(singleq_col, 'gen.' ~ internal_col)
-        | replace(unquoted_col, 'gen.' ~ internal_col)
-    %}
+    {# Replace loop expression step-by-step; use gen.<internal_col> inside recursive step #}
+    {% set _loop_tmp = loop_expr %}
+    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp %}
 
-    {# For EXCEPT() we must include backticks if the column name has spaces or non-standard characters #}
-    {% if (unquoted_col | regex_search('[^A-Za-z0-9_]')) %}
-        {% set except_col = backtick_col %}
-    {% else %}
-        {% set except_col = unquoted_col %}
-    {% endif %}
+    {# Use adapter-safe quoting for EXCEPT column #}
+    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% if relation_name %}
         with recursive gen as (
