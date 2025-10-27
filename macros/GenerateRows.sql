@@ -37,10 +37,11 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# use your helper to unquote the provided column name #}
+    {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
+    {# detect date/timestamp style init expressions (kept from your original macro) #}
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
     {% set init_strip = init_expr.strip() %}
@@ -59,20 +60,21 @@
         {% set init_select = init_expr %}
     {% endif %}
 
+    {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
         {% set condition_expr_sql = condition_expr.replace('"', "'") %}
     {% else %}
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted variants using helpers and plain/backtick/double/single forms --- #}
+    {# --- Build quoted/plain variants for replacement --- #}
     {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
 
-    {# Replace condition expression step-by-step to reference the internal generated column #}
+    {# --- Replace the target column in condition expression to reference the internal column --- #}
     {% set _cond_tmp = condition_expr_sql %}
     {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
@@ -81,7 +83,7 @@
     {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
     {% set condition_expr_sql = _cond_tmp %}
 
-    {# Replace loop expression step-by-step; use gen.<internal_col> inside recursive step #}
+    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
     {% set _loop_tmp = loop_expr %}
     {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
@@ -93,7 +95,13 @@
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
-    {# --- NEW: Detect non-[A-Za-z0-9_] characters WITHOUT regex --- #}
+    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
+    {% set _rec_tmp = condition_expr_sql %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
+    {% set recursion_condition = _rec_tmp %}
+
+    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
     {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set specials = [] %}
     {% for ch in unquoted_col %}
@@ -125,9 +133,10 @@
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
+              and ({{ recursion_condition }})
         )
         select
-            -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
+            -- Use safe EXCEPT only if base column might exist; otherwise fallback
             {% if column_name in ['a','b','c','d'] %}
                 payload.* EXCEPT ({{ except_col }}),
             {% else %}
@@ -145,6 +154,7 @@
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
+              and ({{ recursion_condition }})
         )
         select {{ internal_col }} as {{ output_col_alias }}
         from gen
