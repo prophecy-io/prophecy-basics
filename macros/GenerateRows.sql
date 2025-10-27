@@ -93,8 +93,15 @@
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
-    {# --- NEW: build output alias, quoting it when it isn't a plain identifier --- #}
-    {% if (unquoted_col | regex_search('[^A-Za-z0-9_]')) %}
+    {# --- NEW: Detect non-[A-Za-z0-9_] characters WITHOUT regex --- #}
+    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
+    {% set specials = [] %}
+    {% for ch in unquoted_col %}
+        {% if ch not in allowed %}
+            {% do specials.append(ch) %}
+        {% endif %}
+    {% endfor %}
+    {% if specials | length > 0 %}
         {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
     {% else %}
         {% set output_col_alias = unquoted_col %}
@@ -120,6 +127,7 @@
             where _iter < {{ max_rows | int }}
         )
         select
+            -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
             {% if column_name in ['a','b','c','d'] %}
                 payload.* EXCEPT ({{ except_col }}),
             {% else %}
