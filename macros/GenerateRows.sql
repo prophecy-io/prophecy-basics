@@ -74,6 +74,17 @@
     {% set gen_prefixed = "gen." ~ internal_col %}
     {% set internal_simple = internal_col %}
 
+    {# --- PRECOMPUTE rewritten expressions to avoid inline filter calls inside SQL --- #}
+    {% if relation_name %}
+        {# For relation case, we need recursive references to point to gen.internal alias (gen.__gen_x) #}
+        {% set loop_expr_rewrite = loop_expr | replace(bt_unquoted, gen_prefixed) | replace(unquoted_col, gen_prefixed) %}
+        {% set condition_expr_rewrite = condition_expr_sql | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
+    {% else %}
+        {# Standalone generator: use internal_simple (no gen. prefix available inside recursive CTE) #}
+        {% set loop_expr_rewrite = loop_expr | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
+        {% set condition_expr_rewrite = condition_expr_sql | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
+    {% endif %}
+
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -88,13 +99,7 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {# replace both backticked and plain occurrences in loop_expr to point to gen.internal alias #}
-                {{ (
-                    loop_expr
-                    | replace(bt_unquoted, gen_prefixed)
-                    | replace(unquoted_col, gen_prefixed)
-                ) }}
-                as {{ internal_col }},
+                {{ loop_expr_rewrite }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
@@ -107,34 +112,19 @@
             {%- endif -%}
             {{ internal_col }} as {{ quoted_output_col }}
         from gen
-        {# similarly replace both backticked and plain occurrences in condition so it references the internal column #}
-        where {{ (
-            condition_expr_sql
-            | replace(bt_unquoted, internal_simple)
-            | replace(unquoted_col, internal_simple)
-        ) }}
+        where {{ condition_expr_rewrite }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {# standalone: replace plain/backticked occurrences if they exist (use gen. only in relation case) #}
-                {{ (
-                    loop_expr
-                    | replace(bt_unquoted, internal_simple)
-                    | replace(unquoted_col, internal_simple)
-                ) }}
-                as {{ internal_col }},
+                {{ loop_expr_rewrite }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
         select {{ internal_col }} as {{ quoted_output_col }}
         from gen
-        where {{ (
-            condition_expr_sql
-            | replace(bt_unquoted, internal_simple)
-            | replace(unquoted_col, internal_simple)
-        ) }}
+        where {{ condition_expr_rewrite }}
     {% endif %}
 {% endmacro %}
