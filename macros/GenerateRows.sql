@@ -37,8 +37,12 @@
     {% endif %}
 
     {% set alias = "src" %}
+    {# unquoted logical name, trimmed of whitespace #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
+    {# safe internal alias (no spaces) #}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
+    {# safe quoted output column (preserves spaces/special chars) #}
+    {% set quoted_output_col = prophecy_basics.quote_identifier(column_name) %}
 
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
@@ -58,11 +62,17 @@
         {% set init_select = init_expr %}
     {% endif %}
 
+    {# normalize condition expression basic quoting to single quotes if needed #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
         {% set condition_expr_sql = condition_expr.replace('"', "'") %}
     {% else %}
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
+
+    {# prepare forms to replace: backticked and plain #}
+    {% set bt_unquoted = "`" ~ unquoted_col ~ "`" %}
+    {% set gen_prefixed = "gen." ~ internal_col %}
+    {% set internal_simple = internal_col %}
 
     {% if relation_name %}
         with recursive gen as (
@@ -78,33 +88,53 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
+                {# replace both backticked and plain occurrences in loop_expr to point to gen.internal alias #}
+                {{ (
+                    loop_expr
+                    | replace(bt_unquoted, gen_prefixed)
+                    | replace(unquoted_col, gen_prefixed)
+                ) }}
+                as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
         select
-            -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
-            {% if column_name in ['a','b','c','d'] %}
+            {%- if column_name in ['a','b','c','d'] -%}
                 payload.* EXCEPT ({{ unquoted_col }}),
-            {% else %}
+            {%- else -%}
                 payload.*,
-            {% endif %}
-            {{ internal_col }} as {{ unquoted_col }}
+            {%- endif -%}
+            {{ internal_col }} as {{ quoted_output_col }}
         from gen
-        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
+        {# similarly replace both backticked and plain occurrences in condition so it references the internal column #}
+        where {{ (
+            condition_expr_sql
+            | replace(bt_unquoted, internal_simple)
+            | replace(unquoted_col, internal_simple)
+        ) }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
+                {# standalone: replace plain/backticked occurrences if they exist (use gen. only in relation case) #}
+                {{ (
+                    loop_expr
+                    | replace(bt_unquoted, internal_simple)
+                    | replace(unquoted_col, internal_simple)
+                ) }}
+                as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
-        select {{ internal_col }} as {{ unquoted_col }}
+        select {{ internal_col }} as {{ quoted_output_col }}
         from gen
-        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
+        where {{ (
+            condition_expr_sql
+            | replace(bt_unquoted, internal_simple)
+            | replace(unquoted_col, internal_simple)
+        ) }}
     {% endif %}
 {% endmacro %}
