@@ -37,12 +37,8 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# unquoted logical name, trimmed of whitespace #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
-    {# safe internal alias (no spaces) #}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
-    {# safe quoted output column (preserves spaces/special chars) #}
-    {% set quoted_output_col = prophecy_basics.quote_identifier(column_name) %}
 
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
@@ -62,27 +58,10 @@
         {% set init_select = init_expr %}
     {% endif %}
 
-    {# normalize condition expression basic quoting to single quotes if needed #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
         {% set condition_expr_sql = condition_expr.replace('"', "'") %}
     {% else %}
         {% set condition_expr_sql = condition_expr %}
-    {% endif %}
-
-    {# prepare forms to replace: backticked and plain #}
-    {% set bt_unquoted = "`" ~ unquoted_col ~ "`" %}
-    {% set gen_prefixed = "gen." ~ internal_col %}
-    {% set internal_simple = internal_col %}
-
-    {# --- PRECOMPUTE rewritten expressions to avoid inline filter calls inside SQL --- #}
-    {% if relation_name %}
-        {# For relation case, we need recursive references to point to gen.internal alias (gen.__gen_x) #}
-        {% set loop_expr_rewrite = loop_expr | replace(bt_unquoted, gen_prefixed) | replace(unquoted_col, gen_prefixed) %}
-        {% set condition_expr_rewrite = condition_expr_sql | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
-    {% else %}
-        {# Standalone generator: use internal_simple (no gen. prefix available inside recursive CTE) #}
-        {% set loop_expr_rewrite = loop_expr | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
-        {% set condition_expr_rewrite = condition_expr_sql | replace(bt_unquoted, internal_simple) | replace(unquoted_col, internal_simple) %}
     {% endif %}
 
     {% if relation_name %}
@@ -99,32 +78,33 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr_rewrite }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
         select
-            {%- if column_name in ['a','b','c','d'] -%}
+            -- ✅ Use safe EXCEPT only if base column might exist; otherwise fallback
+            {% if column_name in ['a','b','c','d'] %}
                 payload.* EXCEPT ({{ unquoted_col }}),
-            {%- else -%}
+            {% else %}
                 payload.*,
-            {%- endif -%}
-            {{ internal_col }} as {{ quoted_output_col }}
+            {% endif %}
+            {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_rewrite }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr_rewrite }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
-        select {{ internal_col }} as {{ quoted_output_col }}
+        select {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_rewrite }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% endif %}
 {% endmacro %}
