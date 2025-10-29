@@ -120,9 +120,9 @@ class GenerateRows(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
         arguments = [
             "'" + table_name + "'",
-            '"""' + str(props.init_expr) + '"""',
-            '"""' + str(props.condition_expr) + '"""',
-            '"""' + str(props.loop_expr) + '"""',
+            "'''" + str(props.init_expr) + "'''",
+            "'''" + str(props.condition_expr) + "'''",
+            "'''" + str(props.loop_expr) + "'''",
             "'" + str(props.column_name) + "'",
             str(props.max_rows),
             "'" + str(props.force_mode) + "'"
