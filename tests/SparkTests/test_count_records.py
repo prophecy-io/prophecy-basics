@@ -99,10 +99,11 @@ def test_count_records_normal_case(spark, sample_dataframe):
     """
     # Arrange
     instance = create_count_records_instance(count_method="count_all_records")
-    
+
     # Act
     result = instance.applyPython(spark, sample_dataframe)
-    
+    print(result.show())
+
     # Assert
     assert result is not None
     assert result.count() == 1  # Aggregation returns single row
