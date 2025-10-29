@@ -1,0 +1,6 @@
+# Test dependencies for Spark Tests
+# Install with: pip install -r tests/SparkTests/requirements.txt
+
+pytest>=7.0.0
+pyspark>=3.5.0
+

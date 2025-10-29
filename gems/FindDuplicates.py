@@ -4,6 +4,10 @@ import json
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
 
 @dataclass(frozen=True)
 class ColumnExpr:
@@ -538,3 +542,95 @@ class FindDuplicates(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Find duplicates using window functions.
+        Supports unique, duplicate, custom_group_count, and custom_row_number output types.
+        """
+        schema_json = json.loads(self.props.schema)
+        schema_columns = [col["name"] for col in schema_json]
+        
+        # Determine partition columns
+        if self.props.generationMethod == "allCols":
+            partition_cols = schema_columns
+        else:
+            partition_cols = self.props.groupByColumnNames
+        
+        # Build window specification
+        partition_spec = Window.partitionBy([col(c) for c in partition_cols])
+        
+        # Build order by clause
+        if self.props.generationMethod == "allCols":
+            order_spec = partition_spec.orderBy(lit(1))
+        else:
+            order_exprs = []
+            for rule in self.props.orderByColumns:
+                expr_str = rule.expression.expression.strip()
+                if expr_str:
+                    expr_col = expr(expr_str)
+                    if rule.sortType == "asc":
+                        order_exprs.append(expr_col.asc().nullsFirst())
+                    elif rule.sortType == "asc_nulls_last":
+                        order_exprs.append(expr_col.asc().nullsLast())
+                    elif rule.sortType == "desc_nulls_first":
+                        order_exprs.append(expr_col.desc().nullsFirst())
+                    else:  # desc
+                        order_exprs.append(expr_col.desc().nullsLast())
+            
+            if order_exprs:
+                order_spec = partition_spec.orderBy(*order_exprs)
+            else:
+                order_spec = partition_spec.orderBy(lit(1))
+        
+        # Apply window function based on output_type
+        if self.props.output_type == "custom_group_count":
+            result_df = in0.withColumn("group_count", count("*").over(partition_spec))
+        else:
+            result_df = in0.withColumn("row_num", row_number().over(order_spec))
+        
+        # Apply filtering based on output_type and conditions
+        if self.props.output_type == "custom_group_count":
+            condition = self.props.column_group_rownum_condition
+            if condition == "between":
+                result_df = result_df.filter(
+                    (col("group_count") >= int(self.props.lower_limit)) &
+                    (col("group_count") <= int(self.props.upper_limit))
+                )
+            elif condition == "equal_to":
+                result_df = result_df.filter(col("group_count") == int(self.props.grouped_count_rownum))
+            elif condition == "not_equal_to":
+                result_df = result_df.filter(col("group_count") != int(self.props.grouped_count_rownum))
+            elif condition == "less_than":
+                result_df = result_df.filter(col("group_count") < int(self.props.grouped_count_rownum))
+            elif condition == "greater_than":
+                result_df = result_df.filter(col("group_count") > int(self.props.grouped_count_rownum))
+            
+            # Drop the group_count column
+            result_df = result_df.drop("group_count")
+            
+        elif self.props.output_type == "unique":
+            result_df = result_df.filter(col("row_num") == 1).drop("row_num")
+            
+        elif self.props.output_type == "duplicate":
+            result_df = result_df.filter(col("row_num") > 1).drop("row_num")
+            
+        elif self.props.output_type == "custom_row_number":
+            condition = self.props.column_group_rownum_condition
+            if condition == "between":
+                result_df = result_df.filter(
+                    (col("row_num") >= int(self.props.lower_limit)) &
+                    (col("row_num") <= int(self.props.upper_limit))
+                )
+            elif condition == "equal_to":
+                result_df = result_df.filter(col("row_num") == int(self.props.grouped_count_rownum))
+            elif condition == "not_equal_to":
+                result_df = result_df.filter(col("row_num") != int(self.props.grouped_count_rownum))
+            elif condition == "less_than":
+                result_df = result_df.filter(col("row_num") < int(self.props.grouped_count_rownum))
+            elif condition == "greater_than":
+                result_df = result_df.filter(col("row_num") > int(self.props.grouped_count_rownum))
+            
+            result_df = result_df.drop("row_num")
+        
+        return result_df

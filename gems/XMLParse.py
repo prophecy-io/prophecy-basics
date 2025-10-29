@@ -4,6 +4,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class XMLParse(MacroSpec):
     name: str = "XMLParse"
@@ -278,3 +281,51 @@ class XMLParse(MacroSpec):
             component,
             properties=replace(component.properties, relation_name=relation_name),
         )
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Parse XML column using either explicit schema or inferred schema from sample record.
+        Adds a new column {columnName}_parsed with the parsed XML structure.
+        
+        Note: XML parsing in PySpark requires Databricks' from_xml function or similar.
+        This implementation uses the from_xml function available in Databricks.
+        """
+        if not self.props.columnName or self.props.columnName == "":
+            return in0
+        
+        if not self.props.parsingMethod:
+            return in0
+        
+        col_name = self.props.columnName
+        parsed_col_name = f"{col_name}_parsed"
+        col_expr = col(col_name)
+        
+        if self.props.parsingMethod == "parseFromSchema":
+            # Parse using explicit schema
+            if not self.props.sampleSchema or self.props.sampleSchema.strip() == "":
+                return in0
+            
+            # Clean schema string (remove newlines, extra spaces)
+            schema_str = self.props.sampleSchema.replace("\n", " ").strip()
+            
+            # Parse XML with explicit schema using from_xml function
+            # from_xml is a Databricks-specific function
+            parsed_expr = expr(f"from_xml({col_name}, '{schema_str}')")
+            
+        elif self.props.parsingMethod == "parseFromSampleRecord":
+            # Parse using schema inferred from sample record
+            if not self.props.sampleRecord or self.props.sampleRecord.strip() == "":
+                return in0
+            
+            # Clean sample record string
+            sample_str = self.props.sampleRecord.replace("\n", " ").replace("'", "\\'").strip()
+            
+            # Infer schema from sample and parse XML
+            # schema_of_xml() is a Databricks-specific function
+            parsed_expr = expr(f"from_xml({col_name}, schema_of_xml('{sample_str}'))")
+        else:
+            # Unknown parsing method, return original
+            return in0
+        
+        # Add parsed column and return all columns
+        return in0.withColumn(parsed_col_name, parsed_expr)

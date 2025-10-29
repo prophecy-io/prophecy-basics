@@ -6,6 +6,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class Transpose(MacroSpec):
     name: str = "Transpose"
@@ -299,3 +302,48 @@ class Transpose(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Transpose data columns into Name/Value pairs.
+        Key columns remain as identifiers, data columns become rows with Name/Value pairs.
+        """
+        if not self.props.dataColumns:
+            return in0
+        
+        name_col = self.props.nameColumn if self.props.customNames else "Name"
+        value_col = self.props.valueColumn if self.props.customNames else "Value"
+        
+        # Build union of all data columns
+        union_dfs = []
+        
+        for data_col in self.props.dataColumns:
+            if data_col not in in0.columns:
+                continue
+            
+            # Select key columns (if any) + name column + value column
+            select_exprs = []
+            
+            # Add key columns
+            if self.props.keyColumns:
+                for key_col in self.props.keyColumns:
+                    if key_col in in0.columns:
+                        select_exprs.append(col(key_col))
+            
+            # Add name column (literal string of column name)
+            select_exprs.append(lit(data_col).alias(name_col))
+            
+            # Add value column (cast data column to string)
+            select_exprs.append(col(data_col).cast("string").alias(value_col))
+            
+            union_dfs.append(in0.select(*select_exprs))
+        
+        if not union_dfs:
+            return in0
+        
+        # Union all the DataFrames
+        result_df = union_dfs[0]
+        for df in union_dfs[1:]:
+            result_df = result_df.unionByName(df, allowMissingColumns=True)
+        
+        return result_df

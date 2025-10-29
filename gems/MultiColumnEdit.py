@@ -6,6 +6,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class MultiColumnEdit(MacroSpec):
     name: str = "MultiColumnEdit"
@@ -301,3 +304,59 @@ class MultiColumnEdit(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Apply a single expression to multiple columns.
+        Expression can use 'column_value' (the column's value) and 'column_name' (column name as string literal).
+        
+        If changeOutputFieldName is True, keeps original columns and adds new columns with prefix/suffix.
+        Otherwise, replaces the selected columns in place.
+        """
+        if not self.props.columnNames or not self.props.expressionToBeApplied:
+            return in0
+        
+        all_columns = in0.columns
+        select_exprs = []
+        
+        if self.props.changeOutputFieldName:
+            # Keep all original columns
+            for col_name in all_columns:
+                select_exprs.append(col(col_name))
+            
+            # Add new columns with transformed values and prefix/suffix names
+            for col_name in self.props.columnNames:
+                if col_name not in all_columns:
+                    continue
+                
+                # Replace placeholders in expression
+                # Replace column_value with actual column reference (with backticks for special chars)
+                expr_str = self.props.expressionToBeApplied.replace("column_value", f"`{col_name}`")
+                # Replace column_name with quoted column name string
+                expr_str = expr_str.replace("column_name", f"'{col_name}'")
+                
+                # Evaluate the expression
+                transformed_expr = expr(expr_str)
+                
+                # Determine new column name with prefix/suffix
+                if self.props.prefixSuffixOption.lower() == "prefix":
+                    new_col_name = f"{self.props.prefixSuffixToBeAdded}{col_name}"
+                else:
+                    new_col_name = f"{col_name}{self.props.prefixSuffixToBeAdded}"
+                
+                select_exprs.append(transformed_expr.alias(new_col_name))
+        else:
+            # Replace selected columns in place
+            for col_name in all_columns:
+                if col_name in self.props.columnNames:
+                    # Apply transformation
+                    expression = self.props.expressionToBeApplied
+                    expr_str = expression.replace("column_value", f"`{col_name}`")
+                    expr_str = expr_str.replace("column_name", f"'{col_name}'")
+                    transformed_expr = expr(expr_str)
+                    select_exprs.append(transformed_expr.alias(col_name))
+                else:
+                    # Keep original column
+                    select_exprs.append(col(col_name))
+        
+        return in0.select(*select_exprs)

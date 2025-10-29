@@ -3,9 +3,13 @@ from dataclasses import dataclass
 import dataclasses
 import json
 from collections import defaultdict
+from typing import Any
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class DataMasking(MacroSpec):
@@ -556,3 +560,76 @@ class DataMasking(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Apply masking transformations to selected columns.
+        Supports hash, sha, sha2, md5, mask, and crc32 methods.
+        """
+        if not self.props.column_names:
+            return in0
+        
+        method = self.props.masking_method
+        all_cols = set[Any](in0.columns)
+        remaining_cols = list(all_cols - set(self.props.column_names))
+        
+        select_exprs = []
+        
+        # Add remaining columns
+        for col_name in in0.columns:
+            if col_name in remaining_cols:
+                select_exprs.append(col(col_name))
+        
+        # Apply masking to selected columns
+        if self.props.masked_column_add_method == "combinedHash_substitute" and method == "hash":
+            # Combined hash for multiple columns
+            concat_cols = [col(c) for c in self.props.column_names]
+            hash_expr = hash(*concat_cols)
+            select_exprs.append(hash_expr.alias(self.props.combined_hash_column_name))
+        else:
+            # Individual column masking
+            for col_name in self.props.column_names:
+                col_expr = col(col_name)
+                new_col_name = col_name
+                
+                if self.props.masked_column_add_method == "prefix_suffix_substitute":
+                    if self.props.prefix_suffix_option == "Prefix":
+                        new_col_name = f"{self.props.prefix_suffix_added}{col_name}"
+                    else:
+                        new_col_name = f"{col_name}{self.props.prefix_suffix_added}"
+                
+                # Apply masking method
+                if method == "hash":
+                    masked_expr = hash(col_expr)
+                elif method == "md5":
+                    masked_expr = md5(col_expr.cast("string"))
+                elif method == "sha":
+                    masked_expr = sha1(col_expr.cast("string"))
+                elif method == "sha2":
+                    bit_length = int(self.props.sha2_bit_length) if self.props.sha2_bit_length else 256
+                    masked_expr = sha2(col_expr.cast("string"), bit_length)
+                elif method == "crc32":
+                    masked_expr = crc32(col_expr.cast("string"))
+                elif method == "mask":
+                    # Mask function with character replacement
+                    upper_char = self.props.upper_char_substitute if self.props.upper_char_substitute.upper() != "NULL" else "X"
+                    lower_char = self.props.lower_char_substitute if self.props.lower_char_substitute.upper() != "NULL" else "x"
+                    digit_char = self.props.digit_char_substitute if self.props.digit_char_substitute.upper() != "NULL" else "n"
+                    other_char = self.props.other_char_substitute if self.props.other_char_substitute.upper() != "NULL" else None
+                    
+                    # Apply regex replacements for masking
+                    masked_expr = col_expr.cast("string")
+                    if upper_char and upper_char != "NULL":
+                        masked_expr = regexp_replace(masked_expr, r"[A-Z]", upper_char)
+                    if lower_char and lower_char != "NULL":
+                        masked_expr = regexp_replace(masked_expr, r"[a-z]", lower_char)
+                    if digit_char and digit_char != "NULL":
+                        masked_expr = regexp_replace(masked_expr, r"\d", digit_char)
+                    if other_char and other_char != "NULL":
+                        masked_expr = regexp_replace(masked_expr, r"[^a-zA-Z0-9]", other_char)
+                else:
+                    masked_expr = col_expr
+                
+                select_exprs.append(masked_expr.alias(new_col_name))
+        
+        return in0.select(*select_exprs)

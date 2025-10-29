@@ -5,6 +5,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class TextToColumns(MacroSpec):
     name: str = "TextToColumns"
@@ -350,3 +353,89 @@ class TextToColumns(MacroSpec):
             component,
             properties=replace(component.properties, relation_name=relation_name),
         )
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Split text column by delimiter into either multiple columns or rows.
+        
+        Supports two strategies:
+        1. splitColumns: Split into multiple columns
+        2. splitRows: Split into multiple rows (explode)
+        """
+        if not self.props.columnNames or not self.props.delimiter or not self.props.split_strategy:
+            return in0
+        
+        col_name = self.props.columnNames
+        if col_name not in in0.columns:
+            return in0
+        
+        col_expr = col(col_name)
+        delimiter = self.props.delimiter
+        
+        # Handle escape sequences in delimiter
+        # Convert escape sequences like \t, \n, etc.
+        delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        
+        if self.props.split_strategy == "splitColumns":
+            # Split into multiple columns
+            # Use split() function directly with the delimiter
+            split_array = split(col_expr, delimiter)
+            
+            result_df = in0
+            
+            # Extract each token as a column
+            for i in range(1, self.props.noOfColumns):
+                token_col = trim(regexp_replace(split_array[i - 1], r'^"|"$', ''))
+                output_col = f"{self.props.splitColumnPrefix}_{i}_{self.props.splitColumnSuffix}"
+                result_df = result_df.withColumn(output_col, token_col)
+            
+            # Handle last column
+            last_col_name = f"{self.props.splitColumnPrefix}_{self.props.noOfColumns}_{self.props.splitColumnSuffix}"
+            
+            if self.props.leaveExtraCharLastCol == "Leave extra in last column":
+                # Join remaining tokens
+                remaining_tokens = slice(split_array, self.props.noOfColumns, size(split_array))
+                last_col = when(
+                    size(split_array) >= self.props.noOfColumns,
+                    array_join(remaining_tokens, delimiter)
+                ).otherwise(None)
+            else:
+                # Just take the last token
+                last_col = when(
+                    size(split_array) > self.props.noOfColumns - 1,
+                    trim(regexp_replace(split_array[self.props.noOfColumns - 1], r'^"|"$', ''))
+                ).otherwise(None)
+            
+            result_df = result_df.withColumn(last_col_name, last_col)
+            
+            return result_df
+        
+        elif self.props.split_strategy == "splitRows":
+            # Split into rows using explode
+            split_array = split(
+                when(col_expr.isNull(), lit("")).otherwise(col_expr),
+                delimiter
+            )
+            
+            # Explode the array
+            result_df = in0.select(
+                [col(c) for c in in0.columns if c != col_name] +
+                [explode(split_array).alias("col_temp")]
+            )
+            
+            # Clean up the exploded column - remove braces, underscores, etc.
+            cleaned_col = trim(
+                regexp_replace(
+                    regexp_replace(col("col_temp"), r'[{}_]', ' '),
+                    r'\s+',
+                    ' '
+                )
+            )
+            
+            result_df = result_df.withColumn(self.props.splitRowsColumnName, cleaned_col)
+            result_df = result_df.drop("col_temp")
+            
+            return result_df
+        
+        else:
+            return in0

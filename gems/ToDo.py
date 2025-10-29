@@ -4,6 +4,9 @@ import json
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class ToDo(MacroSpec):
     name: str = "ToDo"
@@ -164,3 +167,11 @@ class ToDo(MacroSpec):
             component.properties, relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        ToDo component raises an error based on diagnostic message.
+        This implementation will raise a PySpark exception.
+        """
+        diag_message = self.props.diag_message if self.props.diag_message else "No diagnostic provided."
+        raise Exception(f"ToDo: {diag_message}")

@@ -5,6 +5,9 @@ import json
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class DataCleansing(MacroSpec):
     name: str = "DataCleansing"
@@ -463,3 +466,104 @@ class DataCleansing(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Apply data cleansing transformations based on component properties.
+        Handles null replacement, whitespace trimming, character cleaning, and case modification.
+        """
+        # Parse schema to get column types
+        schema_json = json.loads(self.props.schema)
+        col_type_map = {col["name"]: col["dataType"].lower() for col in schema_json}
+        
+        # Numeric types for null replacement
+        numeric_types = ["bigint", "decimal", "double", "float", "integer", "int", "smallint", "tinyint"]
+        
+        result_df = in0
+        
+        # Step 1: Remove rows where all columns are null
+        if self.props.removeRowNullAllCols:
+            all_cols = [col for col in result_df.columns]
+            # Create condition: at least one column is not null
+            condition = None
+            for col in all_cols:
+                col_condition = col(col).isNotNull()
+                if condition is None:
+                    condition = col_condition
+                else:
+                    condition = condition | col_condition
+            if condition is not None:
+                result_df = result_df.filter(condition)
+        
+        # Early return if no columns to clean
+        if not self.props.columnNames:
+            return result_df
+        
+        # Step 2: Apply transformations to selected columns
+        select_exprs = []
+        remaining_cols = [col for col in result_df.columns if col not in self.props.columnNames]
+        
+        for col_name in result_df.columns:
+            if col_name not in self.props.columnNames:
+                # Keep original column
+                select_exprs.append(col(col_name).alias(col_name))
+                continue
+            
+            dtype = col_type_map.get(col_name, "").lower()
+            col_expr = col(col_name)
+            
+            # Numeric null replacement
+            if dtype in numeric_types and self.props.replaceNullForNumericFields:
+                col_expr = coalesce(col_expr, lit(self.props.replaceNullNumericWith))
+            
+            # String-specific transformations
+            if dtype == "string":
+                # Replace null text fields
+                if self.props.replaceNullTextFields:
+                    col_expr = coalesce(col_expr, lit(self.props.replaceNullTextWith))
+                
+                # Trim whitespace
+                if self.props.trimWhiteSpace:
+                    col_expr = trim(col_expr)
+                
+                # Remove tabs, line breaks, and duplicate whitespace
+                if self.props.removeTabsLineBreaksAndDuplicateWhitespace:
+                    col_expr = regexp_replace(col_expr, r"\s+", " ")
+                
+                # Remove all whitespace
+                if self.props.allWhiteSpace:
+                    col_expr = regexp_replace(col_expr, r"\s+", "")
+                
+                # Remove letters
+                if self.props.cleanLetters:
+                    col_expr = regexp_replace(col_expr, r"[A-Za-z]+", "")
+                
+                # Remove punctuations (keep only alphanumeric and spaces)
+                if self.props.cleanPunctuations:
+                    col_expr = regexp_replace(col_expr, r"[^a-zA-Z0-9\s]", "")
+                
+                # Remove numbers
+                if self.props.cleanNumbers:
+                    col_expr = regexp_replace(col_expr, r"\d+", "")
+                
+                # Case modification
+                if self.props.modifyCase == "makeLowercase":
+                    col_expr = lower(col_expr)
+                elif self.props.modifyCase == "makeUppercase":
+                    col_expr = upper(col_expr)
+                elif self.props.modifyCase == "makeTitlecase":
+                    col_expr = initcap(col_expr)
+            
+            # Date null replacement
+            if dtype == "date" and self.props.replaceNullDateFields:
+                col_expr = coalesce(col_expr, to_date(lit(self.props.replaceNullDateWith)))
+            
+            # Timestamp null replacement
+            if dtype == "timestamp" and self.props.replaceNullTimeFields:
+                col_expr = coalesce(col_expr, to_timestamp(lit(self.props.replaceNullTimeWith)))
+            
+            # Cast back to original type if needed
+            # Note: In PySpark, we typically don't need explicit casting unless type changes
+            select_exprs.append(col_expr.alias(col_name))
+        
+        return result_df.select(*select_exprs)

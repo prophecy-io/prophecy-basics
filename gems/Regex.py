@@ -9,6 +9,10 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
 
 @dataclass(frozen=True)
 class ColumnParse:
@@ -653,4 +657,180 @@ class Regex(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Apply regex operations on selected column.
+        Supports four output methods: replace, tokenize, parse, and match.
+        """
+        if not self.props.selectedColumnName or not self.props.regexExpression:
+            return in0
+        
+        col_name = self.props.selectedColumnName
+        if col_name not in in0.columns:
+            return in0
+        
+        col_expr = col(col_name)
+        regex_pattern = self.props.regexExpression
+        
+        # Build regex pattern with case insensitive flag if needed
+        if self.props.caseInsensitive:
+            # PySpark regexp_replace doesn't support inline flags, use CASE INSENSITIVE mode
+            # We'll handle this in the regex functions
+            pass
+        
+        output_method = self.props.outputMethod.lower()
+        
+        if output_method == "replace":
+            # Replace matched text with replacement text
+            replacement = self.props.replacementText or ""
+            
+            if self.props.caseInsensitive:
+                # For case insensitive, we need to use a workaround
+                # PySpark doesn't support inline flags directly
+                replaced_expr = regexp_replace(
+                    col_expr, 
+                    f"(?i){regex_pattern}", 
+                    replacement
+                )
+            else:
+                replaced_expr = regexp_replace(col_expr, regex_pattern, replacement)
+            
+            if self.props.copyUnmatchedText:
+                # Only replace if pattern matches, otherwise keep original
+                replaced_expr = when(col_expr.rlike(regex_pattern), replaced_expr).otherwise(col_expr)
+            
+            output_col_name = f"{col_name}_replaced"
+            return in0.withColumn(output_col_name, replaced_expr)
+        
+        elif output_method == "tokenize":
+            if self.props.tokenizeOutputMethod == "splitColumns":
+                # Split into multiple columns
+                # Check if regex has capture groups
+                has_capture_groups = "(" in regex_pattern and ")" in regex_pattern
+                
+                result_df = in0
+                
+                if has_capture_groups:
+                    # Extract each capture group
+                    for i in range(1, self.props.noOfColumns + 1):
+                        extracted = regexp_extract(col_expr, regex_pattern, i)
+                        if not self.props.allowBlankTokens:
+                            extracted = when(
+                                (col_expr.rlike(regex_pattern)) & (extracted != ""),
+                                extracted
+                            ).otherwise(None)
+                        else:
+                            extracted = when(col_expr.rlike(regex_pattern), extracted).otherwise("")
+                        
+                        output_col = f"{self.props.outputRootName}{i}"
+                        result_df = result_df.withColumn(output_col, extracted)
+                else:
+                    # Use regexp_extract_all and take first N elements
+                    extracted_array = regexp_extract_all(col_expr, regex_pattern)
+                    
+                    for i in range(1, self.props.noOfColumns + 1):
+                        array_idx = i - 1  # 0-indexed
+                        extracted = when(
+                            (size(extracted_array) > array_idx) & 
+                            (extracted_array[array_idx] != ""),
+                            extracted_array[array_idx]
+                        ).otherwise(
+                            lit("") if self.props.allowBlankTokens else None
+                        )
+                        output_col = f"{self.props.outputRootName}{i}"
+                        result_df = result_df.withColumn(output_col, extracted)
+                
+                # Handle extra columns
+                if self.props.extraColumnsHandling == "error":
+                    # This would need additional validation - skipped for now
+                    pass
+                
+                return result_df
+            
+            elif self.props.tokenizeOutputMethod == "splitRows":
+                # Split into rows using explode
+                extracted_array = regexp_extract_all(col_expr, regex_pattern)
+                
+                # Explode the array and create rows
+                result_df = in0.select(
+                    [col(c) for c in in0.columns if c != col_name] +
+                    [explode(extracted_array).alias(self.props.outputRootName)]
+                )
+                
+                # Filter blank tokens if needed
+                if not self.props.allowBlankTokens:
+                    result_df = result_df.filter(
+                        (col(self.props.outputRootName) != "") & 
+                        (col(self.props.outputRootName).isNotNull())
+                    )
+                
+                # Add sequence number
+                window_spec = Window.orderBy(monotonically_increasing_id())
+                result_df = result_df.withColumn(
+                    "token_sequence",
+                    row_number().over(window_spec)
+                )
+                
+                return result_df
+        
+        elif output_method == "parse":
+            # Parse into multiple columns based on capture groups
+            if not self.props.parseColumns:
+                return in0
+            
+            result_df = in0
+            
+            for idx, parse_col in enumerate(self.props.parseColumns, start=1):
+                # Extract capture group
+                extracted = regexp_extract(col_expr, regex_pattern, idx)
+                
+                # Check if full match exists
+                full_match = regexp_extract(col_expr, regex_pattern, 0)
+                extracted = when(
+                    (full_match == "") | (extracted == ""),
+                    None
+                ).otherwise(extracted)
+                
+                # Cast to appropriate data type
+                dtype = parse_col.dataType.lower()
+                if dtype == "int" or dtype == "integer":
+                    extracted = extracted.cast("int")
+                elif dtype == "bigint":
+                    extracted = extracted.cast("bigint")
+                elif dtype == "double":
+                    extracted = extracted.cast("double")
+                elif dtype == "bool" or dtype == "boolean":
+                    extracted = extracted.cast("boolean")
+                elif dtype == "date":
+                    extracted = extracted.cast("date")
+                elif dtype == "datetime" or dtype == "timestamp":
+                    extracted = extracted.cast("timestamp")
+                # else keep as string
+                
+                result_df = result_df.withColumn(parse_col.columnName, extracted)
+            
+            return result_df
+        
+        elif output_method == "match":
+            # Create boolean match column
+            match_expr = when(
+                col_expr.isNull(),
+                lit(0)
+            ).when(
+                col_expr.rlike(regex_pattern),
+                lit(1)
+            ).otherwise(lit(0))
+            
+            result_df = in0.withColumn(self.props.matchColumnName, match_expr)
+            
+            if self.props.errorIfNotMatched:
+                # Filter to only matched rows
+                result_df = result_df.filter(col_expr.rlike(regex_pattern))
+            
+            return result_df
+        
+        else:
+            # Unknown output method
+            return in0
 

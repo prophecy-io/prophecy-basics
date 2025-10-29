@@ -4,6 +4,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class JSONParse(MacroSpec):
     name: str = "JSONParse"
@@ -280,3 +283,49 @@ class JSONParse(MacroSpec):
             component,
             properties=replace(component.properties, relation_name=relation_name),
         )
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Parse JSON column using either explicit schema or inferred schema from sample record.
+        Adds a new column {columnName}_parsed with the parsed JSON structure.
+        """
+        if not self.props.columnName or self.props.columnName == "":
+            return in0
+        
+        if not self.props.parsingMethod:
+            return in0
+        
+        col_name = self.props.columnName
+        parsed_col_name = f"{col_name}_parsed"
+        col_expr = col(col_name)
+        
+        if self.props.parsingMethod == "parseFromSchema":
+            # Parse using explicit schema
+            if not self.props.sampleSchema or self.props.sampleSchema.strip() == "":
+                return in0
+            
+            # Clean schema string (remove newlines, extra spaces)
+            schema_str = self.props.sampleSchema.replace("\n", " ").strip()
+            
+            # Parse JSON with explicit schema
+            # from_json expects a schema as StructType or schema string
+            parsed_expr = from_json(col_expr, schema_str)
+            
+        elif self.props.parsingMethod == "parseFromSampleRecord":
+            # Parse using schema inferred from sample record
+            if not self.props.sampleRecord or self.props.sampleRecord.strip() == "":
+                return in0
+            
+            # Clean sample record string - escape single quotes for SQL expression
+            sample_str = self.props.sampleRecord.replace("\n", " ").replace("'", "\\'").strip()
+            
+            # Use schema_of_json() to infer schema from sample, then parse JSON
+            # schema_of_json() returns a schema string that can be used with from_json
+            # In PySpark, we use the schema_of_json function within from_json
+            parsed_expr = from_json(col_expr, expr(f"schema_of_json('{sample_str}')"))
+        else:
+            # Unknown parsing method, return original
+            return in0
+        
+        # Add parsed column and return all columns
+        return in0.withColumn(parsed_col_name, parsed_expr)

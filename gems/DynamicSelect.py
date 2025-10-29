@@ -6,6 +6,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class DynamicSelect(MacroSpec):
     name: str = "DynamicSelect"
@@ -329,3 +332,51 @@ class DynamicSelect(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Dynamically select columns based on field types or custom expression.
+        """
+        schema_json = json.loads(self.props.schema)
+        target_types = json.loads(self.props.targetTypes) if self.props.targetTypes else []
+        
+        selected_columns = []
+        
+        if self.props.selectUsing == "SELECT_EXPR":
+            # Custom expression mode - evaluate expression for each column
+            for idx, col_info in enumerate(schema_json):
+                col_name = col_info["name"]
+                col_type = col_info["dataType"]
+                
+                # Replace placeholders in expression
+                expression = self.props.customExpression
+                if "column_name" in expression:
+                    expression = expression.replace("column_name", f"'{col_name}'")
+                if "column_type" in expression:
+                    expression = expression.replace("column_type", f"'{col_type}'")
+                if "field_number" in expression:
+                    expression = expression.replace("field_number", str(idx))
+                
+                # Evaluate expression (basic Python eval - be careful in production!)
+                try:
+                    result = eval(expression)
+                    if result:
+                        selected_columns.append(col_name)
+                except:
+                    # If evaluation fails, skip the column
+                    pass
+        else:
+            # Field type mode - select columns matching target types
+            for col_info in schema_json:
+                col_name = col_info["name"]
+                col_type = col_info["dataType"]
+                # Match case-insensitively
+                if any(col_type.lower() == t.lower() for t in target_types):
+                    selected_columns.append(col_name)
+        
+        # Select columns or return empty result
+        if selected_columns:
+            return in0.select([col(c) for c in selected_columns])
+        else:
+            # Return DataFrame with a single null column
+            return spark.createDataFrame([(None,)], ["no_columns_matched"])

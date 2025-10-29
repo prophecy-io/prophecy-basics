@@ -6,6 +6,10 @@ from typing import List
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
 
 @dataclass(frozen=True)
 class ColumnExpr:
@@ -406,3 +410,60 @@ class RecordID(MacroSpec):
             component.properties, relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Generate record IDs using UUID or incremental ID based on row_number.
+        Supports table-level and group-level ID generation.
+        """
+        record_id_col = self.props.incremental_id_column_name
+        
+        if self.props.method == "uuid":
+            # Generate UUID
+            id_expr = expr("uuid()")
+        else:
+            # Generate incremental ID using row_number
+            if self.props.generationMethod == "groupLevel" and self.props.groupByColumnNames:
+                # Group-level: partition by group columns
+                partition_cols = [col(c) for c in self.props.groupByColumnNames]
+                window_spec = Window.partitionBy(*partition_cols)
+                
+                # Add order by if specified
+                if self.props.orders:
+                    order_exprs = []
+                    for rule in self.props.orders:
+                        expr_str = rule.expression.expression.strip()
+                        if expr_str:
+                            expr_col = expr(expr_str)
+                            if rule.sortType == "asc":
+                                order_exprs.append(expr_col.asc().nullsFirst())
+                            elif rule.sortType == "asc_nulls_last":
+                                order_exprs.append(expr_col.asc().nullsLast())
+                            elif rule.sortType == "desc_nulls_first":
+                                order_exprs.append(expr_col.desc().nullsFirst())
+                            else:  # desc
+                                order_exprs.append(expr_col.desc().nullsLast())
+                    if order_exprs:
+                        window_spec = window_spec.orderBy(*order_exprs)
+                    else:
+                        window_spec = window_spec.orderBy(lit(1))
+                else:
+                    window_spec = window_spec.orderBy(lit(1))
+            else:
+                # Table-level: no partition
+                window_spec = Window.orderBy(lit(1))
+            
+            # Calculate row number with starting value offset
+            rn_expr = row_number().over(window_spec) + (self.props.incremental_id_starting_val - 1)
+            
+            # Format based on type
+            if self.props.incremental_id_type == "string":
+                id_expr = lpad(rn_expr.cast("string"), self.props.incremental_id_size, "0")
+            else:
+                id_expr = rn_expr
+        
+        # Add ID column at specified position
+        if self.props.position == "first_column":
+            return in0.select([id_expr.alias(record_id_col)] + [col(c) for c in in0.columns])
+        else:
+            return in0.select([col(c) for c in in0.columns] + [id_expr.alias(record_id_col)])

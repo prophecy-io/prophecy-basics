@@ -1,10 +1,14 @@
 import dataclasses
 import json
+import re
 from dataclasses import dataclass
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class MultiColumnRename(MacroSpec):
@@ -323,3 +327,95 @@ class MultiColumnRename(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Rename multiple columns using either prefix/suffix or advanced rename with expression.
+        
+        Supports two methods:
+        1. editPrefixSuffix: Add prefix or suffix to column names
+        2. advancedRename: Use custom expression with 'column_name' placeholder
+        """
+        if not self.props.columnNames or not self.props.renameMethod:
+            return in0
+        
+        # Build rename mapping
+        rename_map = {}
+        
+        for col_name in self.props.columnNames:
+            if col_name not in in0.columns:
+                continue
+            
+            if self.props.renameMethod == "editPrefixSuffix":
+                # Add prefix or suffix
+                if self.props.editType == "Prefix":
+                    new_name = f"{self.props.editWith}{col_name}"
+                else:  # Suffix
+                    new_name = f"{col_name}{self.props.editWith}"
+                rename_map[col_name] = new_name
+                
+            elif self.props.renameMethod == "advancedRename":
+                # Evaluate custom expression using SQL
+                # Replace column_name placeholder with quoted column name string
+                expression = self.props.customExpression.replace("column_name", f"'{col_name}'")
+                
+                # Use Spark SQL to evaluate the expression
+                # Create a temporary DataFrame with a single row to evaluate the expression
+                try:
+                    # Build a SQL query to evaluate the expression
+                    # The macro uses evaluate_expression which runs SQL, so we'll do the same
+                    temp_df = spark.createDataFrame([(col_name,)], ["col_name_temp"])
+                    # Use SQL to evaluate the expression
+                    # Replace column_name in expression and evaluate
+                    eval_expr = expression.replace(f"'{col_name}'", "col_name_temp")
+                    result_row = temp_df.select(expr(eval_expr)).first()
+                    if result_row:
+                        new_name = str(result_row[0]).strip()
+                        rename_map[col_name] = new_name
+                    else:
+                        # Fallback
+                        rename_map[col_name] = col_name
+                except:
+                    # Simplified fallback: handle common string functions manually
+                    eval_expr = expression
+                    # Replace common SQL string functions
+                    
+                    # Handle upper('value') -> value.upper() in Python eval context
+                    def eval_sql_func(m):
+                        func_name = m.group(1)
+                        arg = m.group(2).strip("'\"")
+                        if func_name == "upper":
+                            return f"'{arg.upper()}'"
+                        elif func_name == "lower":
+                            return f"'{arg.lower()}'"
+                        return m.group(0)
+                    
+                    # Replace function calls
+                    eval_expr = re.sub(r"(upper|lower)\('([^']+)'\)", eval_sql_func, eval_expr)
+                    
+                    # Handle concat - replace with string concatenation
+                    def replace_concat(m):
+                        args_str = m.group(1)
+                        # Split arguments, handling quotes
+                        parts = []
+                        for part in re.split(r",\s*", args_str):
+                            part = part.strip().strip("'\"")
+                            parts.append(f"'{part}'")
+                        return " + ".join(parts)
+                    
+                    eval_expr = re.sub(r"concat\(([^)]+)\)", replace_concat, eval_expr)
+                    
+                    try:
+                        # Evaluate as Python expression after cleaning
+                        new_name = eval(eval_expr.replace("'", "").replace('"', ''))
+                        rename_map[col_name] = str(new_name).strip()
+                    except:
+                        # Final fallback: use expression as-is
+                        rename_map[col_name] = expression.replace("'", "").replace('"', '').strip()
+        
+        # Apply renames using withColumnRenamed
+        result_df = in0
+        for old_name, new_name in rename_map.items():
+            result_df = result_df.withColumnRenamed(old_name, new_name)
+        
+        return result_df
