@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
-import dataclasses, json
-from typing import List
+import dataclasses
+import json
 
-from prophecy.cb.sql.Component import *
+from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class UnionByName(MacroSpec):
@@ -139,3 +140,19 @@ class UnionByName(MacroSpec):
             schemas=self._extract_schemas(component),
         )
         return component.bindProperties(new_props)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame, in1: DataFrame, inDFs: List[DataFrame]) -> DataFrame:
+        _inputs = [in0, in1]
+        _inputs.extend(inDFs)
+
+        nonEmptyDf: SubstituteDisabled = [x for x in _inputs if x is not None]
+        res: SubstituteDisabled = nonEmptyDf[0]
+        rest: SubstituteDisabled = nonEmptyDf[1:]
+
+        if self.props.missingColumnOps == "allowMissingColumns":
+            for inDF in rest:
+                res = res.unionByName(inDF, allowMissingColumns=True)
+        else:
+            for inDF in rest:
+                res = res.unionByName(inDF)
+        return res
