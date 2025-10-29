@@ -64,10 +64,19 @@ def setup_prophecy_mocks():
     # Register mocks in sys.modules so "from X import *" works
     mock_macro_base_mod = type(sys)('prophecy.cb.sql.MacroBuilderBase')
     mock_macro_base_mod.__dict__.update(MockMacroBuilderBase.__dict__)
+    
+    # Mock ComponentBuilderBase (used by UnionByName)
+    mock_component_builder_base = MagicMock()
+    
     sys.modules['prophecy'] = type(sys)('prophecy')
     sys.modules['prophecy.cb'] = type(sys)('prophecy.cb')
     sys.modules['prophecy.cb.sql'] = type(sys)('prophecy.cb.sql')
     sys.modules['prophecy.cb.sql.MacroBuilderBase'] = mock_macro_base_mod
+    sys.modules['prophecy.cb.server'] = type(sys)('prophecy.cb.server')
+    sys.modules['prophecy.cb.server.base'] = type(sys)('prophecy.cb.server.base')
+    mock_component_builder_mod = type(sys)('prophecy.cb.server.base.ComponentBuilderBase')
+    mock_component_builder_mod.__dict__.update(mock_component_builder_base.__dict__)
+    sys.modules['prophecy.cb.server.base.ComponentBuilderBase'] = mock_component_builder_mod
     sys.modules['prophecy.cb.ui'] = type(sys)('prophecy.cb.ui')
     mock_uispec_mod = type(sys)('prophecy.cb.ui.uispec')
     mock_uispec_mod.__dict__.update(MockUISpec.__dict__)
