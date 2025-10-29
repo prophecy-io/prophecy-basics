@@ -78,8 +78,8 @@
         select * from {{ relation_name }}
 
     {%- else -%}
-        {%- set quoted_col = adapter.quote(columnName) -%}
-        {%- set alias_col = adapter.quote(columnName ~ '_parsed') -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
