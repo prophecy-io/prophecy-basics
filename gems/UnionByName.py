@@ -141,7 +141,7 @@ class UnionByName(MacroSpec):
         )
         return component.bindProperties(new_props)
 
-    def applyPython(self, spark: SparkSession, in0: DataFrame, in1: DataFrame, inDFs: List[DataFrame]) -> DataFrame:
+    def applyPython(self, spark: SparkSession, in0: DataFrame, in1: DataFrame, *inDFs: DataFrame) -> DataFrame:
         _inputs = [in0, in1]
         _inputs.extend(inDFs)
 
