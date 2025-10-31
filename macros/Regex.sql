@@ -32,6 +32,9 @@
     errorIfNotMatched)) }}
 {% endmacro %}
 
+{# ============================================ #}
+{# DEFAULT (Spark/Databricks) Implementation   #}
+{# ============================================ #}
 {% macro default__Regex(
     relation_name,
     parseColumns,
@@ -71,8 +74,11 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
+{# Use helper macro for proper SQL string escaping #}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
+{# For replacement text, escape SQL string literals #}
+{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
 {%- set source_table = relation_name -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
@@ -83,11 +89,11 @@
         {% if copyUnmatchedText %}
         case
             when {{ quoted_selected }} rlike '{{ regex_pattern }}' then
-                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}')
+                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
             else {{ quoted_selected }}
         end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% endif %}
     from {{ source_table }}
 
@@ -172,11 +178,11 @@
                     when {{ quoted_selected }} rlike '{{ regex_pattern }}' then
                         case
                             when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ i }}) = '' then
-                                case when {{ allowBlankTokens | lower }} then '' else cast(null as string) end
+                                case when {{ allowBlankTokens }} then '' else cast(null as string) end
                             else regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ i }})
                         end
                     else
-                        case when {{ allowBlankTokens | lower }} then '' else cast(null as string) end
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
                 end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
                 {%- endfor %}
             from {{ source_table }}
@@ -194,9 +200,9 @@
                 case
                     when size(regex_matches) = 0 then cast(null as string)
                     when size(regex_matches) < {{ i }} then
-                        case when {{ allowBlankTokens | lower }} then '' else cast(null as string) end
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
                     when regex_matches[{{ i - 1 }}] = '' then
-                        case when {{ allowBlankTokens | lower }} then '' else cast(null as string) end
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
                     else regex_matches[{{ i - 1 }}]
                 end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
                 {%- endfor %}
@@ -207,7 +213,6 @@
             {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
         {% elif extra_handling_lower == 'erroronextra' -%}
             {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
-            {# Note: Error checking for capture groups would need additional logic #}
         {%- endif -%}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
@@ -264,6 +269,708 @@
     from {{ source_table }}
     {% if errorIfNotMatched %}
     where {{ quoted_selected }} rlike '{{ regex_pattern }}'
+    {% endif %}
+
+{%- else -%}
+    select 'ERROR: Unknown outputMethod "{{ outputMethod }}"' as error_message
+
+{%- endif -%}
+
+{%- endif -%}
+
+{% endmacro %}
+
+{# ============================================ #}
+{# BIGQUERY Implementation                     #}
+{# ============================================ #}
+{% macro bigquery__Regex(
+    relation_name,
+    parseColumns,
+    currentSchema='',
+    selectedColumnName='',
+    regexExpression='',
+    outputMethod='replace',
+    caseInsensitive=true,
+    allowBlankTokens=false,
+    replacementText='',
+    copyUnmatchedText=false,
+    tokenizeOutputMethod='splitColumns',
+    noOfColumns=3,
+    extraColumnsHandling='dropExtraWithWarning',
+    outputRootName='regex_col',
+    matchColumnName='regex_match',
+    errorIfNotMatched=false
+) %}
+
+{# Input validation #}
+{%- if not selectedColumnName or selectedColumnName == '' -%}
+    {{ log("ERROR: selectedColumnName parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: selectedColumnName parameter is required' as error_message
+{%- elif not regexExpression or regexExpression == '' -%}
+    {{ log("ERROR: regexExpression parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: regexExpression parameter is required' as error_message
+{%- elif not relation_name or relation_name == '' -%}
+    {{ log("ERROR: relation_name parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: relation_name parameter is required' as error_message
+{%- else -%}
+
+{# Parse parseColumns if its a string #}
+{%- if parseColumns is string -%}
+    {%- set parsed_columns = fromjson(parseColumns) -%}
+{%- else -%}
+    {%- set parsed_columns = parseColumns -%}
+{%- endif -%}
+
+{%- set output_method_lower = outputMethod | lower -%}
+{# Use helper macro for proper SQL string escaping #}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
+{%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
+{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
+{%- set source_table = relation_name -%}
+{%- set extra_handling_lower = extraColumnsHandling | lower -%}
+{%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
+
+{%- if output_method_lower == 'replace' -%}
+    select
+        *,
+        {% if copyUnmatchedText %}
+        case
+            when REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then
+                REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}')
+            else {{ quoted_selected }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% else %}
+        REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% endif %}
+    from {{ source_table }}
+
+{%- elif output_method_lower == 'parse' -%}
+    {%- if parsed_columns and parsed_columns|length > 0 -%}
+        select
+            *
+            {%- for config in parsed_columns -%}
+                {%- if config and config.columnName -%}
+                    {%- set col_name = config.columnName -%}
+                    {%- set col_type = config.dataType | default('string') -%}
+                    {%- set group_index = loop.index -%}
+            ,
+            {%- if col_type|lower == 'string' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})]
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'int' or col_type|lower == 'int64' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as INT64)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bigint' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as INT64)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'double' or col_type|lower == 'float64' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as FLOAT64)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bool' or col_type|lower == 'boolean' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as BOOL)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'date' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as DATE)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'datetime' or col_type|lower == 'timestamp' %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else CAST(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] as TIMESTAMP)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- else %}
+            case
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}') = '' then null
+                when ARRAY_LENGTH(REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')) < {{ group_index }} then null
+                when REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})] = '' then null
+                else REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}')[OFFSET({{ group_index - 1 }})]
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- endif %}
+                {%- endif -%}
+            {%- endfor %}
+        from {{ source_table }}
+    {%- else -%}
+        select 'ERROR: parseColumns array is empty after parsing' as error_message
+    {%- endif -%}
+
+{%- elif output_method_lower == 'tokenize' -%}
+    {%- set tokenize_method_lower = tokenizeOutputMethod | lower -%}
+    {%- if tokenize_method_lower == 'splitcolumns' -%}
+        with extracted_array as (
+            select
+                *,
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as regex_matches
+            from {{ source_table }}
+        )
+        select
+            * except (regex_matches)
+            {%- for i in range(1, noOfColumns + 1) %},
+            case
+                when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
+                when ARRAY_LENGTH(regex_matches) < {{ i }} then
+                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                when regex_matches[OFFSET({{ i - 1 }})] = '' then
+                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                else regex_matches[OFFSET({{ i - 1 }})]
+            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+            {%- endfor %}
+        from extracted_array
+
+        {% if extra_handling_lower == 'dropextrawithwarning' -%}
+            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
+        {% elif extra_handling_lower == 'erroronextra' -%}
+            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- endif -%}
+
+    {%- elif tokenize_method_lower == 'splitrows' -%}
+        with regex_matches as (
+            select
+                *,
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as split_tokens
+            from {{ source_table }}
+        ),
+        exploded_tokens as (
+            select
+                * except (split_tokens),
+                token_value_new,
+                ROW_NUMBER() OVER (PARTITION BY {{ quoted_selected }} ORDER BY (SELECT NULL)) as token_position
+            from regex_matches
+            cross join unnest(split_tokens) as token_value_new
+        )
+        select
+            *,
+            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
+            token_position as token_sequence
+        from exploded_tokens
+        {% if not allowBlankTokens %}
+        where token_value_new != '' and token_value_new is not null
+        {% endif %}
+
+    {%- else -%}
+        with extracted_array as (
+            select
+                *,
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as regex_matches
+            from {{ source_table }}
+        )
+        select
+            * except (regex_matches)
+            {%- for i in range(1, noOfColumns + 1) %},
+            case
+                when ARRAY_LENGTH(regex_matches) < {{ i }} then null
+                when regex_matches[OFFSET({{ i - 1 }})] = '' then null
+                else regex_matches[OFFSET({{ i - 1 }})]
+            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+            {%- endfor %}
+        from extracted_array
+    {%- endif -%}
+
+{%- elif output_method_lower == 'match' -%}
+    select
+        *,
+        case
+            when {{ quoted_selected }} is null then 0
+            when REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then 1
+            else 0
+        end as {{ prophecy_basics.quote_identifier(matchColumnName) }}
+    from {{ source_table }}
+    {% if errorIfNotMatched %}
+    where REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}')
+    {% endif %}
+
+{%- else -%}
+    select 'ERROR: Unknown outputMethod "{{ outputMethod }}"' as error_message
+
+{%- endif -%}
+
+{%- endif -%}
+
+{% endmacro %}
+
+{# ============================================ #}
+{# SNOWFLAKE Implementation                    #}
+{# ============================================ #}
+{% macro snowflake__Regex(
+    relation_name,
+    parseColumns,
+    currentSchema='',
+    selectedColumnName='',
+    regexExpression='',
+    outputMethod='replace',
+    caseInsensitive=true,
+    allowBlankTokens=false,
+    replacementText='',
+    copyUnmatchedText=false,
+    tokenizeOutputMethod='splitColumns',
+    noOfColumns=3,
+    extraColumnsHandling='dropExtraWithWarning',
+    outputRootName='regex_col',
+    matchColumnName='regex_match',
+    errorIfNotMatched=false
+) %}
+
+{# Input validation #}
+{%- if not selectedColumnName or selectedColumnName == '' -%}
+    {{ log("ERROR: selectedColumnName parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: selectedColumnName parameter is required' as error_message
+{%- elif not regexExpression or regexExpression == '' -%}
+    {{ log("ERROR: regexExpression parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: regexExpression parameter is required' as error_message
+{%- elif not relation_name or relation_name == '' -%}
+    {{ log("ERROR: relation_name parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: relation_name parameter is required' as error_message
+{%- else -%}
+
+{# Parse parseColumns if its a string #}
+{%- if parseColumns is string -%}
+    {%- set parsed_columns = fromjson(parseColumns) -%}
+{%- else -%}
+    {%- set parsed_columns = parseColumns -%}
+{%- endif -%}
+
+{%- set output_method_lower = outputMethod | lower -%}
+{# Use helper macro for proper SQL string escaping #}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
+{%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
+{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
+{%- set source_table = relation_name -%}
+{%- set extra_handling_lower = extraColumnsHandling | lower -%}
+{%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
+
+{%- if output_method_lower == 'replace' -%}
+    select
+        *,
+        {% if copyUnmatchedText %}
+        case
+            when REGEXP_LIKE({{ quoted_selected }}, '{{ regex_pattern }}') then
+                REGEXP_REPLACE({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
+            else {{ quoted_selected }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% else %}
+        REGEXP_REPLACE({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% endif %}
+    from {{ source_table }}
+
+{%- elif output_method_lower == 'parse' -%}
+    {%- if parsed_columns and parsed_columns|length > 0 -%}
+        select
+            *
+            {%- for config in parsed_columns -%}
+                {%- if config and config.columnName -%}
+                    {%- set col_name = config.columnName -%}
+                    {%- set col_type = config.dataType | default('string') -%}
+                    {%- set group_index = loop.index -%}
+            ,
+            {%- if col_type|lower == 'string' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }})
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'int' or col_type|lower == 'integer' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as INTEGER)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bigint' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as BIGINT)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'double' or col_type|lower == 'float' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as DOUBLE)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bool' or col_type|lower == 'boolean' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as BOOLEAN)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'date' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as DATE)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'datetime' or col_type|lower == 'timestamp' %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else CAST(REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) as TIMESTAMP_NTZ)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- else %}
+            case
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) = '' then null
+                when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }}) is null then null
+                else REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ group_index }})
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- endif %}
+                {%- endif -%}
+            {%- endfor %}
+        from {{ source_table }}
+    {%- else -%}
+        select 'ERROR: parseColumns array is empty after parsing' as error_message
+    {%- endif -%}
+
+{%- elif output_method_lower == 'tokenize' -%}
+    {%- set tokenize_method_lower = tokenizeOutputMethod | lower -%}
+    {%- if tokenize_method_lower == 'splitcolumns' -%}
+        {# Check if regex has capture groups by counting opening parentheses (basic heuristic) #}
+        {%- set has_capture_groups = '(' in regexExpression -%}
+
+        {%- if has_capture_groups -%}
+            {# For patterns with capture groups, extract each group individually #}
+            select
+                *
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when REGEXP_LIKE({{ quoted_selected }}, '{{ regex_pattern }}') then
+                        case
+                            when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }}) = '' then
+                                case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                            when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }}) is null then
+                                case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                            else REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }})
+                        end
+                    else
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from {{ source_table }}
+        {%- else -%}
+            {# For patterns without capture groups, use REGEXP_EXTRACT_ALL #}
+            with extracted_array as (
+                select
+                    *,
+                    REGEXP_EXTRACT_ALL({{ quoted_selected }}, '{{ regex_pattern }}') as regex_matches
+                from {{ source_table }}
+            )
+            select
+                *
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when array_size(regex_matches) = 0 then cast(null as varchar)
+                    when array_size(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    when regex_matches[{{ i - 1 }}] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    else regex_matches[{{ i - 1 }}]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
+        {%- endif -%}
+
+        {% if extra_handling_lower == 'dropextrawithwarning' -%}
+            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
+        {% elif extra_handling_lower == 'erroronextra' -%}
+            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- endif -%}
+
+    {%- elif tokenize_method_lower == 'splitrows' -%}
+        with regex_matches as (
+            select
+                *,
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, '{{ regex_pattern }}') as split_tokens
+            from {{ source_table }}
+        ),
+        exploded_tokens as (
+            select
+                *,
+                f.value::varchar as token_value_new,
+                row_number() over (partition by {{ quoted_selected }} order by f.index) as token_position
+            from regex_matches
+            lateral flatten(input => split_tokens) f
+        )
+        select
+            * exclude (token_value_new),
+            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
+            token_position as token_sequence
+        from exploded_tokens
+        {% if not allowBlankTokens %}
+        where token_value_new != '' and token_value_new is not null
+        {% endif %}
+
+    {%- else -%}
+        {# For patterns with capture groups, extract each group individually #}
+        select
+            *
+            {%- for i in range(1, noOfColumns + 1) %},
+            case
+                when REGEXP_LIKE({{ quoted_selected }}, '{{ regex_pattern }}') then
+                    case
+                        when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }}) = '' then null
+                        when REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }}) is null then null
+                        else REGEXP_SUBSTR({{ quoted_selected }}, '{{ regex_pattern }}', 1, 1, 'e', {{ i }})
+                    end
+                else null
+            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+            {%- if not loop.last -%},{%- endif -%}
+            {% endfor %}
+        from {{ source_table }}
+    {%- endif -%}
+
+{%- elif output_method_lower == 'match' -%}
+    select
+        *,
+        case
+            when {{ quoted_selected }} is null then 0
+            when REGEXP_LIKE({{ quoted_selected }}, '{{ regex_pattern }}') then 1
+            else 0
+        end as {{ prophecy_basics.quote_identifier(matchColumnName) }}
+    from {{ source_table }}
+    {% if errorIfNotMatched %}
+    where REGEXP_LIKE({{ quoted_selected }}, '{{ regex_pattern }}')
+    {% endif %}
+
+{%- else -%}
+    select 'ERROR: Unknown outputMethod "{{ outputMethod }}"' as error_message
+
+{%- endif -%}
+
+{%- endif -%}
+
+{% endmacro %}
+
+{# ============================================ #}
+{# DUCKDB Implementation                       #}
+{# ============================================ #}
+{% macro duckdb__Regex(
+    relation_name,
+    parseColumns,
+    currentSchema='',
+    selectedColumnName='',
+    regexExpression='',
+    outputMethod='replace',
+    caseInsensitive=true,
+    allowBlankTokens=false,
+    replacementText='',
+    copyUnmatchedText=false,
+    tokenizeOutputMethod='splitColumns',
+    noOfColumns=3,
+    extraColumnsHandling='dropExtraWithWarning',
+    outputRootName='regex_col',
+    matchColumnName='regex_match',
+    errorIfNotMatched=false
+) %}
+
+{# Input validation #}
+{%- if not selectedColumnName or selectedColumnName == '' -%}
+    {{ log("ERROR: selectedColumnName parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: selectedColumnName parameter is required' as error_message
+{%- elif not regexExpression or regexExpression == '' -%}
+    {{ log("ERROR: regexExpression parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: regexExpression parameter is required' as error_message
+{%- elif not relation_name or relation_name == '' -%}
+    {{ log("ERROR: relation_name parameter is required and cannot be empty", info=True) }}
+    select 'ERROR: relation_name parameter is required' as error_message
+{%- else -%}
+
+{# Parse parseColumns if its a string #}
+{%- if parseColumns is string -%}
+    {%- set parsed_columns = fromjson(parseColumns) -%}
+{%- else -%}
+    {%- set parsed_columns = parseColumns -%}
+{%- endif -%}
+
+{%- set output_method_lower = outputMethod | lower -%}
+{# Use helper macro for proper SQL string escaping (DuckDB doesn't escape backslashes in regex) #}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=false) -%}
+{%- set case_flag = 'i' if caseInsensitive else '' -%}
+{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=false) -%}
+{%- set source_table = relation_name -%}
+{%- set extra_handling_lower = extraColumnsHandling | lower -%}
+{%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
+
+{%- if output_method_lower == 'replace' -%}
+    select
+        *,
+        {% if copyUnmatchedText %}
+        case
+            when regexp_matches({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) then
+                regexp_replace({{ quoted_selected }}, '{{ escaped_regex }}', '{{ escaped_replacement }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }})
+            else {{ quoted_selected }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% else %}
+        regexp_replace({{ quoted_selected }}, '{{ escaped_regex }}', '{{ escaped_replacement }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        {% endif %}
+    from {{ source_table }}
+
+{%- elif output_method_lower == 'parse' -%}
+    {%- if parsed_columns and parsed_columns|length > 0 -%}
+        select
+            *
+            {%- for config in parsed_columns -%}
+                {%- if config and config.columnName -%}
+                    {%- set col_name = config.columnName -%}
+                    {%- set col_type = config.dataType | default('string') -%}
+                    {%- set group_index = loop.index -%}
+            ,
+            {%- if col_type|lower == 'string' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }})
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'int' or col_type|lower == 'integer' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as INTEGER)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bigint' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as BIGINT)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'double' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as DOUBLE)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'bool' or col_type|lower == 'boolean' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as BOOLEAN)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'date' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as DATE)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- elif col_type|lower == 'datetime' or col_type|lower == 'timestamp' %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else CAST(regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as TIMESTAMP)
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- else %}
+            case
+                when regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) = '' then null
+                else regexp_extract({{ quoted_selected }}, '{{ escaped_regex }}', {{ group_index }}{{ (", '" ~ case_flag ~ "'") if case_flag else "" }})
+            end as {{ prophecy_basics.quote_identifier(col_name) }}
+            {%- endif %}
+                {%- endif -%}
+            {%- endfor %}
+        from {{ source_table }}
+    {%- else -%}
+        select 'ERROR: parseColumns array is empty after parsing' as error_message
+    {%- endif -%}
+
+{%- elif output_method_lower == 'tokenize' -%}
+    {%- set tokenize_method_lower = tokenizeOutputMethod | lower -%}
+    {%- if tokenize_method_lower == 'splitcolumns' -%}
+        with extracted_array as (
+            select
+                *,
+                regexp_extract_all({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as regex_matches
+            from {{ source_table }}
+        )
+        select
+            * exclude (regex_matches)
+            {%- for i in range(1, noOfColumns + 1) %},
+            case
+                when len(regex_matches) = 0 then cast(null as varchar)
+                when len(regex_matches) < {{ i }} then
+                    case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                when list_element(regex_matches, {{ i }}) = '' then
+                    case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                else list_element(regex_matches, {{ i }})
+            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+            {%- endfor %}
+        from extracted_array
+
+        {% if extra_handling_lower == 'dropextrawithwarning' -%}
+            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
+        {% elif extra_handling_lower == 'erroronextra' -%}
+            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- endif -%}
+
+    {%- elif tokenize_method_lower == 'splitrows' -%}
+        with regex_matches as (
+            select
+                *,
+                regexp_extract_all({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as split_tokens
+            from {{ source_table }}
+        ),
+        exploded_tokens as (
+            select
+                * exclude (split_tokens),
+                unnest(split_tokens) as token_value_new
+            from regex_matches
+        ),
+        numbered_tokens as (
+            select
+                *,
+                token_value_new,
+                row_number() over (partition by {{ quoted_selected }} order by (select null)) as token_position
+            from exploded_tokens
+        )
+        select
+            * exclude (token_value_new),
+            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
+            token_position as token_sequence
+        from numbered_tokens
+        {% if not allowBlankTokens %}
+        where token_value_new != '' and token_value_new is not null
+        {% endif %}
+
+    {%- else -%}
+        with extracted_array as (
+            select
+                *,
+                regexp_extract_all({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as regex_matches
+            from {{ source_table }}
+        )
+        select
+            * exclude (regex_matches)
+            {%- for i in range(1, noOfColumns + 1) %},
+            case
+                when len(regex_matches) < {{ i }} then null
+                when list_element(regex_matches, {{ i }}) = '' then null
+                else list_element(regex_matches, {{ i }})
+            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+            {%- endfor %}
+        from extracted_array
+    {%- endif -%}
+
+{%- elif output_method_lower == 'match' -%}
+    select
+        *,
+        case
+            when {{ quoted_selected }} is null then 0
+            when regexp_matches({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) then 1
+            else 0
+        end as {{ prophecy_basics.quote_identifier(matchColumnName) }}
+    from {{ source_table }}
+    {% if errorIfNotMatched %}
+    where regexp_matches({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }})
     {% endif %}
 
 {%- else -%}
