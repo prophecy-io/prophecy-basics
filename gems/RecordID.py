@@ -5,7 +5,7 @@ from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import DataFrame, Window, SparkSession
-from pyspark.sql.functions import lpad, expr, row_number, lit
+from pyspark.sql.functions import lpad, expr, row_number, lit, col
 
 
 @dataclass(frozen=True)
