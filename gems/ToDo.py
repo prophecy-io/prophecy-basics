@@ -1,8 +1,9 @@
 import dataclasses
-import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class ToDo(MacroSpec):
@@ -164,3 +165,9 @@ class ToDo(MacroSpec):
             component.properties, relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, *inDFs: DataFrame) -> DataFrame:
+        message = self.props.diag_message
+        if message is not None:
+            raise Exception(f"ToDo: {message}")
+        return spark.sql("select 1")
