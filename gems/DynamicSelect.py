@@ -6,6 +6,7 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
 
 class DynamicSelect(MacroSpec):
     name: str = "DynamicSelect"
@@ -329,3 +330,31 @@ class DynamicSelect(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+            if props.selectUsing == "SELECT_FIELD_TYPES":
+                desired_types = []
+                type_mapping = {
+                    'strTypeChecked': "string",
+                    'intTypeChecked': "int",
+                    'boolTypeChecked': "boolean",
+                    'shortTypeChecked': "short",
+                    'byteTypeChecked': "byte",
+                    'longTypeChecked': "long",
+                    'floatTypeChecked': "float",
+                    'doubleTypeChecked': "double",
+                    'decimalTypeChecked': "decimal",
+                    'binaryTypeChecked': "binary",
+                    'dateTypeChecked': "date",
+                    'timestampTypeChecked': "timestamp",
+                    'structTypeChecked': "struct"
+                }
+                for prop, type_name in type_mapping.items():
+                    if getattr(props, prop):
+                        desired_types.append(type_name)
+
+                from prophecy.libs.utils import filter_columns_by_type
+                return filter_columns_by_type(spark, in0, ",".join(desired_types))
+            else:
+                from prophecy.libs.utils import filter_columns_by_expr
+                return filter_columns_by_expr(spark, in0, props.customExpression)
