@@ -167,4 +167,7 @@ class ToDo(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, *inDFs: DataFrame) -> DataFrame:
-        raise Exception(f"ToDo: {self.props.diag_message}")
+        message = self.props.diag_message
+        if message is not None:
+            raise Exception(f"ToDo: {message}")
+        return spark.sql("select 1")
