@@ -186,143 +186,82 @@ class GenerateRows(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        init_expr = self.props.init_expr
-        condition_expr = self.props.condition_expr
-        loop_expr = self.props.loop_expr
-        column_name = self.props.column_name
+        import re
+        
+        init_expr = self.props.init_expr or "1"
+        condition_expr = self.props.condition_expr or "value <= 10"
+        loop_expr = self.props.loop_expr or "value + 1"
+        column_name = self.props.column_name or "value"
         max_rows = int(self.props.max_rows) if self.props.max_rows else 100000
-
-        # Since PySpark doesn't support recursive CTEs like SQL,
-        # we simulate the recursive behavior using Python UDF
         
-        # Parse expressions to extract column references
-        # For init_expr, condition_expr, loop_expr - these can reference columns or be literals
-        
-        def generate_values(init_val, max_iterations=100000):
-            """Generate values based on recursive logic"""
-            values = []
-            current = init_val
-            iteration = 0
-            
-            # Simple evaluation of condition_expr - assumes it references 'value'
-            # This is a simplified parser - full implementation would need proper expression parsing
+        def to_num(s):
             try:
-                # Parse condition_expr to extract the limit value
-                # For expressions like "value <= 10" or "value < payload.col"
-                condition_str = condition_expr.replace("value", str(current))
-                # Simple numeric limit extraction
-                import re
-                matches = re.findall(r'<=?\s*(\d+)', condition_expr)
-                if matches:
-                    limit_val = int(matches[0])
-                    operator = '<=' if '<=' in condition_expr else '<'
-                else:
-                    matches = re.findall(r'>=\s*(\d+)', condition_expr)
-                    if matches:
-                        limit_val = int(matches[0])
-                        operator = '>='
-                    else:
-                        # Default: use max_rows as limit
-                        limit_val = current + max_rows
-                        operator = '<='
-                
-                # Parse loop_expr - assumes form like "value + 1" or "value * 2"
-                if '+' in loop_expr:
-                    step = int(re.findall(r'\+\s*(\d+)', loop_expr)[0]) if re.findall(r'\+\s*(\d+)', loop_expr) else 1
-                elif '-' in loop_expr:
-                    step = -int(re.findall(r'-\s*(\d+)', loop_expr)[0]) if re.findall(r'-\s*(\d+)', loop_expr) else -1
-                elif '*' in loop_expr:
-                    multiplier = float(re.findall(r'\*\s*(\d+(?:\.\d+)?)', loop_expr)[0]) if re.findall(r'\*\s*(\d+(?:\.\d+)?)', loop_expr) else 1
-                    step = None  # Use multiplication instead
-                else:
-                    step = 1
-                
-                # Generate values iteratively
-                while iteration < max_iterations:
-                    values.append(current)
-                    
-                    # Check condition
-                    if operator == '<=':
-                        if not (current <= limit_val):
-                            break
-                    elif operator == '<':
-                        if not (current < limit_val):
-                            break
-                    elif operator == '>=':
-                        if not (current >= limit_val):
-                            break
-                    
-                    # Apply loop_expr
-                    if step is not None:
-                        current = current + step if '+' in loop_expr or '-' not in loop_expr else current + step
-                    else:
-                        current = current * multiplier
-                    
-                    iteration += 1
-                    
-            except Exception as e:
-                # Fallback: generate simple sequence
-                values = list(range(init_val, init_val + min(max_rows, 1000)))
-            
-            return values
-        
-        # Check if we have input data or standalone generation
-        if in0 is not None and in0.count() > 0:
-            # Generate rows per input row
-            # For each row, generate the sequence of values
-            
-            # Create UDF to generate values
-            generate_udf = F.udf(
-                lambda init: generate_values(init, max_rows),
-                ArrayType(IntegerType())
-            )
-            
-            # Parse init_expr - might be a literal or column reference
-            try:
-                if isinstance(init_expr, (int, float)):
-                    init_value = init_expr
-                elif isinstance(init_expr, str):
-                    if init_expr.strip().isdigit():
-                        init_value = int(init_expr.strip())
-                    elif init_expr.replace('.', '', 1).isdigit():
-                        init_value = float(init_expr.strip())
-                    else:
-                        # Might be a column reference - use as is
-                        init_col = F.col(init_expr)
-                        result_df = in0.withColumn(
-                            "_generated_values",
-                            generate_udf(init_col)
-                        )
-                        result_df = result_df.select(
-                            "*",
-                            F.explode(F.col("_generated_values")).alias(column_name)
-                        )
-                        result_df = result_df.drop("_generated_values")
-                        return result_df
-                else:
-                    init_value = 1
+                return float(s) if '.' in str(s) else int(s)
             except:
-                init_value = 1
-            
-            # Generate values and explode
-            result_df = in0.withColumn(
-                "_generated_values",
-                F.array([F.lit(i) for i in generate_values(init_value, max_rows)])
-            )
-            result_df = result_df.select(
-                "*",
-                F.explode(F.col("_generated_values")).alias(column_name)
-            )
-            result_df = result_df.drop("_generated_values")
-        else:
-            # Standalone generation - no input data
-            values = generate_values(
-                int(init_expr) if isinstance(init_expr, str) and init_expr.strip().isdigit() else (init_expr if isinstance(init_expr, (int, float)) else 1),
-                max_rows
-            )
-            
-            # Create DataFrame with generated values
-            rows = [Row(**{column_name: v}) for v in values]
-            result_df = spark.createDataFrame(rows)
+                return None
         
-        return result_df
+        # Optimized path: simple numeric case using F.sequence()
+        init_val = to_num(init_expr)
+        step_match = re.search(r'value\s*\+\s*(\d+(?:\.\d+)?)', loop_expr)
+        cond_match = re.search(r'value\s*<=\s*(\d+(?:\.\d+)?)', condition_expr)
+        
+        if init_val and step_match and cond_match:
+            step_val = float(step_match.group(1))
+            end_val = to_num(cond_match.group(1))
+            seq = F.sequence(F.lit(init_val), F.lit(end_val), F.lit(step_val))
+            
+            if in0 is not None and in0.count() > 0:
+                result = in0.select(
+                    *[F.col(c) for c in in0.columns],
+                    F.explode(seq).alias(column_name)
+                ).filter(F.col(column_name) <= end_val)
+            else:
+                result = spark.range(1).select(
+                    F.explode(seq).alias(column_name)
+                ).filter(F.col(column_name) <= end_val)
+            
+            return result
+        
+        # General case: build expressions and use DataFrame operations
+        internal_col = f"__gen_{column_name.replace(' ', '_')}"
+        
+        def build_expr(expr, ref_col):
+            return F.expr(str(expr).replace(column_name, ref_col)) if expr else F.lit(1)
+        
+        # Create base with initial value
+        init_col = build_expr(init_expr, internal_col)
+        base = (in0.select(*[F.col(c) for c in in0.columns], init_col.alias(internal_col))
+                if in0 is not None and in0.count() > 0
+                else spark.range(1).select(init_col.alias(internal_col)))
+        
+        # Try to use F.sequence() if we can extract bounds
+        step_val = to_num(re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr).group(1)) if re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr) else None
+        end_val = to_num(re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr).group(1)) if re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr) else None
+        
+        if step_val and end_val:
+            seq = F.sequence(F.col(internal_col), F.lit(end_val), F.lit(step_val))
+            cond = build_expr(condition_expr, column_name)
+            result = base.select(
+                *[F.col(c) for c in base.columns if c != internal_col],
+                F.explode(seq).alias(column_name)
+            ).filter(cond)
+        else:
+            # Generate iterations using cross join
+            iterations = spark.range(max_rows).select((F.col("id") + 1).alias("_iter"))
+            expanded = base.crossJoin(iterations)
+            
+            # Calculate value at each iteration
+            loop = build_expr(loop_expr, internal_col)
+            cond = build_expr(condition_expr, internal_col)
+            
+            if step_val:
+                value_col = (F.col(internal_col) + (F.col("_iter") - 1) * F.lit(step_val)).alias(column_name)
+            else:
+                value_col = loop.alias(column_name)
+            
+            result = expanded.select(
+                *[F.col(c) for c in base.columns if c != internal_col],
+                value_col
+            ).filter(cond).drop("_iter")
+        
+        return result
