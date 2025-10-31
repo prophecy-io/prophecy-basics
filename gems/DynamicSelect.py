@@ -332,7 +332,7 @@ class DynamicSelect(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-            if props.selectUsing == "SELECT_FIELD_TYPES":
+            if self.props.selectUsing == "SELECT_FIELD_TYPES":
                 desired_types = []
                 type_mapping = {
                     'strTypeChecked': "string",
@@ -350,11 +350,11 @@ class DynamicSelect(MacroSpec):
                     'structTypeChecked': "struct"
                 }
                 for prop, type_name in type_mapping.items():
-                    if getattr(props, prop):
+                    if getattr(self.props, prop):
                         desired_types.append(type_name)
 
                 from prophecy.libs.utils import filter_columns_by_type
                 return filter_columns_by_type(spark, in0, ",".join(desired_types))
             else:
                 from prophecy.libs.utils import filter_columns_by_expr
-                return filter_columns_by_expr(spark, in0, props.customExpression)
+                return filter_columns_by_expr(spark, in0, self.props.customExpression)
