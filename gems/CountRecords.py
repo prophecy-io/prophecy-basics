@@ -224,6 +224,9 @@ class CountRecords(MacroSpec):
         column_names = self.props.column_names
         count_method = self.props.count_method
 
+        if count_method == "count_all_records":
+            return in0.agg(count(lit(1)).alias("total_records"))
+
         if count_method == "count_non_null_records":
             if not column_names:
                 return in0.agg(count(lit(1)).alias("total_records"))
@@ -235,5 +238,3 @@ class CountRecords(MacroSpec):
                 return in0.agg(count(lit(1)).alias("total_records"))
             agg_exprs = [countDistinct(col(c)).alias(f"{c}_distinct_count") for c in column_names]
             return in0.agg(*agg_exprs)
-
-        return in0.agg(count(lit(1)).alias("total_records"))
