@@ -221,7 +221,7 @@ class CountRecords(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        column_names = self.props.column_names or []
+        column_names = self.props.column_names
         count_method = self.props.count_method
 
         if count_method == "count_all_records":
