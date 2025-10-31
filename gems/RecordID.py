@@ -427,7 +427,7 @@ class RecordID(MacroSpec):
                                      x.sortType == "asc") else x.expression.column().asc_nulls_last()
                              if (x.sortType == "asc_nulls_last") else x.expression.column().desc_nulls_first() if (
                                      x.sortType == "desc_nulls_first") else x.expression.column().desc(),
-                             order_rules) if len(order_rules) > 0 else List(lit(1))
+                             order_rules) if len(order_rules) > 0 else [lit(1)]
 
             if generationMethod == "groupLevel" and len(groupByColumnNames) > 0:
                 partition_cols = [col(c) for c in groupByColumnNames]
