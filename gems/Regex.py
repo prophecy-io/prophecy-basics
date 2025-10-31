@@ -575,7 +575,9 @@ class Regex(MacroSpec):
         param_list_clean = []
         for p in parameter_list:
             if type(p) == str:
-                param_list_clean.append("'" + p + "'")
+                # Escape single quotes for SQL string literals ('' represents a single quote)
+                escaped_p = p.replace("'", "''")
+                param_list_clean.append("'" + escaped_p + "'")
             else:
                 param_list_clean.append(str(p))
         non_empty_param = ",".join([param for param in param_list_clean if param != ''])
