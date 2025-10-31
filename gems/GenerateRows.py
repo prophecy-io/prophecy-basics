@@ -1,6 +1,9 @@
 import dataclasses
 import json
 
+from pyspark.sql import SparkSession, DataFrame, Row
+from pyspark.sql import functions as F
+from pyspark.sql.types import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -181,3 +184,84 @@ class GenerateRows(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        import re
+        
+        init_expr = self.props.init_expr or "1"
+        condition_expr = self.props.condition_expr or "value <= 10"
+        loop_expr = self.props.loop_expr or "value + 1"
+        column_name = self.props.column_name or "value"
+        max_rows = int(self.props.max_rows) if self.props.max_rows else 100000
+        
+        def to_num(s):
+            try:
+                return float(s) if '.' in str(s) else int(s)
+            except:
+                return None
+        
+        # Optimized path: simple numeric case using F.sequence()
+        init_val = to_num(init_expr)
+        step_match = re.search(r'value\s*\+\s*(\d+(?:\.\d+)?)', loop_expr)
+        cond_match = re.search(r'value\s*<=\s*(\d+(?:\.\d+)?)', condition_expr)
+        
+        if init_val and step_match and cond_match:
+            step_val = float(step_match.group(1))
+            end_val = to_num(cond_match.group(1))
+            seq = F.sequence(F.lit(init_val), F.lit(end_val), F.lit(step_val))
+            
+            if in0 is not None and in0.count() > 0:
+                result = in0.select(
+                    *[F.col(c) for c in in0.columns],
+                    F.explode(seq).alias(column_name)
+                ).filter(F.col(column_name) <= end_val)
+            else:
+                result = spark.range(1).select(
+                    F.explode(seq).alias(column_name)
+                ).filter(F.col(column_name) <= end_val)
+            
+            return result
+        
+        # General case: build expressions and use DataFrame operations
+        internal_col = f"__gen_{column_name.replace(' ', '_')}"
+        
+        def build_expr(expr, ref_col):
+            return F.expr(str(expr).replace(column_name, ref_col)) if expr else F.lit(1)
+        
+        # Create base with initial value
+        init_col = build_expr(init_expr, internal_col)
+        base = (in0.select(*[F.col(c) for c in in0.columns], init_col.alias(internal_col))
+                if in0 is not None and in0.count() > 0
+                else spark.range(1).select(init_col.alias(internal_col)))
+        
+        # Try to use F.sequence() if we can extract bounds
+        step_val = to_num(re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr).group(1)) if re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr) else None
+        end_val = to_num(re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr).group(1)) if re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr) else None
+        
+        if step_val and end_val:
+            seq = F.sequence(F.col(internal_col), F.lit(end_val), F.lit(step_val))
+            cond = build_expr(condition_expr, column_name)
+            result = base.select(
+                *[F.col(c) for c in base.columns if c != internal_col],
+                F.explode(seq).alias(column_name)
+            ).filter(cond)
+        else:
+            # Generate iterations using cross join
+            iterations = spark.range(max_rows).select((F.col("id") + 1).alias("_iter"))
+            expanded = base.crossJoin(iterations)
+            
+            # Calculate value at each iteration
+            loop = build_expr(loop_expr, internal_col)
+            cond = build_expr(condition_expr, internal_col)
+            
+            if step_val:
+                value_col = (F.col(internal_col) + (F.col("_iter") - 1) * F.lit(step_val)).alias(column_name)
+            else:
+                value_col = loop.alias(column_name)
+            
+            result = expanded.select(
+                *[F.col(c) for c in base.columns if c != internal_col],
+                value_col
+            ).filter(cond).drop("_iter")
+        
+        return result
