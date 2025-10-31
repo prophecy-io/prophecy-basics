@@ -421,24 +421,24 @@ class RecordID(MacroSpec):
 
         if method == "uuid":
             id_col = expr("uuid()").alias(record_id_column_name)
-        elif method == "incremental_id":
-            orderRules = map(lambda x:
-                             x.expression.column().asc() if (
-                                     x.sortType == "asc") else x.expression.column().asc_nulls_last()
-                             if (x.sortType == "asc_nulls_last") else x.expression.column().desc_nulls_first() if (
-                                     x.sortType == "desc_nulls_first") else x.expression.column().desc(),
-                             order_rules) if len(order_rules) > 0 else List(lit(1))
-
-            if generationMethod == "groupLevel" and len(groupByColumnNames) > 0:
-                partition_cols = [col(c) for c in groupByColumnNames]
-                window_spec = Window.partitionBy(*partition_cols).orderBy(*orderRules)
-            else:
-                window_spec = Window.orderBy(*orderRules)
-            rn = row_number().over(window_spec) + (incremental_id_starting_val - 1)
-            if incremental_id_type == "string":
-                id_col = lpad(rn.cast("string"), incremental_id_size, "0").alias(record_id_column_name)
-            else:
-                id_col = rn.alias(record_id_column_name)
+        # elif method == "incremental_id":
+        #     orderRules = map(lambda x:
+        #                      x.expression.column().asc() if (
+        #                              x.sortType == "asc") else x.expression.column().asc_nulls_last()
+        #                      if (x.sortType == "asc_nulls_last") else x.expression.column().desc_nulls_first() if (
+        #                              x.sortType == "desc_nulls_first") else x.expression.column().desc(),
+        #                      order_rules) if len(order_rules) > 0 else List(lit(1))
+        #
+        #     if generationMethod == "groupLevel" and len(groupByColumnNames) > 0:
+        #         partition_cols = [col(c) for c in groupByColumnNames]
+        #         window_spec = Window.partitionBy(*partition_cols).orderBy(*orderRules)
+        #     else:
+        #         window_spec = Window.orderBy(*orderRules)
+        #     rn = row_number().over(window_spec) + (incremental_id_starting_val - 1)
+        #     if incremental_id_type == "string":
+        #         id_col = lpad(rn.cast("string"), incremental_id_size, "0").alias(record_id_column_name)
+        #     else:
+        #         id_col = rn.alias(record_id_column_name)
         else:
             id_col = expr("uuid()").alias(record_id_column_name)
 
