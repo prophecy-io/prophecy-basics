@@ -221,20 +221,25 @@ class CountRecords(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        column_names = self.props.column_names
+        column_names = self.props.column_names or []
         count_method = self.props.count_method
 
         if count_method == "count_all_records":
-            return in0.agg(count(lit(1)).alias("total_records"))
+            agg_exprs = [count(lit(1)).alias("total_records")]
 
-        if count_method == "count_non_null_records":
+        elif count_method == "count_non_null_records":
             if not column_names:
-                return in0.agg(count(lit(1)).alias("total_records"))
-            agg_exprs = [count(col(c)).alias(f"{c}_count") for c in column_names]
-            return in0.agg(*agg_exprs)
+                agg_exprs = [count(lit(1)).alias("total_records")]
+            else:
+                agg_exprs = [count(col(c)).alias(f"{c}_count") for c in column_names]
 
-        if count_method == "count_distinct_records":
+        elif count_method == "count_distinct_records":
             if not column_names:
-                return in0.agg(count(lit(1)).alias("total_records"))
-            agg_exprs = [countDistinct(col(c)).alias(f"{c}_distinct_count") for c in column_names]
-            return in0.agg(*agg_exprs)
+                agg_exprs = [count(lit(1)).alias("total_records")]
+            else:
+                agg_exprs = [countDistinct(col(c)).alias(f"{c}_distinct_count") for c in column_names]
+
+        else:
+            agg_exprs = [count(lit(1)).alias("total_records")]
+
+        return in0.agg(*agg_exprs)
