@@ -330,7 +330,7 @@ class DynamicSelect(MacroSpec):
         )
         return component.bindProperties(newProperties)
 
-    def applyPython(self, spark: SparkSession, in0: DataFrame, props: DynamicSelectProperties) -> DataFrame:
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
             if props.selectUsing == "SELECT_FIELD_TYPES":
                 desired_types = []
                 type_mapping = {
