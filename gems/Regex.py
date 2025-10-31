@@ -723,10 +723,10 @@ class Regex(MacroSpec):
                     else:
                         # String type - return null if empty
                         extracted = F.when(
-                            (F.regexp_extract(F.col(selected_column), regex_pattern, 0) == "") | 
-                             (extracted == "")),
-                            None
-                        ).otherwise(extracted)
+                                (F.regexp_extract(F.col(selected_column), regex_pattern, 0) == "") |
+                                (extracted == ""),
+                                None
+                            ).otherwise(extracted)
                     
                     result_df = result_df.withColumn(col_name, extracted)
 
