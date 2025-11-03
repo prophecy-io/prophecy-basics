@@ -26,6 +26,7 @@
 ) -%}
 
     {%- set select_expressions = [] -%}
+    {% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
 
     {%- if changeOutputFieldName -%}
         {%- for col in allColumnNames -%}
@@ -55,7 +56,7 @@
         {%- endfor -%}
     {%- endif -%}
 
-    select {{ select_expressions | join(',\n        ') }} from {{ relation }}
+    select {{ select_expressions | join(',\n        ') }} from {{ relation_list | join(', ') }}
 
 {%- endmacro -%}
 
@@ -98,6 +99,6 @@
         {%- endfor -%}
     {%- endif -%}
 
-    select {{ select_expressions | join(',\n        ') }} from {{ relation }}
+    select {{ select_expressions | join(',\n        ') }} from {{ relation_list | join(', ') }}
 
 {%- endmacro -%}
