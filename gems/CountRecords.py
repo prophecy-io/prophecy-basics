@@ -185,7 +185,7 @@ class CountRecords(MacroSpec):
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            count_method=parametersMap.get("count_method"),
+            count_method=parametersMap.get('count_method').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
