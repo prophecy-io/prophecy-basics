@@ -25,6 +25,7 @@
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
@@ -61,9 +62,9 @@
                 {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
             {%- endif -%}
             {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, CAST(" ~ sourceIdCol ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, CAST(" ~ sourceIdCol ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- endif -%}
 
             {%- do selects.append(select_stmt) -%}
@@ -159,7 +160,7 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
@@ -174,6 +175,7 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
@@ -215,9 +217,9 @@ final_output as (
             {%- set quoted_source_id_col = prophecy_basics.quote_identifier(sourceIdCol) -%}
 
             {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, CAST(" ~ quoted_source_id_col ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, CAST(" ~ quoted_source_id_col ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- endif -%}
 
             {%- do selects.append(select_stmt) -%}
@@ -313,7 +315,7 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
@@ -328,6 +330,7 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
@@ -365,9 +368,9 @@ final_output as (
             {%- endif -%}
 
             {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, CAST(" ~ sourceIdCol ~ " AS VARCHAR) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
+                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, CAST(" ~ sourceIdCol ~ " AS VARCHAR) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
             {%- endif -%}
 
             {%- do selects.append(select_stmt) -%}
@@ -463,7 +466,7 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}

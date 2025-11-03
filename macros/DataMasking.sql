@@ -183,6 +183,7 @@
 ) -%}
 
     {{ log("Applying Masking-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}

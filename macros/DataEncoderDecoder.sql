@@ -247,6 +247,7 @@
     prefix_suffix_val
 ) -%}
     {{ log("Applying encoding-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     
     {# Note: DuckDB doesn't have native AES encryption functions like Databricks #}

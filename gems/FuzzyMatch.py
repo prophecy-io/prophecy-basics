@@ -286,9 +286,6 @@ class FuzzyMatch(MacroSpec):
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Group match fields by their match function.
         grouped_match_fields = defaultdict(list)
         for field in props.matchFields:
@@ -298,7 +295,7 @@ class FuzzyMatch(MacroSpec):
         match_fields_map = dict(grouped_match_fields)
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.mode + "'",
             "'" + props.sourceIdCol + "'",
             "'" + props.recordIdCol + "'",
@@ -313,10 +310,10 @@ class FuzzyMatch(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return FuzzyMatch.FuzzyMatchProperties(
-            relation_name=parametersMap.get("relation_name"),
-            mode=parametersMap.get("mode"),
-            sourceIdCol=parametersMap.get("sourceIdCol"),
-            recordIdCol=parametersMap.get("recordIdCol"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
+            sourceIdCol=parametersMap.get('sourceIdCol').lstrip("'").rstrip("'"),
+            recordIdCol=parametersMap.get('recordIdCol').lstrip("'").rstrip("'"),
             matchThresholdPercentage=float(
                 parametersMap.get("matchThresholdPercentage")
             ),
@@ -330,7 +327,7 @@ class FuzzyMatch(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("mode", properties.mode),
                 MacroParameter("sourceIdCol", properties.sourceIdCol),
                 MacroParameter("recordIdCol", properties.recordIdCol),
