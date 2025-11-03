@@ -689,19 +689,16 @@ class DataEncoderDecoder(MacroSpec):
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            enc_dec_method=parametersMap.get("enc_dec_method"),
-            enc_dec_charSet=parametersMap.get("enc_dec_charSet"),
-            aes_enc_dec_secretScope_key=parametersMap.get(
-                "aes_enc_dec_secretScope_key"
-            ),
-            aes_enc_dec_secretKey_key=parametersMap.get("aes_enc_dec_secretKey_key"),
-            aes_enc_dec_mode=parametersMap.get("aes_enc_dec_mode"),
-            aes_enc_dec_secretScope_aad=parametersMap.get(
-                "aes_enc_dec_secretScope_aad"
-            ),
-            aes_enc_dec_secretKey_aad=parametersMap.get("aes_enc_dec_secretKey_aad"),
-            aes_enc_dec_secretScope_iv=parametersMap.get("aes_enc_dec_secretScope_iv"),
-            aes_enc_dec_secretKey_iv=parametersMap.get("aes_enc_dec_secretKey_iv"),
+            enc_dec_method=parametersMap.get('enc_dec_method').lstrip("'").rstrip("'"),
+            enc_dec_charSet=parametersMap.get('enc_dec_charSet').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_key=parametersMap.get('aes_enc_dec_secretScope_key').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_key=parametersMap.get('aes_enc_dec_secretKey_key').lstrip("'").rstrip("'"),
+            aes_enc_dec_mode=parametersMap.get('aes_enc_dec_mode').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_aad=parametersMap.get('aes_enc_dec_secretScope_aad').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_aad=parametersMap.get('aes_enc_dec_secretKey_aad').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_iv=parametersMap.get('aes_enc_dec_secretScope_iv').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_iv=parametersMap.get('aes_enc_dec_secretKey_iv').lstrip("'").rstrip("'"),
+
             prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
             new_column_add_method=parametersMap.get("new_column_add_method"),
             prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
