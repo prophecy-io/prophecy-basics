@@ -270,15 +270,15 @@ class MultiColumnEdit(MacroSpec):
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter(
-                    "expressionToBeApplied", properties.expressionToBeApplied
+                    "expressionToBeApplied", str(properties.expressionToBeApplied)
                 ),
                 MacroParameter(
                     "changeOutputFieldName",
                     str(properties.changeOutputFieldName).lower(),
                 ),
-                MacroParameter("prefixSuffixOption", properties.prefixSuffixOption),
+                MacroParameter("prefixSuffixOption", str(properties.prefixSuffixOption)),
                 MacroParameter(
-                    "prefixSuffixToBeAdded", properties.prefixSuffixToBeAdded
+                    "prefixSuffixToBeAdded", str(properties.prefixSuffixToBeAdded)
                 ),
             ],
         )
