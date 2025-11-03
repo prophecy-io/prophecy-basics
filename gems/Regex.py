@@ -700,7 +700,9 @@ class Regex(MacroSpec):
         elif output_method == "parse":
             # Parse into multiple columns based on capture groups
             if parse_columns and len(parse_columns) > 0:
-                for idx, parse_col in enumerate(parse_columns, start=1):
+                idx = 0
+                for parse_col in parse_columns:
+                    idx += 1
                     col_name = parse_col.columnName
                     col_type = parse_col.dataType
                     
