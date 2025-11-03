@@ -105,10 +105,10 @@ class UnionByName(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         #   argument #1 – ALL table names in one comma-sep string  (macro can handle str or list)
-        relation_arg = "'" + ",".join(str(r) for r in props.relation_name) + "'"
+        relation_arg = str(props.relation_name)
 
         #   argument #2 – JSON list of all schema blobs
-        schemas_arg = "[" + ",".join(props.schemas) + "]"
+        schemas_arg = str(props.schemas)
 
         call = f"{{{{ {resolved_macro_name}({relation_arg}, {schemas_arg}, '{props.missingColumnOps}') }}}}"
         return call
@@ -116,9 +116,9 @@ class UnionByName(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         pm = self.convertToParameterMap(properties.parameters)
         return UnionByName.UnionByNameProperties(
-            relation_name=json.loads(pm.get("relation_name", "[]")),
-            schemas=json.loads(pm.get("schemas", "[]")),
-            missingColumnOps=pm.get("missingColumnOps", "nameBasedUnionOperation"),
+            relation_name=json.loads(pm.get("relation_name", "[]").replace("'", '"')),
+            schemas=[str(x) for x in json.loads(pm.get("schemas", "[]").replace("'", ''))],
+            missingColumnOps=pm.get("missingColumnOps", "nameBasedUnionOperation").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
