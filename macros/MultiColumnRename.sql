@@ -85,6 +85,7 @@
     customExpression='')
 %}
     {%- set renamed_columns = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- for column in columnNames -%}
         {%- set renamed_column = "" -%}
         {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}

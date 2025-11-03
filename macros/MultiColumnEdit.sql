@@ -71,6 +71,7 @@
 ) -%}
 
     {%- set select_expressions = [] -%}
+    {% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
 
     {%- if changeOutputFieldName -%}
         {%- for col in allColumnNames -%}

@@ -123,6 +123,7 @@ from enriched
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orderByRules %}
   {% if r.expr | trim != '' %}
@@ -210,6 +211,7 @@ from enriched
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orderByRules %}
   {% if r.expr | trim != '' %}

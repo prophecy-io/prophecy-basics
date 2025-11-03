@@ -34,6 +34,7 @@
   Build the regex pattern for matching the delimiter.
 #}
 {%- set pattern = delimiter -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
 {# Helper to quote column names inline #}
 {%- set quote_char = '`' -%}
@@ -48,7 +49,7 @@
                 regexp_replace({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
                 '%%DELIM%%'
             ) AS tokens
-        FROM {{ relation_name }}
+        FROM {{ relation_list | join(', ') }}
     ),
     all_data AS (
     SELECT *,
@@ -73,7 +74,7 @@
 {%- elif split_strategy == 'splitRows' -%}
     SELECT r.*,
         trim(regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
-    FROM {{ relation_name }} r
+    FROM {{ relation_list | join(', ') }} r
     LATERAL VIEW explode(
         split(
             if({{ quoted_column_name }} IS NULL, '', {{ quoted_column_name }}),
@@ -82,7 +83,7 @@
     ) s AS col
 
 {%- else -%}
-SELECT * FROM {{ relation_name }}
+SELECT * FROM {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
@@ -103,6 +104,7 @@ SELECT * FROM {{ relation_name }}
   Build the regex pattern for matching the delimiter.
 #}
 {%- set pattern = delimiter -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
 {# Helper to quote column names inline #}
 {%- set quote_char = '`' -%}
@@ -117,7 +119,7 @@ SELECT * FROM {{ relation_name }}
                 REGEXP_REPLACE({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
                 '%%DELIM%%'
             ) AS tokens
-        FROM {{ relation_name }}
+        FROM {{ relation_list | join(', ') }}
     ),
     all_data AS (
     SELECT *,
@@ -149,11 +151,11 @@ SELECT * FROM {{ relation_name }}
 {%- elif split_strategy == 'splitRows' -%}
     SELECT r.*,
         REGEXP_REPLACE(TRIM(split_value), r'[{}_]', ' ') AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
-    FROM {{ relation_name }} r,
+    FROM {{ relation_list | join(', ') }} r,
     UNNEST(SPLIT(COALESCE(r.{{ quoted_column_name }}, ''), '{{ pattern }}')) AS split_value
 
 {%- else -%}
-SELECT * FROM {{ relation_name }}
+SELECT * FROM {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
@@ -173,6 +175,7 @@ SELECT * FROM {{ relation_name }}
 
 {# Handle escaped delimiters from Python - remove backslashes entirely #}
 {%- set pattern = delimiter.replace('\\', '') -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {# Handle string boolean parameter from Python - check string directly #}
 {%- set quoted_column = prophecy_basics.quote_identifier(columnName) -%}
 
@@ -180,7 +183,7 @@ SELECT * FROM {{ relation_name }}
     WITH source AS (
         SELECT *,
             string_split({{ quoted_column }}, '{{ pattern }}') AS tokens
-        FROM {{ relation_name }}
+        FROM {{ relation_list | join(', ') }}
     ),
     all_data AS (
     SELECT *,
@@ -214,13 +217,13 @@ SELECT * FROM {{ relation_name }}
         'g'
       )
     ) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
-  FROM {{ relation_name }} r
+  FROM {{ relation_list | join(', ') }} r
   CROSS JOIN UNNEST(
     string_split(coalesce(r.{{ quoted_column }}, ''), '{{ pattern }}')
   ) AS s(col)
 
 {%- else -%}
-  SELECT * FROM {{ relation_name }}
+  SELECT * FROM {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {%- endmacro -%}
