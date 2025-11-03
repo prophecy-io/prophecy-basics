@@ -256,8 +256,6 @@ class MultiColumnRename(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: MultiColumnRenameProperties) -> str:
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         # Get existing column names
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
@@ -265,7 +263,7 @@ class MultiColumnRename(MacroSpec):
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             str(props.columnNames),
             "'" + str(props.renameMethod) + "'",
             str(allColumnNames),
@@ -281,14 +279,14 @@ class MultiColumnRename(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return MultiColumnRename.MultiColumnRenameProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            renameMethod=parametersMap.get("renameMethod"),
-            editOperation=parametersMap.get("editOperation"),
-            editType=parametersMap.get("editType"),
-            editWith=parametersMap.get("editWith"),
-            customExpression=parametersMap.get("customExpression"),
+            renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
+            editOperation=parametersMap.get('editOperation').lstrip("'").rstrip("'"),
+            editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
+            editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),
+            customExpression=parametersMap.get('customExpression').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -297,7 +295,7 @@ class MultiColumnRename(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter("renameMethod", properties.renameMethod),
