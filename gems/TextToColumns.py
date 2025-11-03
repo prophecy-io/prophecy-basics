@@ -312,7 +312,7 @@ class TextToColumns(MacroSpec):
         print(f"The name of the parametersMap is {parametersMap}")
         return TextToColumns.TextToColumnsProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            columnNames=parametersMap.get('columnNames').lstrip("'").rstrip("'"),
+            columnNames=parametersMap.get('columnNames'),
             delimiter=parametersMap.get('delimiter').lstrip("'").rstrip("'"),
             split_strategy=parametersMap.get('split_strategy').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get("noOfColumns")),
