@@ -35,6 +35,7 @@
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orderByRules %}
   {% if r.expr | trim != '' %}
@@ -88,7 +89,7 @@
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
@@ -175,7 +176,7 @@ from enriched
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
@@ -258,7 +259,7 @@ from enriched
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
