@@ -12,7 +12,7 @@
 ) %}
     
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
-    {{ log("Computing record count from the table " ~ {{ relation_list | join(', ') }}, info=True) }}
+    {{ log("Computing record count from the table " ~ relation_name, info=True) }}
     {%- set select_query = "SELECT COUNT(*) AS total_records FROM " ~ {{ relation_list | join(', ') }} -%}
 
     {%- if count_method == "count_non_null_records" -%}
