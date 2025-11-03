@@ -236,12 +236,11 @@ class JSONParse(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         sampleRecord: str = props.sampleRecord if props.sampleRecord is not None else ""
         sampleSchema: str = props.sampleSchema if props.sampleSchema is not None else ""
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.columnName + "'",
             "'" + props.parsingMethod + "'",
             "'" + sampleRecord + "'",
@@ -254,11 +253,11 @@ class JSONParse(MacroSpec):
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return JSONParse.JSONParseProperties(
-            relation_name=parametersMap.get("relation_name"),
-            columnName=parametersMap.get("columnName"),
-            parsingMethod=parametersMap.get("parsingMethod"),
-            sampleRecord=parametersMap.get("sampleRecord"),
-            sampleSchema=parametersMap.get("sampleSchema"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            columnName=parametersMap.get('columnName').lstrip("'").rstrip("'"),
+            parsingMethod=parametersMap.get('parsingMethod').lstrip("'").rstrip("'"),
+            sampleRecord=parametersMap.get('sampleRecord').lstrip("'").rstrip("'"),
+            sampleSchema=parametersMap.get('sampleSchema').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -266,7 +265,7 @@ class JSONParse(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("columnName", properties.columnName),
                 MacroParameter("parsingMethod", properties.parsingMethod),
                 MacroParameter("sampleRecord", properties.sampleRecord),
