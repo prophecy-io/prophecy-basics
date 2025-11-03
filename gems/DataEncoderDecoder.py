@@ -646,7 +646,6 @@ class DataEncoderDecoder(MacroSpec):
 
     def apply(self, props: DataEncoderDecoderProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
         remaining_columns = ", ".join(
@@ -661,7 +660,7 @@ class DataEncoderDecoder(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             safe_str(props.column_names),
             safe_str(remaining_columns),
             safe_str(props.enc_dec_method),
@@ -685,7 +684,7 @@ class DataEncoderDecoder(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return DataEncoderDecoder.DataEncoderDecoderProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
@@ -714,7 +713,7 @@ class DataEncoderDecoder(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("enc_dec_method", str(properties.enc_dec_method)),
