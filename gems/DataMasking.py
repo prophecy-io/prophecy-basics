@@ -491,16 +491,16 @@ class DataMasking(MacroSpec):
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            masking_method=parametersMap.get("masking_method"),
-            upper_char_substitute=parametersMap.get("upper_char_substitute"),
-            lower_char_substitute=parametersMap.get("lower_char_substitute"),
-            digit_char_substitute=parametersMap.get("digit_char_substitute"),
-            other_char_substitute=parametersMap.get("other_char_substitute"),
-            sha2_bit_length=parametersMap.get("sha2_bit_length"),
-            masked_column_add_method=parametersMap.get("masked_column_add_method"),
+            masking_method=parametersMap.get('masking_method').lstrip("'").rstrip("'"),
+            upper_char_substitute=parametersMap.get('upper_char_substitute').lstrip("'").rstrip("'"),
+            lower_char_substitute=parametersMap.get('lower_char_substitute').lstrip("'").rstrip("'"),
+            digit_char_substitute=parametersMap.get('digit_char_substitute').lstrip("'").rstrip("'"),
+            other_char_substitute=parametersMap.get('other_char_substitute').lstrip("'").rstrip("'"),
+            sha2_bit_length=parametersMap.get('sha2_bit_length').lstrip("'").rstrip("'"),
+            masked_column_add_method=parametersMap.get('masked_column_add_method').lstrip("'").rstrip("'"),
             prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
             prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
-            combined_hash_column_name=parametersMap.get("combined_hash_column_name"),
+            combined_hash_column_name=parametersMap.get('combined_hash_column_name').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
