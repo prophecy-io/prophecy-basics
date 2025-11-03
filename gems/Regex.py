@@ -587,15 +587,15 @@ class Regex(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         parseColumns = []
-        parseCols = json.loads(parametersMap.get('parseColumns', []))
+        parseCols = json.loads(parametersMap.get('parseColumns', '[]'))
         for fld in parseCols:
-            parseColumns.append([
-                    ColumnParse(
-                        columnName = fldObj.get("columnName"),
-                        dataType = fldObj.get("dataType"),
-                        rgxExpression = fldObj.get("rgxExpression")
-                    )
-                ])
+            parseColumns.append(
+                ColumnParse(
+                    columnName=fld.get("columnName"),
+                    dataType=fld.get("dataType"),
+                    rgxExpression=fld.get("rgxExpression")
+                )
+            )
         return Regex.RegexProperties(
             relation_name=parametersMap.get('relation_name'),
             parseColumns=parseColumns,
