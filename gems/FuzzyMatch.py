@@ -1,4 +1,5 @@
 import dataclasses
+import json
 from collections import defaultdict
 
 from prophecy.cb.sql.Component import *
