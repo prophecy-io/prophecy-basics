@@ -569,7 +569,7 @@ class DataCleansing(MacroSpec):
                     
                     # Replace null date fields with the provided value
                     if replace_null_date_fields:
-                        col_expr = coalesce(col_expr, to_date(lit(replace_null_date_with)))
+                        col_expr = coalesce(col_expr, to_date(lit(replace_null_date_with))).cast(DateType())
                     
                     all_expressions.append(col_expr.alias(col_name))
                     
@@ -578,7 +578,7 @@ class DataCleansing(MacroSpec):
                     
                     # Replace null timestamp fields with the provided value
                     if replace_null_time_fields:
-                        col_expr = coalesce(col_expr, to_timestamp(lit(replace_null_time_with)))
+                        col_expr = coalesce(col_expr, to_timestamp(lit(replace_null_time_with))).cast(TimestampType())
                     
                     all_expressions.append(col_expr.alias(col_name))
                 else:
