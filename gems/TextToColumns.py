@@ -357,20 +357,23 @@ class TextToColumns(MacroSpec):
         from pyspark.sql.functions import col, split, explode, trim, regexp_replace, when, size, slice, array_join
         
         col_name = self.props.columnNames
-        
         col_expr = col(col_name)
         delimiter = self.props.delimiter
-        # delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        # Store original delimiter for array_join (before escaping)
+        original_delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        delimiter = original_delimiter
         
-        # import re
+        import re
         
-        # if delimiter not in ["\t", "\n", "\r"]:
-        #     special_chars = r'\.^$*+?{}[]|()'
-        #     if any(c in special_chars for c in delimiter):
-        #         delimiter = re.escape(delimiter)
+        # Escape delimiter for regex split function
+        split_delimiter = delimiter
+        if delimiter not in ["\t", "\n", "\r"]:
+            special_chars = r'\.^$*+?{}[]|()'
+            if any(c in special_chars for c in delimiter):
+                split_delimiter = re.escape(delimiter)
         
         if self.props.split_strategy == "splitColumns":
-            split_array = split(col_expr, delimiter)
+            split_array = split(col_expr, split_delimiter)
             result_df = in0
             
             for i in range(1, self.props.noOfColumns):
@@ -387,7 +390,7 @@ class TextToColumns(MacroSpec):
                 remaining_tokens = slice(split_array, self.props.noOfColumns, size(split_array))
                 last_col = when(
                     size(split_array) >= self.props.noOfColumns,
-                    array_join(remaining_tokens, delimiter)
+                    array_join(remaining_tokens, original_delimiter)
                 ).otherwise(None)
             else:
                 last_col = when(
@@ -402,7 +405,7 @@ class TextToColumns(MacroSpec):
             # Split into multiple rows (explode)
             split_array = split(
                 when(col_expr.isNull(), lit("")).otherwise(col_expr),
-                delimiter
+                split_delimiter
             )
             
             other_cols = [col(c) for c in in0.columns if c != col_name]
