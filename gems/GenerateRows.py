@@ -197,46 +197,56 @@ class GenerateRows(MacroSpec):
         def to_num(s):
             try:
                 return float(s) if '.' in str(s) else int(s)
-            except:
+            except (ValueError, TypeError):
                 return None
         
-        # Optimized path: simple numeric case using F.sequence()
+        def build_expr(expr, ref_col):
+            if not expr:
+                return F.lit(1)
+            return F.expr(str(expr).replace(column_name, ref_col))
+        
+        # Check if input DataFrame has data
+        has_input = in0 is not None and in0.count() > 0
+        
+        # Extract numeric values for optimization
         init_val = to_num(init_expr)
         step_match = re.search(r'value\s*\+\s*(\d+(?:\.\d+)?)', loop_expr)
         cond_match = re.search(r'value\s*<=\s*(\d+(?:\.\d+)?)', condition_expr)
         
-        if init_val and step_match and cond_match:
+        # Optimized path: simple numeric case using F.sequence()
+        if init_val is not None and step_match and cond_match:
             step_val = float(step_match.group(1))
             end_val = to_num(cond_match.group(1))
-            seq = F.sequence(F.lit(init_val), F.lit(end_val), F.lit(step_val))
-            
-            if in0 is not None and in0.count() > 0:
-                result = in0.select(
-                    *[F.col(c) for c in in0.columns],
-                    F.explode(seq).alias(column_name)
-                ).filter(F.col(column_name) <= end_val)
-            else:
-                result = spark.range(1).select(
-                    F.explode(seq).alias(column_name)
-                ).filter(F.col(column_name) <= end_val)
-            
-            return result
+            if end_val is not None:
+                seq = F.sequence(F.lit(init_val), F.lit(end_val), F.lit(step_val))
+                base_df = in0 if has_input else spark.range(1)
+                if has_input:
+                    result = base_df.select(
+                        *[F.col(c) for c in in0.columns],
+                        F.explode(seq).alias(column_name)
+                    ).filter(F.col(column_name) <= end_val)
+                else:
+                    result = base_df.select(
+                        F.explode(seq).alias(column_name)
+                    ).filter(F.col(column_name) <= end_val)
+                return result
         
         # General case: build expressions and use DataFrame operations
         internal_col = f"__gen_{column_name.replace(' ', '_')}"
         
-        def build_expr(expr, ref_col):
-            return F.expr(str(expr).replace(column_name, ref_col)) if expr else F.lit(1)
-        
         # Create base with initial value
         init_col = build_expr(init_expr, internal_col)
-        base = (in0.select(*[F.col(c) for c in in0.columns], init_col.alias(internal_col))
-                if in0 is not None and in0.count() > 0
-                else spark.range(1).select(init_col.alias(internal_col)))
+        if has_input:
+            col_list = [F.col(c) for c in in0.columns]
+            base = in0.select(*col_list, init_col.alias(internal_col))
+        else:
+            base = spark.range(1).select(init_col.alias(internal_col))
         
-        # Try to use F.sequence() if we can extract bounds
-        step_val = to_num(re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr).group(1)) if re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr) else None
-        end_val = to_num(re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr).group(1)) if re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr) else None
+        # Try to extract step and end values for F.sequence() optimization
+        step_match = re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr)
+        cond_match = re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr)
+        step_val = float(step_match.group(1)) if step_match else None
+        end_val = to_num(cond_match.group(1)) if cond_match else None
         
         if step_val and end_val:
             seq = F.sequence(F.col(internal_col), F.lit(end_val), F.lit(step_val))

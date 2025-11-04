@@ -40,11 +40,10 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions (kept from your original macro) #}
+    {# detect date/timestamp style init expressions #}
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
     {% set init_strip = init_expr.strip() %}
@@ -70,54 +69,6 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
-    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
-    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
-    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
-    {% set plain_col = unquoted_col %}
-
-    {# --- Replace the target column in condition expression to reference the internal column --- #}
-    {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
-
-    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
-
-    {# Use adapter-safe quoting for EXCEPT column #}
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
-
-    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
-    {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
-    {% set recursion_condition = _rec_tmp %}
-
-    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}
-            {% do specials.append(ch) %}
-        {% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
-        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% else %}
-        {% set output_col_alias = unquoted_col %}
-    {% endif %}
-
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -132,36 +83,34 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
         select
             -- Use safe EXCEPT only if base column might exist; otherwise fallback
             {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ except_col }}),
+                payload.* EXCEPT ({{ unquoted_col }}),
             {% else %}
                 payload.*,
             {% endif %}
-            {{ internal_col }} as {{ output_col_alias }}
+            {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
-        select {{ internal_col }} as {{ output_col_alias }}
+        select {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% endif %}
 {% endmacro %}
 
@@ -191,7 +140,6 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
@@ -222,53 +170,6 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
-    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
-    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
-    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
-    {% set plain_col = unquoted_col %}
-
-    {# --- Replace the target column in condition expression to reference the internal column --- #}
-    {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
-
-    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
-
-    {# Use adapter-safe quoting for EXCEPT column #}
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
-
-    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
-    {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {% set recursion_condition = _rec_tmp %}
-
-    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}
-            {% do specials.append(ch) %}
-        {% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
-        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% else %}
-        {% set output_col_alias = unquoted_col %}
-    {% endif %}
-
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -283,32 +184,30 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
         select
             -- Use EXCEPT for BigQuery
-            payload.* EXCEPT ({{ except_col }}),
-            {{ internal_col }} as {{ output_col_alias }}
+            payload.* EXCEPT ({{ unquoted_col }}),
+            {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
-        select {{ internal_col }} as {{ output_col_alias }}
+        select {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% endif %}
 {% endmacro %}
 
@@ -338,7 +237,6 @@
     {% endif %}
 
     {% set alias = "src" %}
-    {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
@@ -369,53 +267,6 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
-    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
-    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
-    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
-    {% set plain_col = unquoted_col %}
-
-    {# --- Replace the target column in condition expression to reference the internal column --- #}
-    {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
-
-    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
-
-    {# Use adapter-safe quoting for EXCLUDE column #}
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
-
-    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
-    {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {% set recursion_condition = _rec_tmp %}
-
-    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}
-            {% do specials.append(ch) %}
-        {% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
-        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% else %}
-        {% set output_col_alias = unquoted_col %}
-    {% endif %}
-
     {% if relation_name %}
         with recursive gen as (
             -- base case: one row per input record
@@ -430,31 +281,29 @@
             -- recursive step
             select
                 gen.payload as payload,
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
         select
             -- Use EXCLUDE for DuckDB
-            payload.* EXCLUDE ({{ except_col }}),
-            {{ internal_col }} as {{ output_col_alias }}
+            payload.* EXCLUDE ({{ unquoted_col }}),
+            {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
         )
-        select {{ internal_col }} as {{ output_col_alias }}
+        select {{ internal_col }} as {{ unquoted_col }}
         from gen
-        where {{ condition_expr_sql }}
+        where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
     {% endif %}
 {% endmacro %}
