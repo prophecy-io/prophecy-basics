@@ -472,7 +472,7 @@ class DataCleansing(MacroSpec):
         Handles null replacement, whitespace trimming, character cleaning, and case modification.
         """
         from pyspark.sql.functions import col, trim, regexp_replace, lower, upper, initcap, coalesce, lit, to_date, to_timestamp
-        from pyspark.sql.types import StringType, IntegerType, FloatType, DoubleType, LongType, ShortType, DateType, TimestampType
+        from pyspark.sql.types import StringType, IntegerType, FloatType, DoubleType, LongType, ShortType, DecimalType, DateType, TimestampType
 
         # Extract all properties outside loops to avoid schema analysis issues
         remove_row_null_all_cols = self.props.removeRowNullAllCols
@@ -555,7 +555,7 @@ class DataCleansing(MacroSpec):
                     # Add the transformed column to the list with alias
                     all_expressions.append(col_expr.alias(col_name))
 
-                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType)):
+                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, DecimalType)):
                     col_expr = col(col_name)
 
                     # Replace null with the provided numeric value
