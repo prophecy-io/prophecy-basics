@@ -4,6 +4,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
 
 
 class DataCleansing(MacroSpec):
@@ -463,3 +465,129 @@ class DataCleansing(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        """
+        Apply data cleansing transformations based on component properties.
+        Handles null replacement, whitespace trimming, character cleaning, and case modification.
+        """
+        from pyspark.sql.functions import col, trim, regexp_replace, lower, upper, initcap, coalesce, lit, to_date, to_timestamp
+        from pyspark.sql.types import StringType, IntegerType, FloatType, DoubleType, LongType, ShortType, DateType, TimestampType
+
+        # Extract all properties outside loops to avoid schema analysis issues
+        remove_row_null_all_cols = self.props.removeRowNullAllCols
+        column_names = self.props.columnNames
+        replace_null_text_fields = self.props.replaceNullTextFields
+        replace_null_text_with = self.props.replaceNullTextWith
+        replace_null_numeric_fields = self.props.replaceNullForNumericFields
+        replace_null_numeric_with = self.props.replaceNullNumericWith
+        trim_whitespace = self.props.trimWhiteSpace
+        remove_tabs_linebreaks = self.props.removeTabsLineBreaksAndDuplicateWhitespace
+        all_whitespace = self.props.allWhiteSpace
+        clean_letters = self.props.cleanLetters
+        clean_punctuations = self.props.cleanPunctuations
+        clean_numbers = self.props.cleanNumbers
+        modify_case = self.props.modifyCase
+        replace_null_date_fields = self.props.replaceNullDateFields
+        replace_null_date_with = self.props.replaceNullDateWith
+        replace_null_time_fields = self.props.replaceNullTimeFields
+        replace_null_time_with = self.props.replaceNullTimeWith
+
+        # Step 1: Handle removeRowNullAllCols flag
+        if remove_row_null_all_cols:
+            # Remove rows where all columns are null
+            result_df = in0.na.drop(how="all")
+        else:
+            result_df = in0
+
+        # Step 2: Apply data cleansing operations
+        # Create a set of columns that will be processed for quick lookup
+        cleansing_columns = set(column_names) if column_names else set()
+        
+        # Build expressions in the original column order from result_df
+        all_expressions = []
+        
+        for col_name in result_df.columns:
+            if col_name in cleansing_columns:
+                # This column goes through cleansing operations
+                col_type = result_df.schema[col_name].dataType
+
+                # If the column is a string type, apply text-based operations
+                if isinstance(col_type, StringType):
+                    col_expr = col(col_name)  # Initialize column expression
+                    
+                    # Replace null text fields with the provided value
+                    if replace_null_text_fields:
+                        col_expr = coalesce(col_expr, lit(replace_null_text_with))
+
+                    # Trim whitespace
+                    if trim_whitespace:
+                        col_expr = trim(col_expr)
+
+                    # Remove tabs, line breaks, and duplicate whitespaces
+                    if remove_tabs_linebreaks:
+                        col_expr = regexp_replace(col_expr, r'\s+', ' ')
+
+                    # Remove all whitespace
+                    if all_whitespace:
+                        col_expr = regexp_replace(col_expr, r'\s+', '')
+
+                    # Clean letters (remove letters from the string)
+                    if clean_letters:
+                        col_expr = regexp_replace(col_expr, r'[A-Za-z]', '')
+
+                    # Clean punctuations (remove punctuation characters)
+                    if clean_punctuations:
+                        col_expr = regexp_replace(col_expr, r'[^a-zA-Z0-9\s]', '')
+
+                    # Clean numbers (remove numbers)
+                    if clean_numbers:
+                        col_expr = regexp_replace(col_expr, r'\d+', '')
+
+                    # Convert text case based on modifyCase setting
+                    if modify_case == "makeLowercase":
+                        col_expr = lower(col_expr)
+                    elif modify_case == "makeUppercase":
+                        col_expr = upper(col_expr)
+                    elif modify_case == "makeTitlecase":
+                        col_expr = initcap(col_expr)
+
+                    # Add the transformed column to the list with alias
+                    all_expressions.append(col_expr.alias(col_name))
+
+                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType)):
+                    col_expr = col(col_name)
+
+                    # Replace null with the provided numeric value
+                    if replace_null_numeric_fields:
+                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with))
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                    
+                elif isinstance(col_type, DateType):
+                    col_expr = col(col_name)
+                    
+                    # Replace null date fields with the provided value
+                    if replace_null_date_fields:
+                        col_expr = coalesce(col_expr, to_date(lit(replace_null_date_with)))
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                    
+                elif isinstance(col_type, TimestampType):
+                    col_expr = col(col_name)
+                    
+                    # Replace null timestamp fields with the provided value
+                    if replace_null_time_fields:
+                        col_expr = coalesce(col_expr, to_timestamp(lit(replace_null_time_with)))
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                else:
+                    # If the column doesn't require transformation, add it as is
+                    all_expressions.append(col(col_name))
+            else:
+                # This column remains unchanged
+                all_expressions.append(col(col_name))
+        
+        result_df = result_df.select(*all_expressions)
+
+        return result_df
