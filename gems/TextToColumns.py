@@ -354,7 +354,7 @@ class TextToColumns(MacroSpec):
         )
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        from pyspark.sql.functions import col, split, explode, trim, regexp_replace, when, size, slice, array_join
+        from pyspark.sql.functions import col, split, explode, trim, regexp_replace, when, size, slice, array_join, lit
         
         col_name = self.props.columnNames
         col_expr = col(col_name)
