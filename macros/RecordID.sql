@@ -1,43 +1,43 @@
 {% macro RecordID(relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []) -%}
+        orders= []) -%}
     {{ return(adapter.dispatch('RecordID', 'prophecy_basics')(relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules)) }}
+        orders)) }}
 {% endmacro %}
 
 
 {%- macro default__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
+{%- for r in orders %}
   {% if r.expr | trim != '' %}
     {% set part %}
       {{ r.expr }}
@@ -95,11 +95,11 @@ with base as (
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ record_id_column_name }},
+            {{ id_expr }} as {{ incremental_id_column_name }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ record_id_column_name }}
+            {{ id_expr }} as {{ incremental_id_column_name }}
         {% endif %}
     from base
 )
@@ -112,20 +112,20 @@ from enriched
 {%- macro bigquery__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
+{%- for r in orders %}
   {% if r.expr | trim != '' %}
     {% set part %}
       {{ r.expr }}
@@ -183,11 +183,11 @@ with base as (
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ record_id_column_name }},
+            {{ id_expr }} as {{ incremental_id_column_name }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ record_id_column_name }}
+            {{ id_expr }} as {{ incremental_id_column_name }}
         {% endif %}
     from base
 )
@@ -200,20 +200,20 @@ from enriched
 {%- macro duckdb__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
+{%- for r in orders %}
   {% if r.expr | trim != '' %}
     {% set part %}
       {{ r.expr }}
@@ -267,11 +267,11 @@ with base as (
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ prophecy_basics.quote_identifier(record_id_column_name) }},
+            {{ id_expr }} as {{ prophecy_basics.quote_identifier(incremental_id_column_name) }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ prophecy_basics.quote_identifier(record_id_column_name) }}
+            {{ id_expr }} as {{ prophecy_basics.quote_identifier(incremental_id_column_name) }}
         {% endif %}
     from base
 )
