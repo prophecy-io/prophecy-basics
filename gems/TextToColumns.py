@@ -360,14 +360,14 @@ class TextToColumns(MacroSpec):
         
         col_expr = col(col_name)
         delimiter = self.props.delimiter
-        delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        # delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
         
-        import re
+        # import re
         
-        if delimiter not in ["\t", "\n", "\r"]:
-            special_chars = r'\.^$*+?{}[]|()'
-            if any(c in special_chars for c in delimiter):
-                delimiter = re.escape(delimiter)
+        # if delimiter not in ["\t", "\n", "\r"]:
+        #     special_chars = r'\.^$*+?{}[]|()'
+        #     if any(c in special_chars for c in delimiter):
+        #         delimiter = re.escape(delimiter)
         
         if self.props.split_strategy == "splitColumns":
             split_array = split(col_expr, delimiter)
