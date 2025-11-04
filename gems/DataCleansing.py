@@ -538,7 +538,7 @@ class DataCleansing(MacroSpec):
 
                     # Clean punctuations (remove punctuation characters)
                     if clean_punctuations:
-                        col_expr = regexp_replace(col_expr, r'[^a-zA-Z0-9\s]', '')
+                        col_expr = regexp_replace(col_expr, r'[^\w\s]', '')
 
                     # Clean numbers (remove numbers)
                     if clean_numbers:
