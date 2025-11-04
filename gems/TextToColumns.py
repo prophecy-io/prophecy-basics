@@ -373,7 +373,11 @@ class TextToColumns(MacroSpec):
                 split_delimiter = re.escape(delimiter)
         
         if self.props.split_strategy == "splitColumns":
-            split_array = split(col_expr, split_delimiter)
+            # Use placeholder approach (same as SQL macro) for reliable splitting
+            # Replace delimiter with placeholder, then split by placeholder
+            placeholder = "%%DELIM%%"
+            replaced_col = regexp_replace(col_expr, split_delimiter, placeholder)
+            split_array = split(replaced_col, placeholder)
             result_df = in0
             
             for i in range(1, self.props.noOfColumns):
@@ -403,10 +407,14 @@ class TextToColumns(MacroSpec):
             
         elif self.props.split_strategy == "splitRows":
             # Split into multiple rows (explode)
-            split_array = split(
+            # Use placeholder approach for reliable splitting
+            placeholder = "%%DELIM%%"
+            replaced_col = regexp_replace(
                 when(col_expr.isNull(), lit("")).otherwise(col_expr),
-                split_delimiter
+                split_delimiter,
+                placeholder
             )
+            split_array = split(replaced_col, placeholder)
             
             other_cols = [col(c) for c in in0.columns if c != col_name]
             result_df = in0.select(
