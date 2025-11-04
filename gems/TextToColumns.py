@@ -359,13 +359,11 @@ class TextToColumns(MacroSpec):
         col_name = self.props.columnNames
         col_expr = col(col_name)
         delimiter = self.props.delimiter
-        # Store original delimiter for array_join (before escaping)
         original_delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
         delimiter = original_delimiter
         
         import re
         
-        # Escape delimiter for regex split function
         split_delimiter = delimiter
         if delimiter not in ["\t", "\n", "\r"]:
             special_chars = r'\.^$*+?{}[]|()'
@@ -373,8 +371,6 @@ class TextToColumns(MacroSpec):
                 split_delimiter = re.escape(delimiter)
         
         if self.props.split_strategy == "splitColumns":
-            # Use placeholder approach (same as SQL macro) for reliable splitting
-            # Replace delimiter with placeholder, then split by placeholder
             placeholder = "%%DELIM%%"
             replaced_col = regexp_replace(col_expr, split_delimiter, placeholder)
             split_array = split(replaced_col, placeholder)
@@ -406,8 +402,6 @@ class TextToColumns(MacroSpec):
             return result_df
             
         elif self.props.split_strategy == "splitRows":
-            # Split into multiple rows (explode)
-            # Use placeholder approach for reliable splitting
             placeholder = "%%DELIM%%"
             replaced_col = regexp_replace(
                 when(col_expr.isNull(), lit("")).otherwise(col_expr),
