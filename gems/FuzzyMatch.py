@@ -4,6 +4,7 @@ from collections import defaultdict
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+import json
 
 
 class MatchField(ABC):
