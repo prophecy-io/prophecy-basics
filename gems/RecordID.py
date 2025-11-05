@@ -367,7 +367,9 @@ class RecordID(MacroSpec):
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
             ),
-            orders=parametersMap.get("orders"),
+            orders=json.loads(
+                parametersMap.get("orders").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -393,7 +395,9 @@ class RecordID(MacroSpec):
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
-                MacroParameter("orders", str(properties.orders)),
+                MacroParameter(
+                    "orders", json.dumps(properties.orders)
+                ),
             ],
         )
 
