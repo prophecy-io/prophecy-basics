@@ -38,9 +38,9 @@
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expression | trim != '' %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expression }}
+      {{ r.expression.expression }}
       {% if   r.sortType == 'asc'               %} asc
       {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
       {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
@@ -126,9 +126,9 @@ from enriched
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expression | trim != '' %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expression }}
+      {{ r.expression.expression }}
       {% if   r.sortType == 'asc'               %} asc
       {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
       {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
@@ -214,9 +214,9 @@ from enriched
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expression | trim != '' %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expression }}
+      {{ r.expression.expression }}
       {% if   r.sortType == 'asc'               %} asc
       {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
       {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first

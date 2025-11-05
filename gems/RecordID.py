@@ -326,7 +326,7 @@ class RecordID(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         order_rules: List[dict] = [
-            {"expression": expr, "sortType": r.sortType}
+            {"expression": ColumnExpr(expression=expr, format=r.expression.format), "sortType": r.sortType}
             for r in props.orders
             for expr in [(r.expression.expression or "").strip()]
             if expr
