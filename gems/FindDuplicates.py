@@ -445,7 +445,7 @@ class FindDuplicates(MacroSpec):
 
         order_rules: List[dict] = [
             {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
-            for r in props.orders
+            for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty
         ]
@@ -519,7 +519,7 @@ class FindDuplicates(MacroSpec):
                 MacroParameter("output_type", str(properties.output_type)),
                 MacroParameter("generationMethod", str(properties.generationMethod)),
                 MacroParameter(
-                    "orderByColumns", json.dumps(properties.generationMethod)
+                    "orderByColumns", json.dumps(properties.orderByColumns)
                 ),
             ],
         )
