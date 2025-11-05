@@ -7,7 +7,7 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules) -%}
+    orderByColumns) -%}
     {{ return(adapter.dispatch('FindDuplicates', 'prophecy_basics')(relation_name,
     groupByColumnNames,
     column_group_rownum_condition,
@@ -17,7 +17,7 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules)) }}
+    orderByColumns)) }}
 {% endmacro %}
 
 
@@ -31,7 +31,7 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules
+    orderByColumns
 ) %}
 
     {{ log("Applying Window Function on selected columns", info=True) }}
@@ -42,7 +42,7 @@
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
-        {%- for r in orderByRules -%}
+        {%- for r in orderByColumns -%}
             {%- if r.expression.expression | trim != '' -%}
                 {%- set part = r.expression.expression | trim ~ " " -%}
                 {%- if r.sortType == 'asc' -%}
@@ -149,7 +149,7 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules
+    orderByColumns
 ) -%}
 
     {{ log("Applying Window Function on selected columns", info=True) }}
@@ -160,7 +160,7 @@
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
-        {%- for r in orderByRules -%}
+        {%- for r in orderByColumns -%}
             {%- if r.expression.expression | trim != '' -%}
                 {%- set part = r.expression.expression | trim ~ " " -%}
                 {%- if r.sortType == 'asc' -%}
