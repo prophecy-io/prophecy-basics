@@ -38,12 +38,12 @@
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expr | trim != '' %}
+  {% if r.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
@@ -126,12 +126,12 @@ from enriched
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expr | trim != '' %}
+  {% if r.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
@@ -214,12 +214,12 @@ from enriched
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orders %}
-  {% if r.expr | trim != '' %}
+  {% if r.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
