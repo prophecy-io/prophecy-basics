@@ -6,7 +6,7 @@
     lower_limit,
     upper_limit,
     generationMethod,
-    schema_columns,
+    schema,
     orderByColumns) -%}
     {{ return(adapter.dispatch('FindDuplicates', 'prophecy_basics')(relation_name,
     groupByColumnNames,
@@ -16,7 +16,7 @@
     lower_limit,
     upper_limit,
     generationMethod,
-    schema_columns,
+    schema,
     orderByColumns)) }}
 {% endmacro %}
 
@@ -30,7 +30,7 @@
     lower_limit,
     upper_limit,
     generationMethod,
-    schema_columns,
+    schema,
     orderByColumns
 ) %}
 
@@ -74,7 +74,7 @@
     {%- endfor -%}
 
     {%- set quoted_schema_columns = [] -%}
-    {%- for column in schema_columns -%}
+    {%- for column in schema -%}
         {%- do quoted_schema_columns.append(prophecy_basics.quote_identifier(column)) -%}
     {%- endfor -%}
 
@@ -148,7 +148,7 @@
     lower_limit,
     upper_limit,
     generationMethod,
-    schema_columns,
+    schema,
     orderByColumns
 ) -%}
 
@@ -192,7 +192,7 @@
     {%- endfor -%}
 
     {%- set quoted_schema_columns = [] -%}
-    {%- for column in schema_columns -%}
+    {%- for column in schema -%}
         {%- do quoted_schema_columns.append(prophecy_basics.quote_identifier(column)) -%}
     {%- endfor -%}
 
