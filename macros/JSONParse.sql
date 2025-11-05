@@ -32,8 +32,8 @@
         select * from {{ relation_list | join(', ') }}
 
     {%- else -%}
-        {%- set quoted_col = adapter.quote(columnName) -%}
-        {%- set alias_col = adapter.quote(columnName ~ '_parsed') -%}
+        {%- set quoted_col = "`" ~ columnName ~ "`" -%}
+        {%- set alias_col = "`" ~ columnName ~ "_parsed`" -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
