@@ -255,8 +255,8 @@ class XMLParse(MacroSpec):
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             columnName=parametersMap.get('columnName').lstrip("'").rstrip("'"),
             parsingMethod=parametersMap.get('parsingMethod').lstrip("'").rstrip("'"),
-            sampleRecord=parametersMap.get("sampleRecord"),
-            sampleSchema=parametersMap.get("sampleSchema"),
+            sampleRecord=parametersMap.get("sampleRecord").lstrip("'").rstrip("'"),
+            sampleSchema=parametersMap.get("sampleSchema").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
