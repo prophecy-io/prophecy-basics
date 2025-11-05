@@ -16,8 +16,8 @@ class ColumnExpr:
 
 @dataclass(frozen=True)
 class OrderByRule:
-    expression: ColumnExpr
-    sortType: str = "asc"
+    expr: ColumnExpr
+    sort: str = "asc"
 
 
 class RecordID(MacroSpec):
