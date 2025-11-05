@@ -591,21 +591,21 @@ class Regex(MacroSpec):
                     )
                 ])
         return Regex.RegexProperties(
-            relation_name=parametersMap.get('relation_name'),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             parseColumns=parseColumns,
             schema=parametersMap.get('schema'),
-            selectedColumnName=parametersMap.get('selectedColumnName'),
-            regexExpression=parametersMap.get('regexExpression'),
-            outputMethod=parametersMap.get('outputMethod'),
+            selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
+            regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
+            outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
             caseInsensitive=bool(parametersMap.get('caseInsensitive')),
             allowBlankTokens=bool(parametersMap.get('allowBlankTokens')),
-            replacementText=parametersMap.get('replacementText'),
+            replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
             copyUnmatchedText=parametersMap.get('copyUnmatchedText'),
-            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod'),
+            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
-            extraColumnsHandling=parametersMap.get('extraColumnsHandling'),
-            outputRootName=parametersMap.get('outputRootName'),
-            matchColumnName=parametersMap.get('matchColumnName'),
+            extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
+            outputRootName=parametersMap.get('outputRootName').lstrip("'").rstrip("'"),
+            matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
             errorIfNotMatched=bool(parametersMap.get('errorIfNotMatched')),
         )
 
@@ -622,7 +622,7 @@ class Regex(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("parseColumns", str(parseColumnsJsonList)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),

@@ -38,6 +38,7 @@
 
     --{%- set partition_columns_str = column_names | join(', ') -%}
     {%- set order_parts = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
@@ -88,11 +89,11 @@
     {%- set select_window_cte -%}
         {%- if output_type == "custom_group_count" -%}
             WITH select_cte1 AS(
-                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_name }}
+                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH select_cte1 AS(
-                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{relation_name }}
+                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
@@ -155,6 +156,7 @@
 
     --{%- set partition_columns_str = column_names | join(', ') -%}
     {%- set order_parts = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
@@ -205,11 +207,11 @@
     {%- set select_window_cte -%}
         {%- if output_type == "custom_group_count" -%}
             WITH select_cte1 AS(
-                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_name }}
+                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH select_cte1 AS(
-                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{relation_name }}
+                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
