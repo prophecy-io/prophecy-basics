@@ -9,8 +9,14 @@ from pyspark.sql.functions import lpad, expr, row_number, lit, col
 
 
 @dataclass(frozen=True)
-class OrderByRule:
+class ColumnExpr:
     expression: str
+    format: str
+
+
+@dataclass(frozen=True)
+class OrderByRule:
+    expression: ColumnExpr
     sortType: str = "asc"
 
 
@@ -71,10 +77,11 @@ class RecordID(MacroSpec):
             columns=[
                 Column(
                     "Order By Columns",
-                    "expression",
+                    "expression.expression",
                     ExpressionBox(ignoreTitle=True, language="sql")
                     .bindPlaceholders()
-                    .withSchemaSuggestions(),
+                    .withSchemaSuggestions()
+                    .bindLanguage("${record.expression.format}"),
                 ),
                 Column(
                     "Sort strategy",
@@ -249,11 +256,11 @@ class RecordID(MacroSpec):
 
         # 1. OrderBy grid
         for idx, rule in enumerate(props.orders):
-            expr_text = (rule.expression or "").strip()
+            expr_text = (rule.expression.expression or "").strip()
             if rule.sortType and expr_text == "":
                 diagnostics.append(
                     Diagnostic(
-                        f"properties.orders[{idx}].expression",
+                        f"properties.orders[{idx}].expression.expression",
                         "Order column expression is required when a sort direction is selected.",
                         SeverityLevelEnum.Error,
                     )
@@ -321,7 +328,7 @@ class RecordID(MacroSpec):
         order_rules: List[dict] = [
             {"expression": expr, "sortType": r.sortType}
             for r in props.orders
-            for expr in [(r.expression or "").strip()]
+            for expr in [(r.expression.expression or "").strip()]
             if expr
         ]
 
