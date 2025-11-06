@@ -579,7 +579,7 @@ class Regex(MacroSpec):
             parseColumns=json.loads(
                 parametersMap.get("parseColumns").replace("'", '"')
             ),
-            schema=parametersMap.get('schema'),
+            schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
             outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
