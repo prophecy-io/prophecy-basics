@@ -538,21 +538,15 @@ class Regex(MacroSpec):
     def apply(self, props: RegexProperties) -> str:
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-        parseColumnsJson = json.dumps([
-            {
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in props.parseColumns
-            ])
 
+        parse_columns_list = [
+            {"columnName": fld.columnName, "dataType": fld.dataType, "rgxExpression": fld.rgxExpression}
+            for fld in props.parseColumns
+        ]
 
         parameter_list = [
-            table_name,
-            str(parseColumnsJson),
+            props.relation_name,
+            parse_columns_list,
             props.schema,
             props.selectedColumnName,
             props.regexExpression,
@@ -580,19 +574,11 @@ class Regex(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        parseColumns = []
-        parseCols = json.loads(parametersMap.get('parseColumns', []))
-        for fld in parseCols:
-            parseColumns.append([
-                    ColumnParse(
-                        columnName = fldObj.get("columnName"),
-                        dataType = fldObj.get("dataType"),
-                        rgxExpression = fldObj.get("rgxExpression")
-                    )
-                ])
         return Regex.RegexProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            parseColumns=parseColumns,
+            parseColumns=json.loads(
+                parametersMap.get("parseColumns").replace("'", '"')
+            ),
             schema=parametersMap.get('schema'),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
@@ -600,7 +586,7 @@ class Regex(MacroSpec):
             caseInsensitive=bool(parametersMap.get('caseInsensitive')),
             allowBlankTokens=bool(parametersMap.get('allowBlankTokens')),
             replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
-            copyUnmatchedText=parametersMap.get('copyUnmatchedText'),
+            copyUnmatchedText=bool(parametersMap.get('copyUnmatchedText')),
             tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
             extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
@@ -623,7 +609,7 @@ class Regex(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("parseColumns", str(parseColumnsJsonList)),
+                MacroParameter("parseColumns", json.dumps(properties.parseColumns),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),

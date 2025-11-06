@@ -1,6 +1,6 @@
 {% macro Regex(relation_name,
     parseColumns,
-    currentSchema='',
+    schema='',
     selectedColumnName='',
     regexExpression='',
     outputMethod='replace',
@@ -16,7 +16,7 @@
     errorIfNotMatched=false) -%}
     {{ return(adapter.dispatch('Regex', 'prophecy_basics')(relation_name,
     parseColumns,
-    currentSchema,
+    schema,
     selectedColumnName,
     regexExpression,
     outputMethod,
@@ -35,7 +35,7 @@
 {% macro default__Regex(
     relation_name,
     parseColumns,
-    currentSchema='',
+    schema='',
     selectedColumnName='',
     regexExpression='',
     outputMethod='replace',
