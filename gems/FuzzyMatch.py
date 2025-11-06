@@ -119,7 +119,7 @@ class FuzzyMatch(MacroSpec):
             .addOption("Address", "address")
             .addOption("Name", "name")
             .addOption("Phone", "phone")
-            .bindProperty("record.AddMatchField.matchFunction")
+            .bindProperty("record.matchFunction")
         )
 
         matchFields = (
@@ -136,7 +136,7 @@ class FuzzyMatch(MacroSpec):
                         .addColumn(
                             SchemaColumnsDropdown("Field Name")
                             .bindSchema("component.ports.inputs[0].schema")
-                            .bindProperty("record.AddMatchField.columnName"),
+                            .bindProperty("record.columnName"),
                             "0.5fr",
                         )
                         .addColumn(matchFunction, "0.5fr")
