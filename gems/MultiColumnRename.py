@@ -334,11 +334,12 @@ class MultiColumnRename(MacroSpec):
         selected_cols: SubstituteDisabled = self.props.columnNames
         if self.props.renameMethod == "editPrefixSuffix":
             edit_str = self.props.editWith
+            edit_type = self.props.editType
             for col_name in in0.columns:
                 if col_name in selected_cols:
-                    if self.props.editType == "Prefix":
+                    if edit_type == "Prefix":
                         new_cols.append(col(col_name).alias(edit_str + col_name))
-                    elif self.props.editType == "Suffix":
+                    elif edit_type == "Suffix":
                         new_cols.append(col(col_name).alias(col_name + edit_str))
                     else:
                         new_cols.append(col(col_name))
