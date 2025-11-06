@@ -8,10 +8,6 @@ from prophecy.cb.ui.uispec import *
 import json
 
 
-class MatchField(ABC):
-    pass
-
-
 class FuzzyMatch(MacroSpec):
     name: str = "FuzzyMatch"
     projectName: str = "prophecy_basics"
@@ -25,7 +21,7 @@ class FuzzyMatch(MacroSpec):
     ]
 
     @dataclass(frozen=True)
-    class AddMatchField(MatchField):
+    class AddMatchField:
         columnName: str = ""
         matchFunction: str = "custom"
 
@@ -38,7 +34,7 @@ class FuzzyMatch(MacroSpec):
         matchThresholdPercentage: int = 80
         activeTab: str = "configuration"
         includeSimilarityScore: bool = False
-        matchFields: List[MatchField] = field(default_factory=list)
+        matchFields: List[AddMatchField] = field(default_factory=list)
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
