@@ -8,6 +8,12 @@ from prophecy.cb.ui.uispec import *
 import json
 
 
+@dataclass(frozen=True)
+class AddMatchField:
+    columnName: str = ""
+    matchFunction: str = "custom"
+
+
 class FuzzyMatch(MacroSpec):
     name: str = "FuzzyMatch"
     projectName: str = "prophecy_basics"
@@ -19,11 +25,6 @@ class FuzzyMatch(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
-
-    @dataclass(frozen=True)
-    class AddMatchField:
-        columnName: str = ""
-        matchFunction: str = "custom"
 
     @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
@@ -58,7 +59,7 @@ class FuzzyMatch(MacroSpec):
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
-        _matchFields.append(self.AddMatchField())
+        _matchFields.append(AddMatchField())
         return state.bindProperties(
             dataclasses.replace(state.properties, matchFields=_matchFields)
         )
