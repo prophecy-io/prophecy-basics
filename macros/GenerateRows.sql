@@ -11,7 +11,7 @@
     loop_expr,
     column_name,
     max_rows,
-    focus_mode)) }}
+    force_mode)) }}
 {% endmacro %}
 
 {% macro default__GenerateRows(
@@ -21,7 +21,7 @@
     loop_expr='value + 1',
     column_name='value',
     max_rows=100000,
-    focus_mode='recursive'
+    force_mode='recursive'
 ) %}
     {% if init_expr is none or init_expr == '' %}
         {% do exceptions.raise_compiler_error("init_expr is required") %}

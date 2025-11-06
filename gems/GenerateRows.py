@@ -114,12 +114,11 @@ class GenerateRows(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: GenerateRowsProperties) -> str:
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + str(props.init_expr) + "'",
             "'" + str(props.condition_expr) + "'",
             "'" + str(props.loop_expr) + "'",
@@ -163,7 +162,7 @@ class GenerateRows(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("init_expr", properties.init_expr),
                 MacroParameter("condition_expr", properties.condition_expr),
                 MacroParameter("loop_expr", properties.loop_expr),
