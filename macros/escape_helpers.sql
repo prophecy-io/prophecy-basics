@@ -32,7 +32,7 @@
     {%- endif -%}
     
     {%- if escape_backslashes -%}
-        {# Escape backslashes first (so they're protected before we escape quotes) #}
+        {# Escape backslashes first (so theyre protected before we escape quotes) #}
         {%- set escaped = text | replace("\\", "\\\\") -%}
     {%- else -%}
         {%- set escaped = text -%}
