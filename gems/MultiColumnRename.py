@@ -345,8 +345,6 @@ class MultiColumnRename(MacroSpec):
                         new_cols.append(col(col_name))
                 else:
                     new_cols.append(col(col_name))
-
-            res = in0.select(*new_cols)
         else:
             columns_df = spark.createDataFrame([(c,) for c in selected_cols], ["column_name"])
 
@@ -360,4 +358,4 @@ class MultiColumnRename(MacroSpec):
                 else:
                     new_cols.append(col(col_name))
 
-        return res
+        return in0.select(*new_cols)
