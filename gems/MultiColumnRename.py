@@ -2,6 +2,7 @@ import dataclasses
 import json
 from dataclasses import dataclass
 
+from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
@@ -330,13 +331,15 @@ class MultiColumnRename(MacroSpec):
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         res = in0
         new_cols = []
+        selected_cols: SubstituteDisabled = self.props.columnNames
         if self.props.renameMethod == "editPrefixSuffix":
+            edit_str = self.props.editWith
             for col_name in in0.columns:
-                if col_name in self.props.columnNames:
+                if col_name in selected_cols:
                     if self.props.editType == "Prefix":
-                        new_cols.append(col(col_name).alias(self.props.editWith + col_name))
+                        new_cols.append(col(col_name).alias(edit_str + col_name))
                     elif self.props.editType == "Suffix":
-                        new_cols.append(col(col_name).alias(col_name + self.props.editWith))
+                        new_cols.append(col(col_name).alias(col_name + edit_str))
                     else:
                         new_cols.append(col(col_name))
                 else:
@@ -344,7 +347,7 @@ class MultiColumnRename(MacroSpec):
 
             res = in0.select(*new_cols)
         else:
-            columns_df = spark.createDataFrame([(c,) for c in self.props.columnNames], ["column_name"])
+            columns_df = spark.createDataFrame([(c,) for c in selected_cols], ["column_name"])
 
             columns_df = columns_df.withColumn("value", expr(self.props.customExpression))
 
