@@ -253,7 +253,7 @@ class MultiColumnEdit(MacroSpec):
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            expressionToBeApplied=parametersMap.get('expressionToBeApplied').lstrip("'").rstrip("'"),
+            expressionToBeApplied=parametersMap.get('expressionToBeApplied').lstrip('"').rstrip('"'),
             changeOutputFieldName=parametersMap.get("changeOutputFieldName").lower()
             == "true",
             prefixSuffixOption=parametersMap.get('prefixSuffixOption').lstrip("'").rstrip("'"),
