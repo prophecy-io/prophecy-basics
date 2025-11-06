@@ -1,5 +1,5 @@
 {% macro TextToColumns(relation_name,
-    columnName,
+    columnNames,
     delimiter,
     split_strategy,
     noOfColumns,
@@ -8,7 +8,7 @@
     splitColumnSuffix,
     splitRowsColumnName   ) -%}
     {{ return(adapter.dispatch('TextToColumns', 'prophecy_basics')(relation_name,
-    columnName,
+    columnNames,
     delimiter,
     split_strategy,
     noOfColumns,
@@ -20,7 +20,7 @@
 
 {% macro default__TextToColumns(
     relation_name,
-    columnName,
+    columnNames,
     delimiter,
     split_strategy,
     noOfColumns,
@@ -40,7 +40,7 @@
 {%- set quote_char = '`' -%}
 
 {# Quote the column name properly #}
-{%- set quoted_column_name = prophecy_basics.quote_identifier(columnName) -%}
+{%- set quoted_column_name = prophecy_basics.quote_identifier(columnNames) -%}
 
 {%- if split_strategy == 'splitColumns' -%}
     WITH source AS (
@@ -90,7 +90,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
 
 {% macro bigquery__TextToColumns(
     relation_name,
-    columnName,
+    columnNames,
     delimiter,
     split_strategy,
     noOfColumns,
@@ -110,7 +110,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
 {%- set quote_char = '`' -%}
 
 {# Quote the column name properly #}
-{%- set quoted_column_name = prophecy_basics.quote_identifier(columnName) -%}
+{%- set quoted_column_name = prophecy_basics.quote_identifier(columnNames) -%}
 
 {%- if split_strategy == 'splitColumns' -%}
     WITH source AS (
@@ -163,7 +163,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
 
 {%- macro duckdb__TextToColumns(
     relation_name,
-    columnName,
+    columnNames,
     delimiter,
     split_strategy,
     noOfColumns,
@@ -177,7 +177,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
 {%- set pattern = delimiter.replace('\\', '') -%}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {# Handle string boolean parameter from Python - check string directly #}
-{%- set quoted_column = prophecy_basics.quote_identifier(columnName) -%}
+{%- set quoted_column = prophecy_basics.quote_identifier(columnNames) -%}
 
 {%- if split_strategy == 'splitColumns' -%}
     WITH source AS (
