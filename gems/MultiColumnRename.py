@@ -284,7 +284,7 @@ class MultiColumnRename(MacroSpec):
             renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
             editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),
-            customExpression=parametersMap.get('customExpression').lstrip("'").rstrip("'"),
+            customExpression=parametersMap.get('customExpression').lstrip('"').rstrip('"'),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
