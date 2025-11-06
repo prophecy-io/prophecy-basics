@@ -566,6 +566,8 @@ class Regex(MacroSpec):
         for p in parameter_list:
             if type(p) == str:
                 param_list_clean.append("'" + p + "'")
+            elif type(p) == bool:
+                param_list_clean.append(str(p).lower())
             else:
                 param_list_clean.append(str(p))
         non_empty_param = ",".join([param for param in param_list_clean if param != ''])
@@ -614,16 +616,16 @@ class Regex(MacroSpec):
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),
                 MacroParameter("regexExpression", str(properties.regexExpression)),
-                MacroParameter("caseInsensitive", str(properties.caseInsensitive)),
+                MacroParameter("caseInsensitive", str(properties.caseInsensitive).lower()),
                 MacroParameter("replacementText", str(properties.replacementText)),
-                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText)),
+                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText).lower()),
                 MacroParameter("tokenizeOutputMethod", str(properties.tokenizeOutputMethod)),
-                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens)),
+                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens).lower()),
                 MacroParameter("noOfColumns", str(properties.noOfColumns)),
                 MacroParameter("extraColumnsHandling", str(properties.extraColumnsHandling)),
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
-                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched)),
+                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
             ],
         )
 
