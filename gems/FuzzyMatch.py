@@ -288,20 +288,17 @@ class FuzzyMatch(MacroSpec):
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Group match fields by their match function.
-        grouped_match_fields = defaultdict(list)
-        for field in props.matchFields:
-            grouped_match_fields[field.matchFunction].append(field.columnName)
-
-        # Convert defaultdict to a regular dict.
-        match_fields_map = dict(grouped_match_fields)
+        match_fields_list = [
+            {"columnName": field.columnName, "matchFunction": field.matchFunction}
+            for field in props.matchFields
+        ]
 
         arguments = [
             str(props.relation_name),
             "'" + props.mode + "'",
             "'" + props.sourceIdCol + "'",
             "'" + props.recordIdCol + "'",
-            str(match_fields_map),
+            str(match_fields_list),
             str(props.matchThresholdPercentage),
             str(props.includeSimilarityScore).lower(),
         ]
@@ -321,6 +318,9 @@ class FuzzyMatch(MacroSpec):
             ),
             includeSimilarityScore=parametersMap.get("includeSimilarityScore").lower()
             == "true",
+            matchFields=json.loads(
+                parametersMap.get("matchFields").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -339,6 +339,9 @@ class FuzzyMatch(MacroSpec):
                 MacroParameter(
                     "includeSimilarityScore",
                     str(properties.includeSimilarityScore).lower(),
+                ),
+                MacroParameter(
+                    "matchFields", json.dumps(properties.matchFields)
                 ),
             ],
         )
