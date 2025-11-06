@@ -25,7 +25,6 @@ class MultiColumnRename(MacroSpec):
         schema: str = ""
         columnNames: List[str] = field(default_factory=list)
         renameMethod: str = ""
-        editOperation: str = "Add"
         editType: str = ""
         editWith: str = ""
         suffix: str = ""
@@ -283,7 +282,6 @@ class MultiColumnRename(MacroSpec):
             schema=parametersMap.get("schema"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
             renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
-            editOperation=parametersMap.get('editOperation').lstrip("'").rstrip("'"),
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
             editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),
             customExpression=parametersMap.get('customExpression').lstrip("'").rstrip("'"),
@@ -299,7 +297,6 @@ class MultiColumnRename(MacroSpec):
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter("renameMethod", properties.renameMethod),
-                MacroParameter("editOperation", properties.editOperation),
                 MacroParameter("editType", properties.editType),
                 MacroParameter("editWith", properties.editWith),
                 MacroParameter("customExpression", properties.customExpression),
