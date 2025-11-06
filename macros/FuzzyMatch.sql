@@ -1,11 +1,11 @@
-{% macro FuzzyMatch(relation,
+{% macro FuzzyMatch(relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
     matchFields,
     matchThresholdPercentage=0,
     includeSimilarityScore=False) -%}
-    {{ return(adapter.dispatch('FuzzyMatch', 'prophecy_basics')(relation,
+    {{ return(adapter.dispatch('FuzzyMatch', 'prophecy_basics')(relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -16,7 +16,7 @@
 
 
 {% macro default__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -25,7 +25,7 @@
     includeSimilarityScore=False
     ) %}
 
-{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
@@ -166,7 +166,7 @@ final_output as (
 {% endmacro %}
 
 {% macro bigquery__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -175,7 +175,7 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
-{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
@@ -321,7 +321,7 @@ final_output as (
 {% endmacro %}
 
 {% macro duckdb__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -330,7 +330,7 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
-{% set relation_list = relation if relation is iterable and relation is not string else [relation] %}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
