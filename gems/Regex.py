@@ -585,16 +585,20 @@ class Regex(MacroSpec):
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
             outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
-            caseInsensitive=bool(parametersMap.get('caseInsensitive')),
-            allowBlankTokens=bool(parametersMap.get('allowBlankTokens')),
+            caseInsensitive=parametersMap.get("caseInsensitive").lower()
+            == "true",
+            allowBlankTokens=parametersMap.get("allowBlankTokens").lower()
+            == "true",
             replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
-            copyUnmatchedText=bool(parametersMap.get('copyUnmatchedText')),
+            copyUnmatchedText=parametersMap.get("copyUnmatchedText").lower()
+            == "true",
             tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
             extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
             outputRootName=parametersMap.get('outputRootName').lstrip("'").rstrip("'"),
             matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
-            errorIfNotMatched=bool(parametersMap.get('errorIfNotMatched')),
+            errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
