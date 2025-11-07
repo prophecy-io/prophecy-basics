@@ -556,30 +556,23 @@ class Regex(MacroSpec):
 
         parameter_list = [
             table_name,
-            str(parseColumnsJson),
-            props.schema,
-            props.selectedColumnName,
-            props.regexExpression,
-            props.outputMethod,
-            props.caseInsensitive,
-            props.allowBlankTokens,
-            props.replacementText,
-            props.copyUnmatchedText,
-            props.tokenizeOutputMethod,
-            props.noOfColumns,
-            props.extraColumnsHandling,
-            props.outputRootName,
-            props.matchColumnName,
-            props.errorIfNotMatched,
+            "'" + parseColumnsJson + "'",
+            "'" + props.schema + "'",
+            "'" + props.selectedColumnName + "'",
+            "'" + props.regexExpression + "'",
+            "'" + props.outputMethod + "'",
+            str(props.caseInsensitive).lower(),
+            str(props.allowBlankTokens).lower(),
+            "'" + props.replacementText + "'",
+            str(props.copyUnmatchedText).lower(),
+            "'" + props.tokenizeOutputMethod + "'",
+            str(props.noOfColumns),
+            "'" + props.extraColumnsHandling + "'",
+            "'" + props.outputRootName + "'",
+            str(props.matchColumnName),
+            str(props.errorIfNotMatched).lower(),
         ]
-        param_list_clean = []
-        for p in parameter_list:
-            if type(p) == str:
-                # Escape single quotes for SQL string literals ('' represents a single quote)
-                param_list_clean.append("'" + p + "'")
-            else:
-                param_list_clean.append(str(p))
-        non_empty_param = ",".join([param for param in param_list_clean if param != ''])
+        non_empty_param = ",".join([param for param in parameter_list if param != ''])
         return f'{{{{ {resolved_macro_name}({non_empty_param}) }}}}'
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
