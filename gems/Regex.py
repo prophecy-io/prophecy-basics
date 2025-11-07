@@ -29,8 +29,8 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
