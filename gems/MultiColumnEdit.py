@@ -224,9 +224,6 @@ class MultiColumnEdit(MacroSpec):
 
     def apply(self, props: MultiColumnEditProperties) -> str:
 
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Get existing column names
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
@@ -234,7 +231,7 @@ class MultiColumnEdit(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             (
                 props.expressionToBeApplied.replace("{{", "").replace("}}", "").strip()
                 if "{{" in props.expressionToBeApplied
@@ -253,14 +250,14 @@ class MultiColumnEdit(MacroSpec):
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return MultiColumnEdit.MultiColumnEditProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            expressionToBeApplied=parametersMap.get("expressionToBeApplied"),
+            expressionToBeApplied=parametersMap.get('expressionToBeApplied').lstrip('"').rstrip('"'),
             changeOutputFieldName=parametersMap.get("changeOutputFieldName").lower()
             == "true",
-            prefixSuffixOption=parametersMap.get("prefixSuffixOption"),
-            prefixSuffixToBeAdded=parametersMap.get("prefixSuffixToBeAdded"),
+            prefixSuffixOption=parametersMap.get('prefixSuffixOption').lstrip("'").rstrip("'"),
+            prefixSuffixToBeAdded=parametersMap.get('prefixSuffixToBeAdded').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -269,19 +266,19 @@ class MultiColumnEdit(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter(
-                    "expressionToBeApplied", properties.expressionToBeApplied
+                    "expressionToBeApplied", str(properties.expressionToBeApplied)
                 ),
                 MacroParameter(
                     "changeOutputFieldName",
                     str(properties.changeOutputFieldName).lower(),
                 ),
-                MacroParameter("prefixSuffixOption", properties.prefixSuffixOption),
+                MacroParameter("prefixSuffixOption", str(properties.prefixSuffixOption)),
                 MacroParameter(
-                    "prefixSuffixToBeAdded", properties.prefixSuffixToBeAdded
+                    "prefixSuffixToBeAdded", str(properties.prefixSuffixToBeAdded)
                 ),
             ],
         )

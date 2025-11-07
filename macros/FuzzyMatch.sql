@@ -1,11 +1,11 @@
-{% macro FuzzyMatch(relation,
+{% macro FuzzyMatch(relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
     matchFields,
     matchThresholdPercentage=0,
     includeSimilarityScore=False) -%}
-    {{ return(adapter.dispatch('FuzzyMatch', 'prophecy_basics')(relation,
+    {{ return(adapter.dispatch('FuzzyMatch', 'prophecy_basics')(relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -16,7 +16,7 @@
 
 
 {% macro default__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -25,10 +25,14 @@
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
-    {%- for key, columns in matchFields.items() -%}
+    {%- for field in matchFields -%}
+        {%- set key = field.matchFunction -%}
+        {%- set col = field.columnName -%}
+
         {# Decide on the function name based on the key #}
         {%- if key == 'custom' -%}
             {%- set func_name = 'LEVENSHTEIN' -%}
@@ -46,28 +50,26 @@
             {%- set func_name = 'LEVENSHTEIN' -%}
         {%- endif -%}
 
-        {%- for col in columns -%}
-            {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-            {%- if key == 'custom' -%}
-                {# For custom matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-            {%- elif key == 'name' -%}
-                {# For name matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-            {%- elif key == 'address' -%}
-                {# For address matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-            {%- else -%}
-                {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
-            {%- endif -%}
-            {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, CAST(" ~ sourceIdCol ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- endif -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+        {%- if key == 'custom' -%}
+            {# For custom matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
+        {%- elif key == 'name' -%}
+            {# For name matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
+        {%- elif key == 'address' -%}
+            {# For address matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
+        {%- else -%}
+            {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
+        {%- endif -%}
+        {%- if mode == 'PURGE' -%}
+            {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- elif mode == 'MERGE' -%}
+            {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS STRING) as record_id, CAST(" ~ sourceIdCol ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- endif -%}
 
-            {%- do selects.append(select_stmt) -%}
-        {%- endfor -%}
+        {%- do selects.append(select_stmt) -%}
 
     {%- endfor -%}
 
@@ -159,13 +161,13 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
 
 {% macro bigquery__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -174,10 +176,14 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
-    {%- for key, columns in matchFields.items() -%}
+    {%- for field in matchFields -%}
+        {%- set key = field.matchFunction -%}
+        {%- set col = field.columnName -%}
+
         {# Decide on the function name based on the key #}
         {%- if key == 'custom' -%}
             {%- set func_name = 'EDIT_DISTANCE' -%}
@@ -195,33 +201,31 @@ final_output as (
             {%- set func_name = 'EDIT_DISTANCE' -%}
         {%- endif -%}
 
-        {%- for col in columns -%}
-            {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-            {%- if key == 'custom' -%}
-                {# For custom matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-            {%- elif key == 'name' -%}
-                {# For name matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-            {%- elif key == 'address' -%}
-                {# For address matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-            {%- else -%}
-                {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
-            {%- endif -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+        {%- if key == 'custom' -%}
+            {# For custom matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
+        {%- elif key == 'name' -%}
+            {# For name matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
+        {%- elif key == 'address' -%}
+            {# For address matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
+        {%- else -%}
+            {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
+        {%- endif -%}
 
-            {# Properly quote recordIdCol and sourceIdCol with backticks #}
-            {%- set quoted_record_id_col = prophecy_basics.quote_identifier(recordIdCol) -%}
-            {%- set quoted_source_id_col = prophecy_basics.quote_identifier(sourceIdCol) -%}
+        {# Properly quote recordIdCol and sourceIdCol with backticks #}
+        {%- set quoted_record_id_col = prophecy_basics.quote_identifier(recordIdCol) -%}
+        {%- set quoted_source_id_col = prophecy_basics.quote_identifier(sourceIdCol) -%}
 
-            {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, CAST(" ~ quoted_source_id_col ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- endif -%}
+        {%- if mode == 'PURGE' -%}
+            {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- elif mode == 'MERGE' -%}
+            {%- set select_stmt = "select CAST(" ~ quoted_record_id_col ~ " AS STRING) as record_id, CAST(" ~ quoted_source_id_col ~ " AS STRING) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- endif -%}
 
-            {%- do selects.append(select_stmt) -%}
-        {%- endfor -%}
+        {%- do selects.append(select_stmt) -%}
 
     {%- endfor -%}
 
@@ -313,13 +317,13 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}
 
 {% macro duckdb__FuzzyMatch(
-    relation,
+    relation_name,
     mode,
     sourceIdCol,
     recordIdCol,
@@ -328,10 +332,14 @@ final_output as (
     includeSimilarityScore=False
     ) %}
 
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if mode == 'PURGE' or mode == 'MERGE' -%}
     {# Build individual SELECT statements for each match field #}
     {%- set selects = [] -%}
-    {%- for key, columns in matchFields.items() -%}
+    {%- for field in matchFields -%}
+        {%- set key = field.matchFunction -%}
+        {%- set col = field.columnName -%}
+
         {# Decide on the function name based on the key #}
         {%- if key == 'custom' -%}
             {%- set func_name = 'LEVENSHTEIN' -%}
@@ -349,29 +357,27 @@ final_output as (
             {%- set func_name = 'LEVENSHTEIN' -%}
         {%- endif -%}
 
-        {%- for col in columns -%}
-            {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-            {%- if key == 'custom' -%}
-                {# For custom matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-            {%- elif key == 'name' -%}
-                {# For name matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-            {%- elif key == 'address' -%}
-                {# For address matching, strip punctuation from the column value #}
-                {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-            {%- else -%}
-                {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
-            {%- endif -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+        {%- if key == 'custom' -%}
+            {# For custom matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+        {%- elif key == 'name' -%}
+            {# For name matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+        {%- elif key == 'address' -%}
+            {# For address matching, strip punctuation from the column value #}
+            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+        {%- else -%}
+            {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
+        {%- endif -%}
 
-            {%- if mode == 'PURGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- elif mode == 'MERGE' -%}
-                {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, CAST(" ~ sourceIdCol ~ " AS VARCHAR) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ relation -%}
-            {%- endif -%}
+        {%- if mode == 'PURGE' -%}
+            {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- elif mode == 'MERGE' -%}
+            {%- set select_stmt = "select CAST(" ~ recordIdCol ~ " AS VARCHAR) as record_id, CAST(" ~ sourceIdCol ~ " AS VARCHAR) as source_id , upper('" ~ col ~ "') as column_name, " ~ column_value_expr ~ " as column_value, '" ~ func_name ~ "' as function_name from " ~ (relation_list | join(', ')) -%}
+        {%- endif -%}
 
-            {%- do selects.append(select_stmt) -%}
-        {%- endfor -%}
+        {%- do selects.append(select_stmt) -%}
 
     {%- endfor -%}
 
@@ -463,7 +469,7 @@ final_output as (
     {%- endif -%}
 
 {%- else -%}
-    select * from {{ relation }}
+    select * from {{ relation_list | join(', ') }}
 {%- endif -%}
 
 {% endmacro %}

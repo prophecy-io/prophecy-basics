@@ -1,48 +1,49 @@
 {% macro RecordID(relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []) -%}
+        orders= []) -%}
     {{ return(adapter.dispatch('RecordID', 'prophecy_basics')(relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules)) }}
+        orders)) }}
 {% endmacro %}
 
 
 {%- macro default__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
-  {% if r.expr | trim != '' %}
+{%- for r in orders %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
@@ -88,17 +89,17 @@
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ record_id_column_name }},
+            {{ id_expr }} as {{ incremental_id_column_name }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ record_id_column_name }}
+            {{ id_expr }} as {{ incremental_id_column_name }}
         {% endif %}
     from base
 )
@@ -111,25 +112,26 @@ from enriched
 {%- macro bigquery__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
-  {% if r.expr | trim != '' %}
+{%- for r in orders %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
@@ -175,17 +177,17 @@ from enriched
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ record_id_column_name }},
+            {{ id_expr }} as {{ incremental_id_column_name }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ record_id_column_name }}
+            {{ id_expr }} as {{ incremental_id_column_name }}
         {% endif %}
     from base
 )
@@ -198,25 +200,26 @@ from enriched
 {%- macro duckdb__RecordID(
         relation_name,
         method,
-        record_id_column_name,
+        incremental_id_column_name,
         incremental_id_type,
         incremental_id_size,
         incremental_id_starting_val,
         generationMethod,
         position,
         groupByColumnNames,
-        orderByRules= []
+        orders= []
 ) -%}
 
 {# ── 1 · ORDER BY clause ──────────────────────────────────────────────────── #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
-{%- for r in orderByRules %}
-  {% if r.expr | trim != '' %}
+{%- for r in orders %}
+  {% if r.expression.expression | trim != '' %}
     {% set part %}
-      {{ r.expr }}
-      {% if   r.sort == 'asc'               %} asc
-      {% elif r.sort == 'asc_nulls_last'    %} asc nulls last
-      {% elif r.sort == 'desc_nulls_first'  %} desc nulls first
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
       {% else                               %} desc
       {% endif %}
     {% endset %}
@@ -258,17 +261,17 @@ from enriched
 {# ── 3 · Final query ──────────────────────────────────────────────────────── #}
 with base as (
     select *
-    from {{ relation_name }}
+    from {{ relation_list | join(', ') }}
 ),
 
 enriched as (
     select
         {% if position == 'first_column' %}
-            {{ id_expr }} as {{ prophecy_basics.quote_identifier(record_id_column_name) }},
+            {{ id_expr }} as {{ prophecy_basics.quote_identifier(incremental_id_column_name) }},
             base.*
         {% else %}
             base.*,
-            {{ id_expr }} as {{ prophecy_basics.quote_identifier(record_id_column_name) }}
+            {{ id_expr }} as {{ prophecy_basics.quote_identifier(incremental_id_column_name) }}
         {% endif %}
     from base
 )

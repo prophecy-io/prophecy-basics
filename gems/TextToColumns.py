@@ -1,4 +1,5 @@
 import re
+import json
 from dataclasses import dataclass
 
 from prophecy.cb.sql.Component import *
@@ -292,14 +293,11 @@ class TextToColumns(MacroSpec):
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Handle delimiter with special characters
         escaped_delimiter = re.escape(props.delimiter).replace("\\", "\\\\\\")
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.columnNames + "'",
             '"' + escaped_delimiter + '"',
             "'" + props.split_strategy + "'",
@@ -316,15 +314,15 @@ class TextToColumns(MacroSpec):
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return TextToColumns.TextToColumnsProperties(
-            relation_name=parametersMap.get("relation_name"),
-            columnNames=parametersMap.get("columnNames"),
-            delimiter=parametersMap.get("delimiter"),
-            split_strategy=parametersMap.get("split_strategy"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            columnNames=parametersMap.get('columnNames').lstrip("'").rstrip("'"),
+            delimiter=parametersMap.get('delimiter').lstrip('"').rstrip('"'),
+            split_strategy=parametersMap.get('split_strategy').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get("noOfColumns")),
-            leaveExtraCharLastCol=parametersMap.get("leaveExtraCharLastCol"),
-            splitColumnPrefix=parametersMap.get("splitColumnPrefix"),
-            splitColumnSuffix=parametersMap.get("splitColumnSuffix"),
-            splitRowsColumnName=parametersMap.get("splitRowsColumnName"),
+            leaveExtraCharLastCol=parametersMap.get('leaveExtraCharLastCol').lstrip("'").rstrip("'"),
+            splitColumnPrefix=parametersMap.get('splitColumnPrefix').lstrip("'").rstrip("'"),
+            splitColumnSuffix=parametersMap.get('splitColumnSuffix').lstrip("'").rstrip("'"),
+            splitRowsColumnName=parametersMap.get('splitRowsColumnName').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -332,7 +330,7 @@ class TextToColumns(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("columnNames", properties.columnNames),
                 MacroParameter("delimiter", properties.delimiter),
                 MacroParameter("split_strategy", properties.split_strategy),
@@ -355,27 +353,27 @@ class TextToColumns(MacroSpec):
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         from pyspark.sql.functions import col, split, explode, trim, regexp_replace, when, size, slice, array_join, lit
-        
+
         col_name = self.props.columnNames
         col_expr = col(col_name)
         delimiter = self.props.delimiter
         original_delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
         delimiter = original_delimiter
-        
+
         import re
-        
+
         split_delimiter = delimiter
         if delimiter not in ["\t", "\n", "\r"]:
             special_chars = r'\.^$*+?{}[]|()'
             if any(c in special_chars for c in delimiter):
                 split_delimiter = re.escape(delimiter)
-        
+
         if self.props.split_strategy == "splitColumns":
             placeholder = "%%DELIM%%"
             replaced_col = regexp_replace(col_expr, split_delimiter, placeholder)
             split_array = split(replaced_col, placeholder)
             result_df = in0
-            
+
             for i in range(1, self.props.noOfColumns):
                 token_col = when(
                     size(split_array) > i - 1,
@@ -383,9 +381,9 @@ class TextToColumns(MacroSpec):
                 ).otherwise(None)
                 output_col = f"{self.props.splitColumnPrefix}_{i}_{self.props.splitColumnSuffix}"
                 result_df = result_df.withColumn(output_col, token_col)
-            
+
             last_col_name = f"{self.props.splitColumnPrefix}_{self.props.noOfColumns}_{self.props.splitColumnSuffix}"
-            
+
             if self.props.leaveExtraCharLastCol == "Leave extra in last column":
                 remaining_tokens = slice(split_array, self.props.noOfColumns, size(split_array))
                 last_col = when(
@@ -397,10 +395,10 @@ class TextToColumns(MacroSpec):
                     size(split_array) > self.props.noOfColumns - 1,
                     trim(regexp_replace(split_array[self.props.noOfColumns - 1], r'^"|"$', ''))
                 ).otherwise(None)
-            
+
             result_df = result_df.withColumn(last_col_name, last_col)
             return result_df
-            
+
         elif self.props.split_strategy == "splitRows":
             placeholder = "%%DELIM%%"
             replaced_col = regexp_replace(
@@ -409,16 +407,16 @@ class TextToColumns(MacroSpec):
                 placeholder
             )
             split_array = split(replaced_col, placeholder)
-            
+
             other_cols = [col(c) for c in in0.columns if c != col_name]
             result_df = in0.select(
                 other_cols + [explode(split_array).alias("col_temp")]
             )
-            
+
             result_df = result_df.filter(
                 (col("col_temp") != "") & (col("col_temp").isNotNull())
             )
-            
+
             cleaned_col = trim(
                 regexp_replace(
                     regexp_replace(col("col_temp"), r'[{}_]', ' '),
@@ -426,7 +424,7 @@ class TextToColumns(MacroSpec):
                     ' '
                 )
             )
-            
+
             result_df = result_df.withColumn(self.props.splitRowsColumnName, cleaned_col)
             result_df = result_df.drop("col_temp")
             return result_df

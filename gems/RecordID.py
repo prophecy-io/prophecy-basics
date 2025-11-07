@@ -324,17 +324,16 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     def apply(self, props: RecordIDProperties) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         order_rules: List[dict] = [
-            {"expr": expr, "sort": r.sortType}
+            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
             for r in props.orders
             for expr in [(r.expression.expression or "").strip()]
             if expr
         ]
 
         arguments = [
-            f"'{table_name}'",
+            str(props.relation_name),
             f"'{props.method}'",
             f"'{props.incremental_id_column_name}'",
             f"'{props.incremental_id_type}'",
@@ -355,20 +354,22 @@ class RecordID(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
         return RecordID.RecordIDProperties(
-            relation_name=parametersMap.get("relation_name"),
-            method=parametersMap.get("method"),
-            incremental_id_column_name=parametersMap.get("incremental_id_column_name"),
-            incremental_id_type=parametersMap.get("incremental_id_type"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            method=parametersMap.get('method').lstrip("'").rstrip("'"),
+            incremental_id_column_name=parametersMap.get('incremental_id_column_name').lstrip("'").rstrip("'"),
+            incremental_id_type=parametersMap.get('incremental_id_type').lstrip("'").rstrip("'"),
             incremental_id_size=float(parametersMap.get("incremental_id_size")),
             incremental_id_starting_val=float(
                 parametersMap.get("incremental_id_starting_val")
             ),
-            generationMethod=parametersMap.get("generationMethod"),
-            position=parametersMap.get("position"),
+            generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
+            position=parametersMap.get('position').lstrip("'").rstrip("'"),
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
             ),
-            orders=parametersMap.get("orders"),
+            orders=json.loads(
+                parametersMap.get("orders").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -376,7 +377,7 @@ class RecordID(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("method", properties.method),
                 MacroParameter(
                     "incremental_id_column_name", properties.incremental_id_column_name
@@ -394,7 +395,9 @@ class RecordID(MacroSpec):
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
-                MacroParameter("orders", str(properties.orders)),
+                MacroParameter(
+                    "orders", json.dumps(properties.orders)
+                ),
             ],
         )
 

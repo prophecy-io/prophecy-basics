@@ -161,7 +161,6 @@ class CountRecords(MacroSpec):
 
     def apply(self, props: CountRecordsProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         def safe_str(val):
@@ -172,7 +171,7 @@ class CountRecords(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            safe_str(table_name),
+            str(props.relation_name),
             safe_str(props.column_names),
             safe_str(props.count_method),
         ]
@@ -184,12 +183,12 @@ class CountRecords(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return CountRecords.CountRecordsProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            count_method=parametersMap.get("count_method"),
+            count_method=parametersMap.get('count_method').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -198,7 +197,7 @@ class CountRecords(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("count_method", str(properties.count_method)),
