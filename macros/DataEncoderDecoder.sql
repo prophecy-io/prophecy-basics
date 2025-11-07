@@ -49,6 +49,7 @@
     prefix_suffix_val
 ) %}
     {{ log("Applying encoding-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     {%- if enc_dec_method == "aes_encrypt" -%}
         {% for column in column_names %}
@@ -203,22 +204,22 @@
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
                 SELECT *
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif change_col_name == "prefix_suffix_substitute" -%}
             WITH final_cte AS (
                 SELECT *, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif remaining_columns == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
                 SELECT {{ remaining_columns }}, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
@@ -246,6 +247,7 @@
     prefix_suffix_val
 ) -%}
     {{ log("Applying encoding-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     
     {# Note: DuckDB doesn't have native AES encryption functions like Databricks #}
@@ -308,29 +310,29 @@
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
                 SELECT *
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif change_col_name == "prefix_suffix_substitute" -%}
             {%- if remaining_columns == "" -%}
                 WITH final_cte AS (
                     SELECT *, {{ select_clause_sql }}
-                    FROM {{ relation_name }}
+                    FROM {{ relation_list | join(', ') }}
                 )
             {%- else -%}
                 WITH final_cte AS (
                     SELECT {{ remaining_columns }}, {{ select_clause_sql }}
-                    FROM {{ relation_name }}
+                    FROM {{ relation_list | join(', ') }}
                 )
             {%- endif -%}
         {%- elif remaining_columns == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
                 SELECT {{ remaining_columns }}, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}

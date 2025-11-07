@@ -433,7 +433,7 @@ class DataMasking(MacroSpec):
 
     def apply(self, props: DataMaskingProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
+        
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
         remaining_columns = ", ".join(
@@ -448,7 +448,7 @@ class DataMasking(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            safe_str(table_name),
+            str(props.relation_name),
             safe_str(props.column_names),
             safe_str(remaining_columns),
             safe_str(props.masking_method),
@@ -486,21 +486,21 @@ class DataMasking(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return DataMasking.DataMaskingProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            masking_method=parametersMap.get("masking_method"),
-            upper_char_substitute=parametersMap.get("upper_char_substitute"),
-            lower_char_substitute=parametersMap.get("lower_char_substitute"),
-            digit_char_substitute=parametersMap.get("digit_char_substitute"),
-            other_char_substitute=parametersMap.get("other_char_substitute"),
-            sha2_bit_length=parametersMap.get("sha2_bit_length"),
-            masked_column_add_method=parametersMap.get("masked_column_add_method"),
+            masking_method=parametersMap.get('masking_method').lstrip("'").rstrip("'"),
+            upper_char_substitute=parametersMap.get('upper_char_substitute').lstrip("'").rstrip("'"),
+            lower_char_substitute=parametersMap.get('lower_char_substitute').lstrip("'").rstrip("'"),
+            digit_char_substitute=parametersMap.get('digit_char_substitute').lstrip("'").rstrip("'"),
+            other_char_substitute=parametersMap.get('other_char_substitute').lstrip("'").rstrip("'"),
+            sha2_bit_length=parametersMap.get('sha2_bit_length').lstrip("'").rstrip("'"),
+            masked_column_add_method=parametersMap.get('masked_column_add_method').lstrip("'").rstrip("'"),
             prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
             prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
-            combined_hash_column_name=parametersMap.get("combined_hash_column_name"),
+            combined_hash_column_name=parametersMap.get('combined_hash_column_name').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -509,7 +509,7 @@ class DataMasking(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("masking_method", str(properties.masking_method)),

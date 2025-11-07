@@ -1,10 +1,11 @@
 import re
+import json
 from dataclasses import dataclass
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-
+import json
 
 class TextToColumns(MacroSpec):
     name: str = "TextToColumns"
@@ -290,14 +291,11 @@ class TextToColumns(MacroSpec):
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Handle delimiter with special characters
         escaped_delimiter = re.escape(props.delimiter).replace("\\", "\\\\\\")
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.columnNames + "'",
             '"' + escaped_delimiter + '"',
             "'" + props.split_strategy + "'",
@@ -314,15 +312,15 @@ class TextToColumns(MacroSpec):
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return TextToColumns.TextToColumnsProperties(
-            relation_name=parametersMap.get("relation_name"),
-            columnNames=parametersMap.get("columnNames"),
-            delimiter=parametersMap.get("delimiter"),
-            split_strategy=parametersMap.get("split_strategy"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            columnNames=parametersMap.get('columnNames').lstrip("'").rstrip("'"),
+            delimiter=parametersMap.get('delimiter').lstrip('"').rstrip('"'),
+            split_strategy=parametersMap.get('split_strategy').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get("noOfColumns")),
-            leaveExtraCharLastCol=parametersMap.get("leaveExtraCharLastCol"),
-            splitColumnPrefix=parametersMap.get("splitColumnPrefix"),
-            splitColumnSuffix=parametersMap.get("splitColumnSuffix"),
-            splitRowsColumnName=parametersMap.get("splitRowsColumnName"),
+            leaveExtraCharLastCol=parametersMap.get('leaveExtraCharLastCol').lstrip("'").rstrip("'"),
+            splitColumnPrefix=parametersMap.get('splitColumnPrefix').lstrip("'").rstrip("'"),
+            splitColumnSuffix=parametersMap.get('splitColumnSuffix').lstrip("'").rstrip("'"),
+            splitRowsColumnName=parametersMap.get('splitRowsColumnName').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -330,7 +328,7 @@ class TextToColumns(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("columnNames", properties.columnNames),
                 MacroParameter("delimiter", properties.delimiter),
                 MacroParameter("split_strategy", properties.split_strategy),

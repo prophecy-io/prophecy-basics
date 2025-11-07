@@ -44,6 +44,7 @@
 ) %}
 
     {{ log("Applying Masking-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -136,22 +137,22 @@
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
                 SELECT *
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif (masked_column_add_method == "prefix_suffix_substitute") or (masking_method == "hash" and masked_column_add_method == "combinedHash_substitute") -%}
             WITH final_cte AS (
                 SELECT *, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif remaining_columns == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
                 SELECT {{ remaining_columns }}, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
@@ -182,6 +183,7 @@
 ) -%}
 
     {{ log("Applying Masking-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -271,22 +273,22 @@
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
                 SELECT *
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif (masked_column_add_method == "prefix_suffix_substitute") or (masking_method == "hash" and masked_column_add_method == "combinedHash_substitute") -%}
             WITH final_cte AS (
                 SELECT *, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- elif remaining_columns == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
                 SELECT {{ remaining_columns }}, {{ select_clause_sql }}
-                FROM {{ relation_name }}
+                FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}

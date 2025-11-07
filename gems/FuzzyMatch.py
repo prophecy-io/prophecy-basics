@@ -1,13 +1,17 @@
 import dataclasses
+import json
 from collections import defaultdict
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+import json
 
 
-class MatchField(ABC):
-    pass
+@dataclass(frozen=True)
+class AddMatchField:
+    columnName: str = ""
+    matchFunction: str = "custom"
 
 
 class FuzzyMatch(MacroSpec):
@@ -23,11 +27,6 @@ class FuzzyMatch(MacroSpec):
     ]
 
     @dataclass(frozen=True)
-    class AddMatchField(MatchField):
-        columnName: str = ""
-        matchFunction: str = "custom"
-
-    @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
         # properties for the component with default values
         mode: str = ""
@@ -36,7 +35,7 @@ class FuzzyMatch(MacroSpec):
         matchThresholdPercentage: int = 80
         activeTab: str = "configuration"
         includeSimilarityScore: bool = False
-        matchFields: List[MatchField] = field(default_factory=list)
+        matchFields: List[AddMatchField] = field(default_factory=list)
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -60,7 +59,7 @@ class FuzzyMatch(MacroSpec):
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
-        _matchFields.append(self.AddMatchField())
+        _matchFields.append(AddMatchField())
         return state.bindProperties(
             dataclasses.replace(state.properties, matchFields=_matchFields)
         )
@@ -120,7 +119,7 @@ class FuzzyMatch(MacroSpec):
             .addOption("Address", "address")
             .addOption("Name", "name")
             .addOption("Phone", "phone")
-            .bindProperty("record.AddMatchField.matchFunction")
+            .bindProperty("record.matchFunction")
         )
 
         matchFields = (
@@ -137,7 +136,7 @@ class FuzzyMatch(MacroSpec):
                         .addColumn(
                             SchemaColumnsDropdown("Field Name")
                             .bindSchema("component.ports.inputs[0].schema")
-                            .bindProperty("record.AddMatchField.columnName"),
+                            .bindProperty("record.columnName"),
                             "0.5fr",
                         )
                         .addColumn(matchFunction, "0.5fr")
@@ -286,23 +285,17 @@ class FuzzyMatch(MacroSpec):
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
-        # Group match fields by their match function.
-        grouped_match_fields = defaultdict(list)
-        for field in props.matchFields:
-            grouped_match_fields[field.matchFunction].append(field.columnName)
-
-        # Convert defaultdict to a regular dict.
-        match_fields_map = dict(grouped_match_fields)
+        match_fields_list = [
+            {"columnName": field.columnName, "matchFunction": field.matchFunction}
+            for field in props.matchFields
+        ]
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.mode + "'",
             "'" + props.sourceIdCol + "'",
             "'" + props.recordIdCol + "'",
-            str(match_fields_map),
+            str(match_fields_list),
             str(props.matchThresholdPercentage),
             str(props.includeSimilarityScore).lower(),
         ]
@@ -313,15 +306,18 @@ class FuzzyMatch(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return FuzzyMatch.FuzzyMatchProperties(
-            relation_name=parametersMap.get("relation_name"),
-            mode=parametersMap.get("mode"),
-            sourceIdCol=parametersMap.get("sourceIdCol"),
-            recordIdCol=parametersMap.get("recordIdCol"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
+            sourceIdCol=parametersMap.get('sourceIdCol').lstrip("'").rstrip("'"),
+            recordIdCol=parametersMap.get('recordIdCol').lstrip("'").rstrip("'"),
             matchThresholdPercentage=float(
                 parametersMap.get("matchThresholdPercentage")
             ),
             includeSimilarityScore=parametersMap.get("includeSimilarityScore").lower()
             == "true",
+            matchFields=json.loads(
+                parametersMap.get("matchFields").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -330,7 +326,7 @@ class FuzzyMatch(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("mode", properties.mode),
                 MacroParameter("sourceIdCol", properties.sourceIdCol),
                 MacroParameter("recordIdCol", properties.recordIdCol),
@@ -340,6 +336,9 @@ class FuzzyMatch(MacroSpec):
                 MacroParameter(
                     "includeSimilarityScore",
                     str(properties.includeSimilarityScore).lower(),
+                ),
+                MacroParameter(
+                    "matchFields", json.dumps(properties.matchFields)
                 ),
             ],
         )

@@ -1,5 +1,5 @@
 {% macro FindDuplicates(relation_name,
-    column_names,
+    groupByColumnNames,
     column_group_rownum_condition,
     output_type,
     grouped_count_rownum,
@@ -7,9 +7,9 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules) -%}
+    orderByColumns) -%}
     {{ return(adapter.dispatch('FindDuplicates', 'prophecy_basics')(relation_name,
-    column_names,
+    groupByColumnNames,
     column_group_rownum_condition,
     output_type,
     grouped_count_rownum,
@@ -17,13 +17,13 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules)) }}
+    orderByColumns)) }}
 {% endmacro %}
 
 
 {%- macro default__FindDuplicates(
     relation_name,
-    column_names,
+    groupByColumnNames,
     column_group_rownum_condition,
     output_type,
     grouped_count_rownum,
@@ -31,24 +31,25 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules
+    orderByColumns
 ) %}
 
     {{ log("Applying Window Function on selected columns", info=True) }}
 
-    --{%- set partition_columns_str = column_names | join(', ') -%}
+    --{%- set partition_columns_str = groupByColumnNames | join(', ') -%}
     {%- set order_parts = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
-        {%- for r in orderByRules -%}
-            {%- if r.expr | trim != '' -%}
-                {%- set part = r.expr | trim ~ " " -%}
-                {%- if r.sort == 'asc' -%}
+        {%- for r in orderByColumns -%}
+            {%- if r.expression.expression | trim != '' -%}
+                {%- set part = r.expression.expression | trim ~ " " -%}
+                {%- if r.sortType == 'asc' -%}
                     {%- set part = part ~ "asc" -%}
-                {%- elif r.sort == 'asc_nulls_last' -%}
+                {%- elif r.sortType == 'asc_nulls_last' -%}
                     {%- set part = part ~ "asc nulls last" -%}
-                {%- elif r.sort == 'desc_nulls_first' -%}
+                {%- elif r.sortType == 'desc_nulls_first' -%}
                     {%- set part = part ~ "desc nulls first" -%}
                 {%- else -%}
                     {%- set part = part ~ "desc" -%}
@@ -68,7 +69,7 @@
 
     {# Quote column names for PARTITION BY clause #}
     {%- set quoted_column_names = [] -%}
-    {%- for column in column_names -%}
+    {%- for column in groupByColumnNames -%}
         {%- do quoted_column_names.append(prophecy_basics.quote_identifier(column)) -%}
     {%- endfor -%}
 
@@ -88,11 +89,11 @@
     {%- set select_window_cte -%}
         {%- if output_type == "custom_group_count" -%}
             WITH select_cte1 AS(
-                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_name }}
+                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH select_cte1 AS(
-                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{relation_name }}
+                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
@@ -140,7 +141,7 @@
 
 {%- macro duckdb__FindDuplicates(
     relation_name,
-    column_names,
+    groupByColumnNames,
     column_group_rownum_condition,
     output_type,
     grouped_count_rownum,
@@ -148,24 +149,25 @@
     upper_limit,
     generationMethod,
     schema_columns,
-    orderByRules
+    orderByColumns
 ) -%}
 
     {{ log("Applying Window Function on selected columns", info=True) }}
 
-    --{%- set partition_columns_str = column_names | join(', ') -%}
+    --{%- set partition_columns_str = groupByColumnNames | join(', ') -%}
     {%- set order_parts = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if generationMethod == "allCols" -%}
         {%- do order_parts.append("1") -%}
     {%- else -%}
-        {%- for r in orderByRules -%}
-            {%- if r.expr | trim != '' -%}
-                {%- set part = r.expr | trim ~ " " -%}
-                {%- if r.sort == 'asc' -%}
+        {%- for r in orderByColumns -%}
+            {%- if r.expression.expression | trim != '' -%}
+                {%- set part = r.expression.expression | trim ~ " " -%}
+                {%- if r.sortType == 'asc' -%}
                     {%- set part = part ~ "asc" -%}
-                {%- elif r.sort == 'asc_nulls_last' -%}
+                {%- elif r.sortType == 'asc_nulls_last' -%}
                     {%- set part = part ~ "asc nulls last" -%}
-                {%- elif r.sort == 'desc_nulls_first' -%}
+                {%- elif r.sortType == 'desc_nulls_first' -%}
                     {%- set part = part ~ "desc nulls first" -%}
                 {%- else -%}
                     {%- set part = part ~ "desc" -%}
@@ -185,7 +187,7 @@
 
     {# Quote column names for PARTITION BY clause #}
     {%- set quoted_column_names = [] -%}
-    {%- for column in column_names -%}
+    {%- for column in groupByColumnNames -%}
         {%- do quoted_column_names.append(prophecy_basics.quote_identifier(column)) -%}
     {%- endfor -%}
 
@@ -205,11 +207,11 @@
     {%- set select_window_cte -%}
         {%- if output_type == "custom_group_count" -%}
             WITH select_cte1 AS(
-                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_name }}
+                SELECT *, COUNT(*) OVER({{ window_partition_by_str }}) AS group_count FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH select_cte1 AS(
-                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{relation_name }}
+                SELECT *, row_number() OVER({{ window_partition_by_str }} {{ window_order_by_str_param }}) AS row_num FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
     {%- endset -%}
