@@ -576,8 +576,7 @@ class Regex(MacroSpec):
         for p in parameter_list:
             if type(p) == str:
                 # Escape single quotes for SQL string literals ('' represents a single quote)
-                escaped_p = p.replace("'", "''")
-                param_list_clean.append("'" + escaped_p + "'")
+                param_list_clean.append("'" + p + "'")
             else:
                 param_list_clean.append(str(p))
         non_empty_param = ",".join([param for param in param_list_clean if param != ''])
@@ -660,157 +659,157 @@ class Regex(MacroSpec):
         )
         return component.bindProperties(newProperties)
 
-    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        selected_column = self.props.selectedColumnName
-        regex_expression = self.props.regexExpression
-        output_method = self.props.outputMethod
-        case_insensitive = self.props.caseInsensitive
-        replacement_text = self.props.replacementText
-        copy_unmatched_text = self.props.copyUnmatchedText
-        tokenize_output_method = self.props.tokenizeOutputMethod
-        no_of_columns = self.props.noOfColumns
-        allow_blank_tokens = self.props.allowBlankTokens
-        output_root_name = self.props.outputRootName
-        parse_columns = self.props.parseColumns
-        match_column_name = self.props.matchColumnName
-        error_if_not_matched = self.props.errorIfNotMatched
+    # def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+    #     selected_column = self.props.selectedColumnName
+    #     regex_expression = self.props.regexExpression
+    #     output_method = self.props.outputMethod
+    #     case_insensitive = self.props.caseInsensitive
+    #     replacement_text = self.props.replacementText
+    #     copy_unmatched_text = self.props.copyUnmatchedText
+    #     tokenize_output_method = self.props.tokenizeOutputMethod
+    #     no_of_columns = self.props.noOfColumns
+    #     allow_blank_tokens = self.props.allowBlankTokens
+    #     output_root_name = self.props.outputRootName
+    #     parse_columns = self.props.parseColumns
+    #     match_column_name = self.props.matchColumnName
+    #     error_if_not_matched = self.props.errorIfNotMatched
 
-        # Build regex pattern with case sensitivity flag
-        regex_pattern = regex_expression
-        if case_insensitive:
-            regex_pattern = f"(?i){regex_expression}"
+    #     # Build regex pattern with case sensitivity flag
+    #     regex_pattern = regex_expression
+    #     if case_insensitive:
+    #         regex_pattern = f"(?i){regex_expression}"
 
-        result_df = in0
+    #     result_df = in0
 
-        if output_method == "replace":
-            # Replace matched text with replacement text
-            replaced_col = F.regexp_replace(F.col(selected_column), regex_pattern, replacement_text)
-            if copy_unmatched_text:
-                # Only replace if matched, otherwise keep original
-                replaced_col = F.when(
-                    F.col(selected_column).rlike(regex_pattern),
-                    replaced_col
-                ).otherwise(F.col(selected_column))
+    #     if output_method == "replace":
+    #         # Replace matched text with replacement text
+    #         replaced_col = F.regexp_replace(F.col(selected_column), regex_pattern, replacement_text)
+    #         if copy_unmatched_text:
+    #             # Only replace if matched, otherwise keep original
+    #             replaced_col = F.when(
+    #                 F.col(selected_column).rlike(regex_pattern),
+    #                 replaced_col
+    #             ).otherwise(F.col(selected_column))
             
-            result_df = result_df.withColumn(
-                f"{selected_column}_replaced",
-                replaced_col
-            )
+    #         result_df = result_df.withColumn(
+    #             f"{selected_column}_replaced",
+    #             replaced_col
+    #         )
 
-        elif output_method == "parse":
-            # Parse into multiple columns based on capture groups
-            if parse_columns and len(parse_columns) > 0:
-                idx = 0
-                for parse_col in parse_columns:
-                    idx += 1
-                    col_name = parse_col.columnName
-                    col_type = parse_col.dataType
+    #     elif output_method == "parse":
+    #         # Parse into multiple columns based on capture groups
+    #         if parse_columns and len(parse_columns) > 0:
+    #             idx = 0
+    #             for parse_col in parse_columns:
+    #                 idx += 1
+    #                 col_name = parse_col.columnName
+    #                 col_type = parse_col.dataType
                     
-                    # Extract the group
-                    extracted = F.regexp_extract(F.col(selected_column), regex_pattern, idx)
+    #                 # Extract the group
+    #                 extracted = F.regexp_extract(F.col(selected_column), regex_pattern, idx)
                     
-                    # Cast to appropriate type
-                    if col_type.lower() == "int" or col_type.lower() == "integer":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(IntegerType())
-                    elif col_type.lower() == "bigint":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(LongType())
-                    elif col_type.lower() == "double" or col_type.lower() == "float":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(DoubleType())
-                    elif col_type.lower() == "bool" or col_type.lower() == "boolean":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(BooleanType())
-                    elif col_type.lower() == "date":
-                        extracted = F.when(extracted != "", F.to_date(extracted)).otherwise(None)
-                    elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
-                        extracted = F.when(extracted != "", F.to_timestamp(extracted)).otherwise(None)
-                    else:
-                        # String type - return null if empty
-                        extracted = F.when(
-                                (F.regexp_extract(F.col(selected_column), regex_pattern, 0) == "") |
-                                (extracted == ""),
-                                None
-                            ).otherwise(extracted)
+    #                 # Cast to appropriate type
+    #                 if col_type.lower() == "int" or col_type.lower() == "integer":
+    #                     extracted = F.when(extracted != "", extracted).otherwise(None).cast(IntegerType())
+    #                 elif col_type.lower() == "bigint":
+    #                     extracted = F.when(extracted != "", extracted).otherwise(None).cast(LongType())
+    #                 elif col_type.lower() == "double" or col_type.lower() == "float":
+    #                     extracted = F.when(extracted != "", extracted).otherwise(None).cast(DoubleType())
+    #                 elif col_type.lower() == "bool" or col_type.lower() == "boolean":
+    #                     extracted = F.when(extracted != "", extracted).otherwise(None).cast(BooleanType())
+    #                 elif col_type.lower() == "date":
+    #                     extracted = F.when(extracted != "", F.to_date(extracted)).otherwise(None)
+    #                 elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
+    #                     extracted = F.when(extracted != "", F.to_timestamp(extracted)).otherwise(None)
+    #                 else:
+    #                     # String type - return null if empty
+    #                     extracted = F.when(
+    #                             (F.regexp_extract(F.col(selected_column), regex_pattern, 0) == "") |
+    #                             (extracted == ""),
+    #                             None
+    #                         ).otherwise(extracted)
                     
-                    result_df = result_df.withColumn(col_name, extracted)
+    #                 result_df = result_df.withColumn(col_name, extracted)
 
-        elif output_method == "tokenize":
-            if tokenize_output_method == "splitColumns":
-                # Split to columns
-                # Check if regex has capture groups
-                has_capture_groups = '(' in regex_expression
+    #     elif output_method == "tokenize":
+    #         if tokenize_output_method == "splitColumns":
+    #             # Split to columns
+    #             # Check if regex has capture groups
+    #             has_capture_groups = '(' in regex_expression
                 
-                if has_capture_groups:
-                    # Extract each group individually
-                    for i in range(1, no_of_columns + 1):
-                        extracted = F.regexp_extract(F.col(selected_column), regex_pattern, i)
-                        if not allow_blank_tokens:
-                            extracted = F.when(
-                                (F.col(selected_column).rlike(regex_pattern)) & (extracted != ""),
-                                extracted
-                            ).otherwise(None)
-                        else:
-                            extracted = F.when(
-                                F.col(selected_column).rlike(regex_pattern),
-                                extracted
-                            ).otherwise("" if allow_blank_tokens else None)
+    #             if has_capture_groups:
+    #                 # Extract each group individually
+    #                 for i in range(1, no_of_columns + 1):
+    #                     extracted = F.regexp_extract(F.col(selected_column), regex_pattern, i)
+    #                     if not allow_blank_tokens:
+    #                         extracted = F.when(
+    #                             (F.col(selected_column).rlike(regex_pattern)) & (extracted != ""),
+    #                             extracted
+    #                         ).otherwise(None)
+    #                     else:
+    #                         extracted = F.when(
+    #                             F.col(selected_column).rlike(regex_pattern),
+    #                             extracted
+    #                         ).otherwise("" if allow_blank_tokens else None)
                         
-                        result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
-                else:
-                    # Use regexp_extract_all for patterns without capture groups
-                    extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
+    #                     result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
+    #             else:
+    #                 # Use regexp_extract_all for patterns without capture groups
+    #                 extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
                     
-                    for i in range(1, no_of_columns + 1):
-                        col_val = F.when(
-                            F.size(extracted_array) == 0,
-                            None
-                        ).when(
-                            F.size(extracted_array) < i,
-                            "" if allow_blank_tokens else None
-                        ).when(
-                            extracted_array[i - 1] == "",
-                            "" if allow_blank_tokens else None
-                        ).otherwise(extracted_array[i - 1])
+    #                 for i in range(1, no_of_columns + 1):
+    #                     col_val = F.when(
+    #                         F.size(extracted_array) == 0,
+    #                         None
+    #                     ).when(
+    #                         F.size(extracted_array) < i,
+    #                         "" if allow_blank_tokens else None
+    #                     ).when(
+    #                         extracted_array[i - 1] == "",
+    #                         "" if allow_blank_tokens else None
+    #                     ).otherwise(extracted_array[i - 1])
                         
-                        result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+    #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
             
-            elif tokenize_output_method == "splitRows":
-                # Split to rows
-                extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
+    #         elif tokenize_output_method == "splitRows":
+    #             # Split to rows
+    #             extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
                 
-                # Explode the array to create multiple rows
-                result_df = result_df.select(
-                    "*",
-                    F.explode(extracted_array).alias("token_value_new")
-                )
+    #             # Explode the array to create multiple rows
+    #             result_df = result_df.select(
+    #                 "*",
+    #                 F.explode(extracted_array).alias("token_value_new")
+    #             )
                 
-                # Add token sequence
-                window_spec = Window.partitionBy(selected_column).orderBy(F.monotonically_increasing_id())
-                result_df = result_df.withColumn("token_sequence", F.row_number().over(window_spec))
+    #             # Add token sequence
+    #             window_spec = Window.partitionBy(selected_column).orderBy(F.monotonically_increasing_id())
+    #             result_df = result_df.withColumn("token_sequence", F.row_number().over(window_spec))
                 
-                # Rename token column
-                result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
+    #             # Rename token column
+    #             result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
                 
-                # Filter blank tokens if not allowed
-                if not allow_blank_tokens:
-                    result_df = result_df.filter(
-                        (F.col(output_root_name) != "") & 
-                        (F.col(output_root_name).isNotNull())
-                    )
+    #             # Filter blank tokens if not allowed
+    #             if not allow_blank_tokens:
+    #                 result_df = result_df.filter(
+    #                     (F.col(output_root_name) != "") & 
+    #                     (F.col(output_root_name).isNotNull())
+    #                 )
 
-        elif output_method == "match":
-            # Create match column with 1/0
-            match_col = F.when(
-                F.col(selected_column).isNull(),
-                0
-            ).when(
-                F.col(selected_column).rlike(regex_pattern),
-                1
-            ).otherwise(0)
+    #     elif output_method == "match":
+    #         # Create match column with 1/0
+    #         match_col = F.when(
+    #             F.col(selected_column).isNull(),
+    #             0
+    #         ).when(
+    #             F.col(selected_column).rlike(regex_pattern),
+    #             1
+    #         ).otherwise(0)
             
-            result_df = result_df.withColumn(match_column_name, match_col)
+    #         result_df = result_df.withColumn(match_column_name, match_col)
             
-            # Filter if error_if_not_matched
-            if error_if_not_matched:
-                result_df = result_df.filter(F.col(selected_column).rlike(regex_pattern))
+    #         # Filter if error_if_not_matched
+    #         if error_if_not_matched:
+    #             result_df = result_df.filter(F.col(selected_column).rlike(regex_pattern))
 
-        return result_df
+    #     return result_df
 

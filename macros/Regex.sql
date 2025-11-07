@@ -554,7 +554,7 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{# Use helper macro for proper SQL string escaping (DuckDB doesn't escape backslashes in regex) #}
+{# Use helper macro for proper SQL string escaping (DuckDB doesnt escape backslashes in regex) #}
 {%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=false) -%}
 {%- set case_flag = 'i' if caseInsensitive else '' -%}
 {%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=false) -%}
