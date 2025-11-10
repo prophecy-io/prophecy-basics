@@ -4,7 +4,7 @@
     loop_expr,
     column_name,
     max_rows,
-    focus_mode) -%}
+    force_mode) -%}
     {{ return(adapter.dispatch('GenerateRows', 'prophecy_basics')(relation_name,
     init_expr,
     condition_expr,
@@ -37,6 +37,7 @@
     {% endif %}
 
     {% set alias = "src" %}
+    {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
@@ -115,14 +116,14 @@
         {% set output_col_alias = unquoted_col %}
     {% endif %}
 
-    {% if relation_name %}
+    {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record
             select
                 struct({{ alias }}.*) as payload,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
-            from {{ relation_name }} {{ alias }}
+            from {{ relation_tables }} {{ alias }}
 
             union all
 

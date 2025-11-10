@@ -230,19 +230,18 @@ class DynamicSelect(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: DynamicSelectProperties) -> str:
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        relation = "'" + table_name + "'"
-        schema = props.schema
-        targetTypes = props.targetTypes
-        selectUsing = f"'{props.selectUsing}'"
-        customExpression = '"' + props.customExpression + '"'
-        params = ",".join(
-            x for x in [relation, schema, targetTypes, selectUsing, customExpression]
-        )
+
+        arguments = [
+            str(props.relation_name),
+            props.schema,
+            props.targetTypes,
+            "'" + props.selectUsing + "'",
+            '"' + props.customExpression + '"',
+        ]
+        params = ",".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
@@ -251,10 +250,10 @@ class DynamicSelect(MacroSpec):
             parametersMap.get("targetTypes").replace("'", '"')
         )  # Parse targetTypes once
         return DynamicSelect.DynamicSelectProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             targetTypes=parametersMap.get("targetTypes"),
-            customExpression=parametersMap.get("customExpression"),
+            customExpression=parametersMap.get("customExpression").lstrip('"').rstrip('"'),
             selectUsing=parametersMap.get("selectUsing")[1:-1],
             boolTypeChecked="Boolean" in targetTypesList,
             strTypeChecked="String" in targetTypesList,
@@ -277,9 +276,9 @@ class DynamicSelect(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("targetTypes", properties.targetTypes),
+                MacroParameter("targetTypes", str(properties.targetTypes)),
                 MacroParameter("customExpression", properties.customExpression),
                 MacroParameter("selectUsing", properties.selectUsing),
             ],

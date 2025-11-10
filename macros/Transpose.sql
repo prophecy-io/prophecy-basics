@@ -3,13 +3,15 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]) -%}
+        schema=[],
+        customNames=false) -%}
     {{ return(adapter.dispatch('Transpose', 'prophecy_basics')(relation_name,
         keyColumns,
         dataColumns,
         nameColumn,
         valueColumn,
-        schema)) }}
+        schema,
+        customNames)) }}
 {% endmacro %}
 
 
@@ -19,7 +21,8 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]
+        schema=[],
+        customNames=false
 ) -%}
 
     {% set bt = "`" %}
@@ -66,7 +69,8 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]
+        schema=[],
+        customNames=false
 ) -%}
 
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
