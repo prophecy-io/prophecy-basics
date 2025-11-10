@@ -4,7 +4,7 @@
     loop_expr,
     column_name,
     max_rows,
-    focus_mode) -%}
+    force_mode) -%}
     {{ return(adapter.dispatch('GenerateRows', 'prophecy_basics')(relation_name,
     init_expr,
     condition_expr,
