@@ -123,11 +123,11 @@ class GenerateRows(MacroSpec):
             "'" + str(props.condition_expr) + "'",
             "'" + str(props.loop_expr) + "'",
             "'" + str(props.column_name) + "'",
-            str(props.max_rows),
+            "'" + str(props.max_rows) + "'",
             "'" + str(props.force_mode) + "'"
         ]
 
-        params = ",".join([param for param in arguments])
+        params = ",".join(arguments)
         return f'{{{{ {resolved_macro_name}({params}) }}}}'
 
     # --- GenerateRows.loadProperties -----------------------------------------
