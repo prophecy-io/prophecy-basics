@@ -329,7 +329,6 @@ class MultiColumnRename(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        res = in0
         new_cols = []
         selected_cols: SubstituteDisabled = self.props.columnNames
         if self.props.renameMethod == "editPrefixSuffix":

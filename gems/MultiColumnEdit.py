@@ -1,10 +1,10 @@
 import dataclasses
 import json
-from dataclasses import dataclass
 
-from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class MultiColumnEdit(MacroSpec):
@@ -75,21 +75,27 @@ class MultiColumnEdit(MacroSpec):
                                     ).bindProperty("changeOutputFieldName")
                                 )
                                 .addElement(
-                                    ColumnsLayout(gap="1rem", height="100%")
-                                    .addColumn(
-                                        SelectBox("")
-                                        .addOption("Prefix", "Prefix")
-                                        .addOption("Suffix", "Suffix")
-                                        .bindProperty("prefixSuffixOption"),
-                                        "10%",
+                                    Condition()
+                                    .ifEqual(
+                                        PropExpr("component.properties.changeOutputFieldName"),
+                                        BooleanExpr(True),
                                     )
-                                    .addColumn(
-                                        TextBox("")
-                                        .bindPlaceholder("Example: new_")
-                                        .bindProperty("prefixSuffixToBeAdded"),
-                                        "20%",
+                                    .then(
+                                        ColumnsLayout(gap="1rem", height="100%")
+                                        .addColumn(
+                                            SelectBox("")
+                                            .addOption("Prefix", "Prefix")
+                                            .addOption("Suffix", "Suffix")
+                                            .bindProperty("prefixSuffixOption"),
+                                            "15%",
+                                        )
+                                        .addColumn(
+                                            TextBox("")
+                                            .bindPlaceholder("Example: new_")
+                                            .bindProperty("prefixSuffixToBeAdded"),
+                                            "85%",
+                                        )
                                     )
-                                    .addColumn()
                                 )
                             )
                         )
@@ -205,7 +211,7 @@ class MultiColumnEdit(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
@@ -258,7 +264,7 @@ class MultiColumnEdit(MacroSpec):
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
             expressionToBeApplied=parametersMap.get("expressionToBeApplied"),
             changeOutputFieldName=parametersMap.get("changeOutputFieldName").lower()
-            == "true",
+                                  == "true",
             prefixSuffixOption=parametersMap.get("prefixSuffixOption"),
             prefixSuffixToBeAdded=parametersMap.get("prefixSuffixToBeAdded"),
         )
@@ -301,3 +307,29 @@ class MultiColumnEdit(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        new_cols = []
+        add_cols = []
+        selected_cols: SubstituteDisabled = self.props.columnNames
+        change_field_name_flag: SubstituteDisabled = self.props.changeOutputFieldName
+        expression_template: SubstituteDisabled = self.props.expressionToBeApplied
+        prefix_suffix: SubstituteDisabled = self.props.prefixSuffixOption
+        prefix_suffix_value: SubstituteDisabled = self.props.prefixSuffixToBeAdded
+
+        for col_name in in0.columns:
+            if col_name in selected_cols:
+                expression = expression_template.replace("column_value", "`" + col_name + "`").replace("column_name",
+                                                                                                       "'" + col_name + "'")
+                if change_field_name_flag:
+                    if prefix_suffix == "Prefix":
+                        add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
+                    else:
+                        add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
+                    new_cols.append(col_name)
+                else:
+                    new_cols.append(expr(expression).alias(col_name))
+            else:
+                new_cols.append(col_name)
+
+        return in0.select(*(new_cols + add_cols))
