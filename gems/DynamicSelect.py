@@ -237,7 +237,7 @@ class DynamicSelect(MacroSpec):
         arguments = [
             str(props.relation_name),
             props.schema,
-            "'" + props.targetTypes + "'",
+            props.targetTypes,
             "'" + props.selectUsing + "'",
             '"' + props.customExpression + '"',
         ]
@@ -252,7 +252,7 @@ class DynamicSelect(MacroSpec):
         return DynamicSelect.DynamicSelectProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
-            targetTypes=parametersMap.get("targetTypes").lstrip("'").rstrip("'"),
+            targetTypes=parametersMap.get("targetTypes"),
             customExpression=parametersMap.get("customExpression").lstrip('"').rstrip('"'),
             selectUsing=parametersMap.get("selectUsing")[1:-1],
             boolTypeChecked="Boolean" in targetTypesList,
@@ -278,7 +278,7 @@ class DynamicSelect(MacroSpec):
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("targetTypes", properties.targetTypes),
+                MacroParameter("targetTypes", str(properties.targetTypes)),
                 MacroParameter("customExpression", properties.customExpression),
                 MacroParameter("selectUsing", properties.selectUsing),
             ],
