@@ -148,12 +148,12 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            new_field_name=p.get('init_expr').lstrip("'").rstrip("'"),
-            start_expr=p.get('condition_expr').lstrip("'").rstrip("'"),
-            end_expr=p.get('loop_expr').lstrip("'").rstrip("'"),
-            step_expr=p.get('column_name').lstrip("'").rstrip("'"),
-            data_type=p.get('max_rows').lstrip("'").rstrip("'"),
-            interval_unit=p.get('force_mode').lstrip("'").rstrip("'"),
+            init_expr=p.get('init_expr').lstrip("'").rstrip("'"),
+            condition_expr=p.get('condition_expr').lstrip("'").rstrip("'"),
+            loop_expr=p.get('loop_expr').lstrip("'").rstrip("'"),
+            column_name=p.get('column_name').lstrip("'").rstrip("'"),
+            max_rows=p.get('max_rows').lstrip("'").rstrip("'"),
+            force_mode=p.get('force_mode').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
