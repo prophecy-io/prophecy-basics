@@ -286,25 +286,29 @@ class JSONParse(MacroSpec):
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         if self.props.parsingMethod == "parseFromSchema":
             if not self.props.sampleSchema or self.props.sampleSchema.strip() == "":
-                return in0
-            schema_str = self.props.sampleSchema.replace("\n", " ").strip()
-            quoted_col = f"`{self.props.columnName}`"
-            alias_col = f"`{self.props.columnName}_parsed`"
-            return in0.selectExpr(
-                "*",
-                f"from_json({quoted_col}, '{schema_str}') as {alias_col}"
-            )
+                res = in0
+            else:
+                schema_str = self.props.sampleSchema.replace("\n", " ").strip()
+                quoted_col = f"`{self.props.columnName}`"
+                alias_col = f"`{self.props.columnName}_parsed`"
+                res = in0.selectExpr(
+                    "*",
+                    f"from_json({quoted_col}, '{schema_str}') as {alias_col}"
+                )
 
         elif self.props.parsingMethod == "parseFromSampleRecord":
             if not self.props.sampleRecord or self.props.sampleRecord.strip() == "":
-                return in0
-            sample_str = self.props.sampleRecord.replace("\n", " ").strip()
-            sample_str_escaped = sample_str.replace("'", "\\'")
-            quoted_col = f"`{self.props.columnName}`"
-            alias_col = f"`{self.props.columnName}_parsed`"
-            return in0.selectExpr(
-                "*",
-                f"from_json({quoted_col}, schema_of_json('{sample_str_escaped}')) as {alias_col}"
-            )
+                res = in0
+            else:
+                sample_str = self.props.sampleRecord.replace("\n", " ").strip()
+                sample_str_escaped = sample_str.replace("'", "\\'")
+                quoted_col = f"`{self.props.columnName}`"
+                alias_col = f"`{self.props.columnName}_parsed`"
+                res = in0.selectExpr(
+                    "*",
+                    f"from_json({quoted_col}, schema_of_json('{sample_str_escaped}')) as {alias_col}"
+                )
         else:
-            return in0
+            res = in0
+
+        return res
