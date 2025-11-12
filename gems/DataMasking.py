@@ -556,3 +556,127 @@ class DataMasking(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark, in0):
+        from pyspark.sql import SparkSession, DataFrame
+        from pyspark.sql.functions import col, concat_ws, md5, sha1, sha2, hash as pyspark_hash, expr, lit
+        
+        column_names = self.props.column_names
+        masking_method = self.props.masking_method
+        masked_column_add_method = self.props.masked_column_add_method
+        prefix_suffix_option = self.props.prefix_suffix_option
+        prefix_suffix_added = self.props.prefix_suffix_added
+        combined_hash_column_name = self.props.combined_hash_column_name
+        
+        result_df = in0
+        
+        # Handle mask method with character replacements
+        if masking_method == "mask":
+            for column_name in column_names:
+                # Build mask() function call with named parameters, matching SQL macro
+                args = [f"`{column_name}`"]
+                
+                # Handle uppercase characters
+                if self.props.upper_char_substitute.upper() == "NULL":
+                    args.append("upperChar => NULL")
+                elif self.props.upper_char_substitute != "":
+                    args.append(f"upperChar => '{self.props.upper_char_substitute}'")
+                # If empty, don't pass parameter (use default 'X')
+                
+                # Handle lowercase characters
+                if self.props.lower_char_substitute.upper() == "NULL":
+                    args.append("lowerChar => NULL")
+                elif self.props.lower_char_substitute != "":
+                    args.append(f"lowerChar => '{self.props.lower_char_substitute}'")
+                # If empty, don't pass parameter (use default 'x')
+                
+                # Handle digits
+                if self.props.digit_char_substitute.upper() == "NULL":
+                    args.append("digitChar => NULL")
+                elif self.props.digit_char_substitute != "":
+                    args.append(f"digitChar => '{self.props.digit_char_substitute}'")
+                # If empty, don't pass parameter (use default 'n')
+                
+                # Handle other characters (special characters)
+                if self.props.other_char_substitute.upper() == "NULL":
+                    args.append("otherChar => NULL")
+                elif self.props.other_char_substitute != "":
+                    args.append(f"otherChar => '{self.props.other_char_substitute}'")
+                # If empty, don't pass parameter (default is NULL)
+                
+                # Build the mask expression
+                mask_expr = f"mask({', '.join(args)})"
+                
+                # Add column based on method
+                if masked_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, expr(mask_expr))
+                elif masked_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, expr(mask_expr))
+        
+        # Handle hash method
+        elif masking_method == "hash":
+            if masked_column_add_method == "combinedHash_substitute":
+                # Hash all columns together
+                hash_expr = pyspark_hash(*[col(c) for c in column_names])
+                result_df = result_df.withColumn(combined_hash_column_name, hash_expr)
+            else:
+                # Hash each column individually
+                for column_name in column_names:
+                    hash_expr = pyspark_hash(col(column_name))
+                    
+                    if masked_column_add_method == "inplace_substitute":
+                        result_df = result_df.withColumn(column_name, hash_expr)
+                    elif masked_column_add_method == "prefix_suffix_substitute":
+                        new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                        result_df = result_df.withColumn(new_col_name, hash_expr)
+        
+        # Handle sha2 method
+        elif masking_method == "sha2":
+            sha2_bit_length = int(self.props.sha2_bit_length) if self.props.sha2_bit_length else 256
+            
+            for column_name in column_names:
+                sha2_expr = sha2(col(column_name).cast("string"), sha2_bit_length)
+                
+                if masked_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, sha2_expr)
+                elif masked_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, sha2_expr)
+        
+        # Handle sha (sha1) method
+        elif masking_method == "sha":
+            for column_name in column_names:
+                sha_expr = sha1(col(column_name).cast("string"))
+                
+                if masked_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, sha_expr)
+                elif masked_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, sha_expr)
+        
+        # Handle md5 method
+        elif masking_method == "md5":
+            for column_name in column_names:
+                md5_expr = md5(col(column_name).cast("string"))
+                
+                if masked_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, md5_expr)
+                elif masked_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, md5_expr)
+        
+        # Handle crc32 method
+        elif masking_method == "crc32":
+            from pyspark.sql.functions import crc32
+            
+            for column_name in column_names:
+                crc32_expr = crc32(col(column_name).cast("string"))
+                
+                if masked_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, crc32_expr)
+                elif masked_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, crc32_expr)
+        
+        return result_df
