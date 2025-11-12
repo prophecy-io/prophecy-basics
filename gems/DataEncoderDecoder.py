@@ -751,6 +751,123 @@ class DataEncoderDecoder(MacroSpec):
             ],
         )
 
+    def applyPython(self, spark, in0):
+        from pyspark.sql import SparkSession, DataFrame
+        from pyspark.sql.functions import col, base64, unbase64, hex as pyspark_hex, unhex, encode, decode, expr
+        
+        column_names = self.props.column_names
+        enc_dec_method = self.props.enc_dec_method
+        enc_dec_charSet = self.props.enc_dec_charSet
+        new_column_add_method = self.props.new_column_add_method
+        prefix_suffix_option = self.props.prefix_suffix_option
+        prefix_suffix_added = self.props.prefix_suffix_added
+        
+        result_df = in0
+        
+        # Process each column based on the encoding/decoding method
+        if enc_dec_method == "base64":
+            for column_name in column_names:
+                encoded_col = base64(col(column_name))
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, encoded_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, encoded_col)
+        
+        elif enc_dec_method == "unbase64":
+            for column_name in column_names:
+                decoded_col = unbase64(col(column_name)).cast("string")
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, decoded_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, decoded_col)
+        
+        elif enc_dec_method == "hex":
+            for column_name in column_names:
+                hex_col = pyspark_hex(col(column_name))
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, hex_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, hex_col)
+        
+        elif enc_dec_method == "unhex":
+            for column_name in column_names:
+                # SQL macro uses: decode(unhex(column), 'UTF-8')
+                unhex_col = decode(unhex(col(column_name)), "UTF-8")
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, unhex_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, unhex_col)
+        
+        elif enc_dec_method == "encode":
+            for column_name in column_names:
+                # SQL macro uses: hex(encode(column, charset))
+                encoded_col = pyspark_hex(encode(col(column_name), enc_dec_charSet))
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, encoded_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, encoded_col)
+        
+        elif enc_dec_method == "decode":
+            for column_name in column_names:
+                # SQL macro uses: decode(unhex(column), charset)
+                decoded_col = decode(unhex(col(column_name)), enc_dec_charSet)
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, decoded_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, decoded_col)
+        
+        elif enc_dec_method == "aes_encrypt":
+            # AES encryption requires Databricks secrets
+            aes_enc_dec_secretScope_key = self.props.aes_enc_dec_secretScope_key
+            aes_enc_dec_secretKey_key = self.props.aes_enc_dec_secretKey_key
+            aes_enc_dec_mode = self.props.aes_enc_dec_mode
+            aes_enc_dec_secretScope_iv = self.props.aes_enc_dec_secretScope_iv
+            aes_enc_dec_secretKey_iv = self.props.aes_enc_dec_secretKey_iv
+            aes_enc_dec_secretScope_aad = self.props.aes_enc_dec_secretScope_aad
+            aes_enc_dec_secretKey_aad = self.props.aes_enc_dec_secretKey_aad
+            
+            for column_name in column_names:
+                # Build AES encrypt expression
+                args = [
+                    f"`{column_name}`",
+                    f"secret('{aes_enc_dec_secretScope_key}', '{aes_enc_dec_secretKey_key}')",
+                    f"'{aes_enc_dec_mode}'",
+                    "'DEFAULT'"
+                ]
+                
+                # Add IV if provided
+                if aes_enc_dec_secretScope_iv and aes_enc_dec_secretKey_iv:
+                    args.append(f"secret('{aes_enc_dec_secretScope_iv}', '{aes_enc_dec_secretKey_iv}')")
+                else:
+                    args.append('""')
+                
+                # Add AAD if provided
+                if aes_enc_dec_secretScope_aad and aes_enc_dec_secretKey_aad:
+                    args.append(f"secret('{aes_enc_dec_secretScope_aad}', '{aes_enc_dec_secretKey_aad}')")
+                
+                aes_expr = f"base64(aes_encrypt({', '.join(args)}))"
+                encrypted_col = expr(aes_expr)
+                
+                if new_column_add_method == "inplace_substitute":
+                    result_df = result_df.withColumn(column_name, encrypted_col)
+                elif new_column_add_method == "prefix_suffix_substitute":
+                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
+                    result_df = result_df.withColumn(new_col_name, encrypted_col)
+        
+        return result_df
+
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
         fields_array = [
