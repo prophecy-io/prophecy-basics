@@ -46,7 +46,7 @@
 
 {% macro default__escape_regex_pattern(pattern, escape_backslashes=true) %}
     {# Regex patterns use the same escaping as SQL strings #}
-    {{ return(escape_sql_string(pattern, escape_backslashes)) }}
+    {{ return(prophecy_basics.escape_sql_string(pattern, escape_backslashes)) }}
 {% endmacro %}
 
 {# ============================================ #}
@@ -54,11 +54,11 @@
 {# ============================================ #}
 {# BigQuery uses the same escaping logic as default (Databricks/Spark) #}
 {% macro bigquery__escape_sql_string(text, escape_backslashes=true) %}
-    {{ return(default__escape_sql_string(text, escape_backslashes)) }}
+    {{ return(prophecy_basics.default__escape_sql_string(text, escape_backslashes)) }}
 {% endmacro %}
 
 {% macro bigquery__escape_regex_pattern(pattern, escape_backslashes=true) %}
-    {{ return(escape_sql_string(pattern, escape_backslashes)) }}
+    {{ return(prophecy_basics.escape_sql_string(pattern, escape_backslashes)) }}
 {% endmacro %}
 
 {# ============================================ #}
@@ -66,11 +66,11 @@
 {# ============================================ #}
 {# Snowflake uses the same escaping logic as default (Databricks/Spark) #}
 {% macro snowflake__escape_sql_string(text, escape_backslashes=true) %}
-    {{ return(default__escape_sql_string(text, escape_backslashes)) }}
+    {{ return(prophecy_basics.default__escape_sql_string(text, escape_backslashes)) }}
 {% endmacro %}
 
 {% macro snowflake__escape_regex_pattern(pattern, escape_backslashes=true) %}
-    {{ return(escape_sql_string(pattern, escape_backslashes)) }}
+    {{ return(prophecy_basics.escape_sql_string(pattern, escape_backslashes)) }}
 {% endmacro %}
 
 {# ============================================ #}
@@ -107,6 +107,6 @@
 
 {% macro duckdb__escape_regex_pattern(pattern, escape_backslashes=false) %}
     {# Regex patterns use the same escaping as SQL strings #}
-    {{ return(escape_sql_string(pattern, escape_backslashes)) }}
+    {{ return(prophecy_basics.escape_sql_string(pattern, escape_backslashes)) }}
 {% endmacro %}
 
