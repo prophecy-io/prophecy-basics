@@ -15,8 +15,8 @@ class GenerateRows(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
 
@@ -121,17 +121,28 @@ class GenerateRows(MacroSpec):
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
+        
+        def safe_str(val):
+            """Safely convert a value to a SQL string literal, handling None and empty strings"""
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, str):
+                # Escape single quotes for SQL string literals ('' represents a single quote in SQL)
+                escaped = val.replace("'", "''")
+                return f"'{escaped}'"
+            return f"'{str(val)}'"
+        
         arguments = [
-            "'" + table_name + "'",
-            "'" + str(props.init_expr) + "'",
-            "'" + str(props.condition_expr) + "'",
-            "'" + str(props.loop_expr) + "'",
-            "'" + str(props.column_name) + "'",
-            str(props.max_rows),
-            "'" + str(props.force_mode) + "'"
+            safe_str(table_name),  # relation_name - must be present even if empty
+            safe_str(props.init_expr),
+            safe_str(props.condition_expr),
+            safe_str(props.loop_expr),
+            safe_str(props.column_name),
+            str(props.max_rows) if props.max_rows else "100000",
+            safe_str(props.force_mode)
         ]
 
-        params = ",".join([param for param in arguments])
+        params = ",".join(arguments)
         return f'{{{{ {resolved_macro_name}({params}) }}}}'
 
     # --- GenerateRows.loadProperties -----------------------------------------
@@ -152,12 +163,12 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            new_field_name=p.get('init_expr'),
-            start_expr=p.get('condition_expr'),
-            end_expr=p.get('loop_expr'),
-            step_expr=p.get('column_name'),
-            data_type=p.get('max_rows'),
-            interval_unit=p.get('force_mode')
+            init_expr=p.get('init_expr'),
+            condition_expr=p.get('condition_expr'),
+            loop_expr=p.get('loop_expr'),
+            column_name=p.get('column_name'),
+            max_rows=p.get('max_rows'),
+            force_mode=p.get('force_mode')
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -167,12 +178,12 @@ class GenerateRows(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", str(properties.relation_name)),
-                MacroParameter("init_expr", properties.init_expr),
-                MacroParameter("condition_expr", properties.condition_expr),
-                MacroParameter("loop_expr", properties.loop_expr),
-                MacroParameter("column_name", properties.v),
-                MacroParameter("max_rows", properties.max_rows),
-                MacroParameter("force_mode", properties.force_mode)
+                MacroParameter("init_expr", str(properties.init_expr) if properties.init_expr else ''),
+                MacroParameter("condition_expr", str(properties.condition_expr) if properties.condition_expr else ''),
+                MacroParameter("loop_expr", str(properties.loop_expr) if properties.loop_expr else ''),
+                MacroParameter("column_name", str(properties.column_name) if properties.column_name else ''),
+                MacroParameter("max_rows", str(properties.max_rows) if properties.max_rows else ''),
+                MacroParameter("force_mode", str(properties.force_mode) if properties.force_mode else '')
             ],
         )
 
