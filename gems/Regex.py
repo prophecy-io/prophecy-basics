@@ -544,6 +544,8 @@ class Regex(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
         # Get the Single Table Name
         table_name: str = ",".join(str(rel) for rel in props.relation_name)
+        # Create JSON string - json.dumps() handles double quotes, but we need to escape
+        # single quotes for SQL string literals. The safe_str() function will handle this.
         parseColumnsJson = json.dumps([
             {
                     "columnName": fld.columnName,
@@ -553,26 +555,49 @@ class Regex(MacroSpec):
                 for fld in props.parseColumns
             ])
 
+        def safe_str(val):
+            """
+            Safely convert a value to a SQL string literal, handling None and empty strings.
+            
+            For regex expressions: This escapes single quotes for the SQL string literal parameter.
+            The macro will then receive the unescaped value and escape it again via 
+            escape_regex_pattern() for use in the actual SQL query. This two-stage escaping
+            is correct and necessary.
+            
+            Note: Backslashes in regex expressions are NOT escaped here - they are preserved
+            as part of the regex pattern and will be handled by escape_regex_pattern() in the macro.
+            """
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, str):
+                # Escape single quotes for SQL string literals ('' represents a single quote in SQL)
+                # This is the first stage of escaping - for the macro parameter
+                escaped = val.replace("'", "''")
+                return f"'{escaped}'"
+            if isinstance(val, list):
+                return str(val)
+            return f"'{str(val)}'"
 
         parameter_list = [
-            table_name,
-            "'" + parseColumnsJson + "'",
-            "'" + props.schema + "'",
-            "'" + props.selectedColumnName + "'",
-            "'" + props.regexExpression + "'",
-            "'" + props.outputMethod + "'",
+            safe_str(table_name),  # relation_name - must be present even if empty
+            safe_str(parseColumnsJson),  # parseColumns as JSON string
+            safe_str(props.schema),
+            safe_str(props.selectedColumnName),
+            safe_str(props.regexExpression),  # Regex expression - escaped for SQL string literal parameter
+            safe_str(props.outputMethod),
             str(props.caseInsensitive).lower(),
             str(props.allowBlankTokens).lower(),
-            "'" + props.replacementText + "'",
+            safe_str(props.replacementText),
             str(props.copyUnmatchedText).lower(),
-            "'" + props.tokenizeOutputMethod + "'",
+            safe_str(props.tokenizeOutputMethod),
             str(props.noOfColumns),
-            "'" + props.extraColumnsHandling + "'",
-            "'" + props.outputRootName + "'",
-            str(props.matchColumnName),
+            safe_str(props.extraColumnsHandling),
+            safe_str(props.outputRootName),
+            safe_str(props.matchColumnName),
             str(props.errorIfNotMatched).lower(),
         ]
-        non_empty_param = ",".join([param for param in parameter_list if param != ''])
+        # Join all parameters - don't filter out empty strings, use "''" instead
+        non_empty_param = ",".join(parameter_list)
         return f'{{{{ {resolved_macro_name}({non_empty_param}) }}}}'
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
