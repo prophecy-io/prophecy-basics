@@ -235,12 +235,12 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            init_expr=p.get('init_expr'),
-            condition_expr=p.get('condition_expr'),
-            loop_expr=p.get('loop_expr'),
-            column_name=p.get('column_name'),
-            max_rows=p.get('max_rows'),
-            force_mode=p.get('force_mode')
+            init_expr=p.get('init_expr') or None,  # Use None if empty string
+            condition_expr=p.get('condition_expr') or None,  # Use None if empty string
+            loop_expr=p.get('loop_expr') or None,  # Use None if empty string
+            column_name=p.get('column_name') or None,  # Use None if empty string
+            max_rows=p.get('max_rows') or None,  # Use None if empty string
+            force_mode=p.get('force_mode') or 'recursive'  # Default to 'recursive'
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
