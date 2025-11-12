@@ -49,7 +49,7 @@ class Regex(MacroSpec):
         # Tokenize
         tokenizeOutputMethod: str = "splitColumns"
         noOfColumns: int = 1
-        extraColumnsHandling: str = "dropExtraWithWarning"
+        extraColumnsHandling: str = "dropExtraWithoutWarning"
         splitRowsColumnName: str = "generated_column"
         outputRootName: str = "generated"
         # Parse
@@ -248,9 +248,9 @@ class Regex(MacroSpec):
                                                                 )
                                                                 .addColumn(
                                                                     SelectBox(titleVar="For Extra Columns")
-                                                                    .addOption("Drop Extra with Warning", "dropExtraWithWarning")
                                                                     .addOption("Drop Extra without Warning", "dropExtraWithoutWarning")
-                                                                    .addOption("Error", "error")
+                                                                    .addOption("Drop Extra with Error", "dropExtraWithError")
+                                                                    .addOption("Save all remaining text into last generated column", "saveAllRemainingText")
                                                                     .bindProperty("extraColumnsHandling")
                                                                 )
                                                             )

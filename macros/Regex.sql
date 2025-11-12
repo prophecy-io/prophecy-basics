@@ -10,7 +10,7 @@
     copyUnmatchedText=false,
     tokenizeOutputMethod='splitColumns',
     noOfColumns=3,
-    extraColumnsHandling='dropExtraWithWarning',
+    extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
     errorIfNotMatched=false) -%}
@@ -48,7 +48,7 @@
     copyUnmatchedText=false,
     tokenizeOutputMethod='splitColumns',
     noOfColumns=3,
-    extraColumnsHandling='dropExtraWithWarning',
+    extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
     errorIfNotMatched=false
@@ -175,24 +175,69 @@
                 regexp_extract_all({{ quoted_selected }}, '{{ regex_pattern }}') as regex_matches
             from {{ source_table }}
         )
-        select
-            * except (regex_matches)
-            {%- for i in range(1, noOfColumns + 1) %},
-            case
-                when size(regex_matches) = 0 then cast(null as string)
-                when size(regex_matches) < {{ i }} then
-                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
-                when regex_matches[{{ i - 1 }}] = '' then
-                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
-                else regex_matches[{{ i - 1 }}]
-            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
-            {%- endfor %}
-        from extracted_array
-
-        {% if extra_handling_lower == 'dropextrawithwarning' -%}
-            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
-        {% elif extra_handling_lower == 'erroronextra' -%}
-            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- if extra_handling_lower == 'dropextrawitherror' -%}
+            {# Check for extra matches and raise error if found #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when size(regex_matches) > {{ noOfColumns }} then
+                        cast(concat('ERROR: Found ', cast(size(regex_matches) as string), ' regex matches, but only ', cast({{ noOfColumns }} as string), ' columns expected') as string)
+                    when size(regex_matches) = 0 then cast(null as string)
+                    when size(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[{{ i - 1 }}] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[{{ i - 1 }}]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
+        {%- elif extra_handling_lower == 'saveallremainingtext' -%}
+            {# Save all remaining text into last generated column #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns) %},
+                case
+                    when size(regex_matches) = 0 then cast(null as string)
+                    when size(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[{{ i - 1 }}] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[{{ i - 1 }}]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %},
+                {# Last column: concatenate all matches from noOfColumns onwards #}
+                case
+                    when size(regex_matches) = 0 then cast(null as string)
+                    when size(regex_matches) < {{ noOfColumns }} then
+                        case
+                            when regex_matches[{{ noOfColumns - 1 }}] = '' then
+                                case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                            else regex_matches[{{ noOfColumns - 1 }}]
+                        end
+                    else
+                        {# Concatenate remaining matches using array_join and slice #}
+                        array_join(
+                            slice(regex_matches, {{ noOfColumns }}, greatest(size(regex_matches) - {{ noOfColumns }} + 1, 0)),
+                            ''
+                        )
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
+            from extracted_array
+        {%- else -%}
+            {# dropExtraWithoutWarning: drop extra columns silently #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when size(regex_matches) = 0 then cast(null as string)
+                    when size(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[{{ i - 1 }}] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[{{ i - 1 }}]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
         {%- endif -%}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
@@ -276,7 +321,7 @@
     copyUnmatchedText=false,
     tokenizeOutputMethod='splitColumns',
     noOfColumns=3,
-    extraColumnsHandling='dropExtraWithWarning',
+    extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
     errorIfNotMatched=false
@@ -407,24 +452,72 @@
                 REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as regex_matches
             from {{ source_table }}
         )
-        select
-            * except (regex_matches)
-            {%- for i in range(1, noOfColumns + 1) %},
-            case
-                when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
-                when ARRAY_LENGTH(regex_matches) < {{ i }} then
-                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
-                when regex_matches[OFFSET({{ i - 1 }})] = '' then
-                    case when {{ allowBlankTokens }} then '' else cast(null as string) end
-                else regex_matches[OFFSET({{ i - 1 }})]
-            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
-            {%- endfor %}
-        from extracted_array
-
-        {% if extra_handling_lower == 'dropextrawithwarning' -%}
-            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
-        {% elif extra_handling_lower == 'erroronextra' -%}
-            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- if extra_handling_lower == 'dropextrawitherror' -%}
+            {# Check for extra matches and raise error if found #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when ARRAY_LENGTH(regex_matches) > {{ noOfColumns }} then
+                        cast(concat('ERROR: Found ', cast(ARRAY_LENGTH(regex_matches) as string), ' regex matches, but only ', cast({{ noOfColumns }} as string), ' columns expected') as string)
+                    when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
+                    when ARRAY_LENGTH(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[OFFSET({{ i - 1 }})] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[OFFSET({{ i - 1 }})]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
+        {%- elif extra_handling_lower == 'saveallremainingtext' -%}
+            {# Save all remaining text into last generated column #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns) %},
+                case
+                    when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
+                    when ARRAY_LENGTH(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[OFFSET({{ i - 1 }})] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[OFFSET({{ i - 1 }})]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %},
+                {# Last column: concatenate all matches from noOfColumns onwards #}
+                case
+                    when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
+                    when ARRAY_LENGTH(regex_matches) < {{ noOfColumns }} then
+                        case
+                            when regex_matches[OFFSET({{ noOfColumns - 1 }})] = '' then
+                                case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                            else regex_matches[OFFSET({{ noOfColumns - 1 }})]
+                        end
+                    else
+                        {# Concatenate remaining matches using ARRAY_TO_STRING and array slicing #}
+                        ARRAY_TO_STRING(
+                            ARRAY(
+                                SELECT regex_matches[OFFSET(i)]
+                                FROM UNNEST(GENERATE_ARRAY({{ noOfColumns - 1 }}, ARRAY_LENGTH(regex_matches) - 1)) AS i
+                            ),
+                            ''
+                        )
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
+            from extracted_array
+        {%- else -%}
+            {# dropExtraWithoutWarning: drop extra columns silently #}
+            select
+                * except (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when ARRAY_LENGTH(regex_matches) = 0 then cast(null as string)
+                    when ARRAY_LENGTH(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    when regex_matches[OFFSET({{ i - 1 }})] = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as string) end
+                    else regex_matches[OFFSET({{ i - 1 }})]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
         {%- endif -%}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
@@ -508,7 +601,7 @@
     copyUnmatchedText=false,
     tokenizeOutputMethod='splitColumns',
     noOfColumns=3,
-    extraColumnsHandling='dropExtraWithWarning',
+    extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
     errorIfNotMatched=false
@@ -623,24 +716,66 @@
                 regexp_extract_all({{ quoted_selected }}, '{{ escaped_regex }}'{{ (", '" ~ case_flag ~ "'") if case_flag else "" }}) as regex_matches
             from {{ source_table }}
         )
-        select
-            * exclude (regex_matches)
-            {%- for i in range(1, noOfColumns + 1) %},
-            case
-                when len(regex_matches) = 0 then cast(null as varchar)
-                when len(regex_matches) < {{ i }} then
-                    case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
-                when list_element(regex_matches, {{ i }}) = '' then
-                    case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
-                else list_element(regex_matches, {{ i }})
-            end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
-            {%- endfor %}
-        from extracted_array
-
-        {% if extra_handling_lower == 'dropextrawithwarning' -%}
-            {{ log("WARNING: Extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ") will be dropped", info=True) }}
-        {% elif extra_handling_lower == 'erroronextra' -%}
-            {{ log("INFO: Checking for extra regex matches beyond noOfColumns (" ~ noOfColumns ~ ")", info=True) }}
+        {%- if extra_handling_lower == 'dropextrawitherror' -%}
+            {# Check for extra matches and raise error if found #}
+            select
+                * exclude (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when len(regex_matches) > {{ noOfColumns }} then
+                        cast('ERROR: Found ' || cast(len(regex_matches) as varchar) || ' regex matches, but only ' || cast({{ noOfColumns }} as varchar) || ' columns expected' as varchar)
+                    when len(regex_matches) = 0 then cast(null as varchar)
+                    when len(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    when list_element(regex_matches, {{ i }}) = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    else list_element(regex_matches, {{ i }})
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
+        {%- elif extra_handling_lower == 'saveallremainingtext' -%}
+            {# Save all remaining text into last generated column #}
+            select
+                * exclude (regex_matches)
+                {%- for i in range(1, noOfColumns) %},
+                case
+                    when len(regex_matches) = 0 then cast(null as varchar)
+                    when len(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    when list_element(regex_matches, {{ i }}) = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    else list_element(regex_matches, {{ i }})
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %},
+                {# Last column: concatenate all matches from noOfColumns onwards #}
+                case
+                    when len(regex_matches) = 0 then cast(null as varchar)
+                    when len(regex_matches) < {{ noOfColumns }} then
+                        case
+                            when list_element(regex_matches, {{ noOfColumns }}) = '' then
+                                case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                            else list_element(regex_matches, {{ noOfColumns }})
+                        end
+                    else
+                        {# Concatenate remaining matches using array_to_string and array slicing #}
+                        array_to_string(regex_matches[{{ noOfColumns }}:], '')
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
+            from extracted_array
+        {%- else -%}
+            {# dropExtraWithoutWarning: drop extra columns silently #}
+            select
+                * exclude (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when len(regex_matches) = 0 then cast(null as varchar)
+                    when len(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    when list_element(regex_matches, {{ i }}) = '' then
+                        case when {{ allowBlankTokens }} then '' else cast(null as varchar) end
+                    else list_element(regex_matches, {{ i }})
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
         {%- endif -%}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
