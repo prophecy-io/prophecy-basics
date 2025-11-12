@@ -105,6 +105,78 @@ class GenerateRows(MacroSpec):
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super().validate(context, component)
+        props = component.properties
+        
+        # Check if init_expr is provided (required - marked with * in UI)
+        if not hasattr(props, 'init_expr') or not props.init_expr or (isinstance(props.init_expr, str) and len(props.init_expr.strip()) == 0):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.init_expr",
+                    "Initialization expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Check if condition_expr is provided (required - marked with * in UI)
+        if not hasattr(props, 'condition_expr') or not props.condition_expr or (isinstance(props.condition_expr, str) and len(props.condition_expr.strip()) == 0):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.condition_expr",
+                    "Condition expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Check if loop_expr is provided (required - marked with * in UI)
+        if not hasattr(props, 'loop_expr') or not props.loop_expr or (isinstance(props.loop_expr, str) and len(props.loop_expr.strip()) == 0):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.loop_expr",
+                    "Loop expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Check if column_name is provided (required - marked with * in UI)
+        if not hasattr(props, 'column_name') or not props.column_name or (isinstance(props.column_name, str) and len(props.column_name.strip()) == 0):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.column_name",
+                    "Column name is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Check if max_rows is provided (required)
+        if not hasattr(props, 'max_rows') or not props.max_rows or (isinstance(props.max_rows, str) and len(props.max_rows.strip()) == 0):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.max_rows",
+                    "Max rows is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        else:
+            # Validate that max_rows is a valid positive integer
+            try:
+                max_rows_int = int(props.max_rows)
+                if max_rows_int <= 0:
+                    diagnostics.append(
+                        Diagnostic(
+                            "component.properties.max_rows",
+                            "Max rows must be a positive integer greater than 0",
+                            SeverityLevelEnum.Error
+                        )
+                    )
+            except (ValueError, TypeError):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.max_rows",
+                        "Max rows must be a valid integer",
+                        SeverityLevelEnum.Error
+                    )
+                )
+        
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
@@ -138,7 +210,7 @@ class GenerateRows(MacroSpec):
             safe_str(props.condition_expr),
             safe_str(props.loop_expr),
             safe_str(props.column_name),
-            str(props.max_rows) if props.max_rows else "100000",
+            str(props.max_rows),  # max_rows is required (validated in validate())
             safe_str(props.force_mode)
         ]
 
