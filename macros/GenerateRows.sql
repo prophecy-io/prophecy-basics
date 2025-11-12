@@ -303,9 +303,9 @@
     {% if relation_name and relation_name != '' and relation_name | trim != '' %}
         with recursive gen as (
             -- base case: one row per input record
-            -- DuckDB uses ROW() constructor instead of STRUCT()
+            -- Select all columns directly (no struct/ROW needed)
             select
-                ROW({{ alias }}.*) as payload,
+                {{ alias }}.*,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_name }} {{ alias }}
@@ -313,16 +313,17 @@
             union all
 
             -- recursive step
+            -- Select all columns from previous iteration, update generated column
             select
-                gen.payload as payload,
+                gen.* EXCLUDE ({{ internal_col }}, _iter),
                 {{ loop_expr | replace(unquoted_col, 'gen.' ~ internal_col) }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
         )
         select
-            -- Use EXCLUDE for DuckDB
-            payload.* EXCLUDE ({{ unquoted_col }}),
+            -- Select all columns except the internal counter and generated column, then add the final generated column
+            gen.* EXCLUDE ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ unquoted_col }}
         from gen
         where {{ condition_expr_sql | replace(unquoted_col, internal_col) }}
