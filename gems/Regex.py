@@ -393,17 +393,23 @@ class Regex(MacroSpec):
         """Extract individual capturing group patterns from a regex string."""
         if not pattern:
             return []
-        pattern = re.sub(r'(?<!\\)\\(?!\\)', r'\\\\', pattern)
         groups = []
         i = 0
         while i < len(pattern):
-            if pattern[i] == '(' and (i == 0 or pattern[i-1] != '\\'):
-                # Skip non-capturing groups (?:...) or other special groups (?=...), (?!...), etc.
+            # Check if current character is an opening parenthesis
+            if pattern[i] == '(':
+                # Check if it's escaped
+                if i > 0 and pattern[i-1] == '\\':
+                    i += 1
+                    continue
+                
+                # Check if it's a non-capturing group (?:...) or other special groups (?=...), (?!...), etc.
                 if i + 1 < len(pattern) and pattern[i+1] == '?':
                     # Find the end of this non-capturing group and skip it
                     paren_count = 1
-                    j = i + 1
+                    j = i + 2  # Skip the '(' and '?'
                     while j < len(pattern) and paren_count > 0:
+                        # Handle escaped characters
                         if pattern[j] == '\\' and j + 1 < len(pattern):
                             j += 2
                             continue
@@ -421,9 +427,9 @@ class Regex(MacroSpec):
                 j = i + 1
 
                 while j < len(pattern) and paren_count > 0:
+                    # Handle escaped characters (skip both the backslash and the next character)
                     if pattern[j] == '\\' and j + 1 < len(pattern):
                         j += 2
-
                         continue
                     elif pattern[j] == '(':
                         paren_count += 1
@@ -432,6 +438,7 @@ class Regex(MacroSpec):
                     j += 1
 
                 if paren_count == 0:
+                    # Extract the group including the parentheses
                     group = pattern[start:j]
                     groups.append(group)
                 i = j
