@@ -1,6 +1,6 @@
 {% macro Regex(relation_name,
     parseColumns,
-    currentSchema='',
+    schema='',
     selectedColumnName='',
     regexExpression='',
     outputMethod='replace',
@@ -16,7 +16,7 @@
     errorIfNotMatched=false) -%}
     {{ return(adapter.dispatch('Regex', 'prophecy_basics')(relation_name,
     parseColumns,
-    currentSchema,
+    schema,
     selectedColumnName,
     regexExpression,
     outputMethod,
@@ -38,7 +38,7 @@
 {% macro default__Regex(
     relation_name,
     parseColumns,
-    currentSchema='',
+    schema='',
     selectedColumnName='',
     regexExpression='',
     outputMethod='replace',
@@ -55,13 +55,14 @@
 ) %}
 
 {# Input validation #}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if not selectedColumnName or selectedColumnName == '' -%}
     {{ log("ERROR: selectedColumnName parameter is required and cannot be empty", info=True) }}
     select 'ERROR: selectedColumnName parameter is required' as error_message
 {%- elif not regexExpression or regexExpression == '' -%}
     {{ log("ERROR: regexExpression parameter is required and cannot be empty", info=True) }}
     select 'ERROR: regexExpression parameter is required' as error_message
-{%- elif not relation_name or relation_name == '' -%}
+{%- elif not relation_list or relation_list == '' -%}
     {{ log("ERROR: relation_name parameter is required and cannot be empty", info=True) }}
     select 'ERROR: relation_name parameter is required' as error_message
 {%- else -%}
@@ -79,7 +80,7 @@
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
 {# For replacement text, escape SQL string literals #}
 {%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
-{%- set source_table = relation_name -%}
+{%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
 
