@@ -5,10 +5,6 @@ import json
 import re
 
 from collections import defaultdict
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
-from pyspark.sql.types import *
-from pyspark.sql.window import Window
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
@@ -614,22 +610,28 @@ class Regex(MacroSpec):
                 )
             )
         return Regex.RegexProperties(
-            relation_name=parametersMap.get('relation_name'),
-            parseColumns=parseColumns,
-            schema=parametersMap.get('schema'),
-            selectedColumnName=parametersMap.get('selectedColumnName'),
-            regexExpression=parametersMap.get('regexExpression'),
-            outputMethod=parametersMap.get('outputMethod'),
-            caseInsensitive=bool(parametersMap.get('caseInsensitive')),
-            allowBlankTokens=bool(parametersMap.get('allowBlankTokens')),
-            replacementText=parametersMap.get('replacementText'),
-            copyUnmatchedText=parametersMap.get('copyUnmatchedText'),
-            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod'),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            parseColumns=json.loads(
+                parametersMap.get("parseColumns").replace("'", '"')
+            ),
+            schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
+            selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
+            regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
+            outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
+            caseInsensitive=parametersMap.get("caseInsensitive").lower()
+            == "true",
+            allowBlankTokens=parametersMap.get("allowBlankTokens").lower()
+            == "true",
+            replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
+            copyUnmatchedText=parametersMap.get("copyUnmatchedText").lower()
+            == "true",
+            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
-            extraColumnsHandling=parametersMap.get('extraColumnsHandling'),
-            outputRootName=parametersMap.get('outputRootName'),
-            matchColumnName=parametersMap.get('matchColumnName'),
-            errorIfNotMatched=bool(parametersMap.get('errorIfNotMatched')),
+            extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
+            outputRootName=parametersMap.get('outputRootName').lstrip("'").rstrip("'"),
+            matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
+            errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -645,22 +647,22 @@ class Regex(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
-                MacroParameter("parseColumns", str(parseColumnsJsonList)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("parseColumns", json.dumps(properties.parseColumns)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),
                 MacroParameter("regexExpression", str(properties.regexExpression)),
-                MacroParameter("caseInsensitive", str(properties.caseInsensitive)),
+                MacroParameter("caseInsensitive", str(properties.caseInsensitive).lower()),
                 MacroParameter("replacementText", str(properties.replacementText)),
-                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText)),
+                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText).lower()),
                 MacroParameter("tokenizeOutputMethod", str(properties.tokenizeOutputMethod)),
-                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens)),
+                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens).lower()),
                 MacroParameter("noOfColumns", str(properties.noOfColumns)),
                 MacroParameter("extraColumnsHandling", str(properties.extraColumnsHandling)),
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
-                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched)),
+                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
             ],
         )
 
