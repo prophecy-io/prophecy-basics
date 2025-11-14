@@ -607,7 +607,8 @@ class Regex(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         parseColumns = []
-        parseCols = json.loads(parametersMap.get('parseColumns'))
+        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
+        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
         for fld in parseCols:
             parseColumns.append(
                 ColumnParse(
@@ -618,9 +619,7 @@ class Regex(MacroSpec):
             )
         return Regex.RegexProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            parseColumns=json.loads(
-                parametersMap.get("parseColumns").replace("'", '"')
-            ),
+            parseColumns=parseColumns,
             schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
