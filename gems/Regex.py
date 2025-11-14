@@ -549,14 +549,14 @@ class Regex(MacroSpec):
         table_name: str = ",".join(str(rel) for rel in props.relation_name)
         # Create JSON string - json.dumps() handles double quotes, but we need to escape
         # single quotes for SQL string literals. The safe_str() function will handle this.
-        parseColumnsJson = json.dumps([
+        parse_columns_list = [
             {
                     "columnName": fld.columnName,
                     "dataType": fld.dataType,
                     "rgxExpression": fld.rgxExpression
                 }
                 for fld in props.parseColumns
-            ])
+            ]
 
         def safe_str(val):
             """
@@ -582,8 +582,8 @@ class Regex(MacroSpec):
             return f"'{str(val)}'"
 
         parameter_list = [
-            safe_str(props.relation_name),  # relation_name - must be present even if empty
-            safe_str(parseColumnsJson),  # parseColumns as JSON string
+            safe_str(props.relation_name),
+            safe_str(parse_columns_list),
             safe_str(props.schema),
             safe_str(props.selectedColumnName),
             safe_str(props.regexExpression),  # Regex expression - escaped for SQL string literal parameter
