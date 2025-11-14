@@ -582,7 +582,7 @@ class Regex(MacroSpec):
             return f"'{str(val)}'"
 
         parameter_list = [
-            safe_str(table_name),  # relation_name - must be present even if empty
+            safe_str(props.relation_name),  # relation_name - must be present even if empty
             safe_str(parseColumnsJson),  # parseColumns as JSON string
             safe_str(props.schema),
             safe_str(props.selectedColumnName),
@@ -643,19 +643,12 @@ class Regex(MacroSpec):
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
-        parseColumnsJsonList = json.dumps([{
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in properties.parseColumns
-            ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("parseColumns", parseColumnsJsonList),
+                MacroParameter("parseColumns", json.dumps(properties.parseColumns)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),
