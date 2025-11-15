@@ -3,8 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
+from pyspark.sql import SparkSession, Window, DataFrame
+from pyspark.sql.functions import row_number, count, lit, expr
 
 
 @dataclass(frozen=True)
