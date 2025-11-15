@@ -1,9 +1,10 @@
 import dataclasses
 import json
 
+from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import *
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 
 
