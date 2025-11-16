@@ -1,11 +1,12 @@
-{% macro DynamicSelect(relation, schema, targetTypes, selectUsing, customExpression='') -%}
-    {{ return(adapter.dispatch('DynamicSelect', 'prophecy_basics')(relation, schema, targetTypes, selectUsing, customExpression)) }}
+{% macro DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
+    {{ return(adapter.dispatch('DynamicSelect', 'prophecy_basics')(relation_name, schema, targetTypes, selectUsing, customExpression)) }}
 {% endmacro %}
 
 
-{%- macro default__DynamicSelect(relation, schema, targetTypes, selectUsing, customExpression='') -%}
+{%- macro default__DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
 
     {%- set enriched_schema = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- for column in schema -%}
         {# Create a copy of the column dictionary #}
         {%- set new_column = {} -%}
@@ -53,18 +54,18 @@
 
     {# Build and return the SELECT statement #}
     {%- if selected_columns -%}
-        SELECT {{ selected_columns | join(', ') }} FROM {{ relation }}
+        SELECT {{ selected_columns | join(', ') }} FROM {{ relation_list | join(', ') }}
     {%- else -%}
-        SELECT NULL AS no_columns_matched FROM {{ relation }}
+        SELECT NULL AS no_columns_matched FROM {{ relation_list | join(', ') }}
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro duckdb__DynamicSelect(relation, schema, targetTypes=[], selectUsing='SELECT_TYPES', customExpression='') -%}
+{%- macro duckdb__DynamicSelect(relation_name, schema, targetTypes=[], selectUsing='SELECT_TYPES', customExpression='') -%}
 {#
   Dynamic column selection macro for DuckDB - handles both expression-based and type-based selection.
   
   Args:
-    relation: The table/relation to select from
+    relation_name: The table/relation to select from
     schema: List of column dictionaries with 'name' and 'dataType' keys
     targetTypes: List of data types to select (for SELECT_TYPES mode) - case-insensitive
     selectUsing: Selection mode - 'SELECT_EXPR' or 'SELECT_TYPES'
@@ -79,6 +80,7 @@
 #}
 
     {%- set enriched_schema = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- for column in schema -%}
         {# Create a copy of the column dictionary #}
         {%- set new_column = {} -%}
@@ -128,8 +130,8 @@
 
     {# Build and return the SELECT statement #}
     {%- if selected_columns -%}
-        SELECT {{ selected_columns | join(', ') }} FROM {{ relation }}
+        SELECT {{ selected_columns | join(', ') }} FROM {{ relation_list | join(', ') }}
     {%- else -%}
-        SELECT NULL AS no_columns_matched FROM {{ relation }}
+        SELECT NULL AS no_columns_matched FROM {{ relation_list | join(', ') }}
     {%- endif -%}
 {%- endmacro -%}

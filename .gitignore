@@ -14,3 +14,4 @@ prophecy-sources/*
 profiles.yml
 .user.yml
 
+__pycache__/

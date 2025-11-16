@@ -3,13 +3,15 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]) -%}
+        schema=[],
+        customNames=false) -%}
     {{ return(adapter.dispatch('Transpose', 'prophecy_basics')(relation_name,
         keyColumns,
         dataColumns,
         nameColumn,
         valueColumn,
-        schema)) }}
+        schema,
+        customNames)) }}
 {% endmacro %}
 
 
@@ -19,10 +21,12 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]
+        schema=[],
+        customNames=false
 ) -%}
 
     {% set bt = "`" %}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if dataColumns and (nameColumn | length > 0) and (valueColumn | length > 0) -%}
 
@@ -47,14 +51,14 @@
                 ) -%}
 
             {%- set query = 'SELECT ' ~ (select_list | join(', ')) ~
-                            ' FROM ' ~ relation_name -%}
+                            ' FROM ' ~ (relation_list | join(', ')) -%}
             {%- do union_queries.append(query) -%}
         {%- endfor -%}
 
         {{ union_queries | join('\nUNION ALL\n') }}
 
     {%- else -%}
-        SELECT * FROM {{ relation_name }}
+        SELECT * FROM {{ relation_list | join(', ') }}
     {%- endif -%}
 
 {%- endmacro -%}
@@ -65,9 +69,11 @@
         dataColumns,
         nameColumn,
         valueColumn,
-        schema=[]
+        schema=[],
+        customNames=false
 ) -%}
 
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if dataColumns and (nameColumn | length > 0) and (valueColumn | length > 0) -%}
 
         {%- set union_queries = [] -%}
@@ -91,14 +97,14 @@
                 ) -%}
 
             {%- set query = 'SELECT ' ~ (select_list | join(', ')) ~
-                            ' FROM ' ~ relation_name -%}
+                            ' FROM ' ~ (relation_list | join(', ')) -%}
             {%- do union_queries.append(query) -%}
         {%- endfor -%}
 
         {{ union_queries | join('\nUNION ALL\n') }}
 
     {%- else -%}
-        SELECT * FROM {{ relation_name }}
+        SELECT * FROM {{ relation_list | join(', ') }}
     {%- endif -%}
 
 {%- endmacro -%}

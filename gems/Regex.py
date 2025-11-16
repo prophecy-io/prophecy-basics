@@ -45,7 +45,7 @@ class Regex(MacroSpec):
         # Tokenize
         tokenizeOutputMethod: str = "splitColumns"
         noOfColumns: int = 1
-        extraColumnsHandling: str = "dropExtraWithWarning"
+        extraColumnsHandling: str = "dropExtraWithoutWarning"
         splitRowsColumnName: str = "generated_column"
         outputRootName: str = "generated"
         # Parse
@@ -244,9 +244,9 @@ class Regex(MacroSpec):
                                                                 )
                                                                 .addColumn(
                                                                     SelectBox(titleVar="For Extra Columns")
-                                                                    .addOption("Drop Extra with Warning", "dropExtraWithWarning")
                                                                     .addOption("Drop Extra without Warning", "dropExtraWithoutWarning")
-                                                                    .addOption("Error", "error")
+                                                                    .addOption("Drop Extra with Error", "dropExtraWithError")
+                                                                    .addOption("Save all remaining text into last generated column", "saveAllRemainingText")
                                                                     .bindProperty("extraColumnsHandling")
                                                                 )
                                                             )
@@ -393,17 +393,23 @@ class Regex(MacroSpec):
         """Extract individual capturing group patterns from a regex string."""
         if not pattern:
             return []
-        pattern = re.sub(r'(?<!\\)\\(?!\\)', r'\\\\', pattern)
         groups = []
         i = 0
         while i < len(pattern):
-            if pattern[i] == '(' and (i == 0 or pattern[i-1] != '\\'):
-                # Skip non-capturing groups (?:...) or other special groups (?=...), (?!...), etc.
+            # Check if current character is an opening parenthesis
+            if pattern[i] == '(':
+                # Check if it's escaped
+                if i > 0 and pattern[i-1] == '\\':
+                    i += 1
+                    continue
+                
+                # Check if it's a non-capturing group (?:...) or other special groups (?=...), (?!...), etc.
                 if i + 1 < len(pattern) and pattern[i+1] == '?':
                     # Find the end of this non-capturing group and skip it
                     paren_count = 1
-                    j = i + 1
+                    j = i + 2  # Skip the '(' and '?'
                     while j < len(pattern) and paren_count > 0:
+                        # Handle escaped characters
                         if pattern[j] == '\\' and j + 1 < len(pattern):
                             j += 2
                             continue
@@ -421,9 +427,9 @@ class Regex(MacroSpec):
                 j = i + 1
 
                 while j < len(pattern) and paren_count > 0:
+                    # Handle escaped characters (skip both the backslash and the next character)
                     if pattern[j] == '\\' and j + 1 < len(pattern):
                         j += 2
-
                         continue
                     elif pattern[j] == '(':
                         paren_count += 1
@@ -432,6 +438,7 @@ class Regex(MacroSpec):
                     j += 1
 
                 if paren_count == 0:
+                    # Extract the group including the parentheses
                     group = pattern[start:j]
                     groups.append(group)
                 i = j
@@ -540,73 +547,97 @@ class Regex(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
         # Get the Single Table Name
         table_name: str = ",".join(str(rel) for rel in props.relation_name)
-        parseColumnsJson = json.dumps([
+        # Create JSON string - json.dumps() handles double quotes, but we need to escape
+        # single quotes for SQL string literals. The safe_str() function will handle this.
+        parse_columns_list = [
             {
                     "columnName": fld.columnName,
                     "dataType": fld.dataType,
                     "rgxExpression": fld.rgxExpression
                 }
                 for fld in props.parseColumns
-            ])
+            ]
 
+        def safe_str(val):
+            """
+            Safely convert a value to a SQL string literal, handling None and empty strings.
+            
+            For regex expressions: This escapes single quotes for the SQL string literal parameter.
+            The macro will then receive the unescaped value and escape it again via 
+            escape_regex_pattern() for use in the actual SQL query. This two-stage escaping
+            is correct and necessary.
+            
+            Note: Backslashes in regex expressions are NOT escaped here - they are preserved
+            as part of the regex pattern and will be handled by escape_regex_pattern() in the macro.
+            """
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, str):
+                # Escape single quotes for SQL string literals ('' represents a single quote in SQL)
+                # This is the first stage of escaping - for the macro parameter
+                escaped = val.replace("'", "''")
+                return f"'{escaped}'"
+            if isinstance(val, list):
+                return str(val)
+            return f"'{str(val)}'"
 
         parameter_list = [
-            table_name,
-            str(parseColumnsJson),
-            props.schema,
-            props.selectedColumnName,
-            props.regexExpression,
-            props.outputMethod,
-            props.caseInsensitive,
-            props.allowBlankTokens,
-            props.replacementText,
-            props.copyUnmatchedText,
-            props.tokenizeOutputMethod,
-            props.noOfColumns,
-            props.extraColumnsHandling,
-            props.outputRootName,
-            props.matchColumnName,
-            props.errorIfNotMatched,
+            safe_str(props.relation_name),
+            safe_str(parse_columns_list),
+            safe_str(props.schema),
+            safe_str(props.selectedColumnName),
+            safe_str(props.regexExpression),  # Regex expression - escaped for SQL string literal parameter
+            safe_str(props.outputMethod),
+            str(props.caseInsensitive).lower(),
+            str(props.allowBlankTokens).lower(),
+            safe_str(props.replacementText),
+            str(props.copyUnmatchedText).lower(),
+            safe_str(props.tokenizeOutputMethod),
+            str(props.noOfColumns),
+            safe_str(props.extraColumnsHandling),
+            safe_str(props.outputRootName),
+            safe_str(props.matchColumnName),
+            str(props.errorIfNotMatched).lower(),
         ]
-        param_list_clean = []
-        for p in parameter_list:
-            if type(p) == str:
-                param_list_clean.append("'" + p + "'")
-            else:
-                param_list_clean.append(str(p))
-        non_empty_param = ",".join([param for param in param_list_clean if param != ''])
+        # Join all parameters - don't filter out empty strings, use "''" instead
+        non_empty_param = ",".join(parameter_list)
         return f'{{{{ {resolved_macro_name}({non_empty_param}) }}}}'
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         parseColumns = []
-        parseCols = json.loads(parametersMap.get('parseColumns', []))
+        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
+        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
         for fld in parseCols:
-            parseColumns.append([
-                    ColumnParse(
-                        columnName = fldObj.get("columnName"),
-                        dataType = fldObj.get("dataType"),
-                        rgxExpression = fldObj.get("rgxExpression")
-                    )
-                ])
+            parseColumns.append(
+                ColumnParse(
+                    columnName=fld.get("columnName"),
+                    dataType=fld.get("dataType"),
+                    rgxExpression=fld.get("rgxExpression")
+                )
+            )
         return Regex.RegexProperties(
-            relation_name=parametersMap.get('relation_name'),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             parseColumns=parseColumns,
-            schema=parametersMap.get('schema'),
-            selectedColumnName=parametersMap.get('selectedColumnName'),
-            regexExpression=parametersMap.get('regexExpression'),
-            outputMethod=parametersMap.get('outputMethod'),
-            caseInsensitive=bool(parametersMap.get('caseInsensitive')),
-            allowBlankTokens=bool(parametersMap.get('allowBlankTokens')),
-            replacementText=parametersMap.get('replacementText'),
-            copyUnmatchedText=parametersMap.get('copyUnmatchedText'),
-            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod'),
+            schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
+            selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
+            regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
+            outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
+            caseInsensitive=parametersMap.get("caseInsensitive").lower()
+            == "true",
+            allowBlankTokens=parametersMap.get("allowBlankTokens").lower()
+            == "true",
+            replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
+            copyUnmatchedText=parametersMap.get("copyUnmatchedText").lower()
+            == "true",
+            tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
-            extraColumnsHandling=parametersMap.get('extraColumnsHandling'),
-            outputRootName=parametersMap.get('outputRootName'),
-            matchColumnName=parametersMap.get('matchColumnName'),
-            errorIfNotMatched=bool(parametersMap.get('errorIfNotMatched')),
+            extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
+            outputRootName=parametersMap.get('outputRootName').lstrip("'").rstrip("'"),
+            matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
+            errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -622,22 +653,22 @@ class Regex(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
-                MacroParameter("parseColumns", str(parseColumnsJsonList)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("parseColumns", parseColumnsJsonList),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),
                 MacroParameter("regexExpression", str(properties.regexExpression)),
-                MacroParameter("caseInsensitive", str(properties.caseInsensitive)),
+                MacroParameter("caseInsensitive", str(properties.caseInsensitive).lower()),
                 MacroParameter("replacementText", str(properties.replacementText)),
-                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText)),
+                MacroParameter("copyUnmatchedText", str(properties.copyUnmatchedText).lower()),
                 MacroParameter("tokenizeOutputMethod", str(properties.tokenizeOutputMethod)),
-                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens)),
+                MacroParameter("allowBlankTokens", str(properties.allowBlankTokens).lower()),
                 MacroParameter("noOfColumns", str(properties.noOfColumns)),
                 MacroParameter("extraColumnsHandling", str(properties.extraColumnsHandling)),
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
-                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched)),
+                MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
             ],
         )
 
@@ -653,4 +684,3 @@ class Regex(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
-

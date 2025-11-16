@@ -438,7 +438,6 @@ class FindDuplicates(MacroSpec):
 
     def apply(self, props: FindDuplicatesProperties) -> str:
         # generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         schema_columns = []
@@ -447,7 +446,7 @@ class FindDuplicates(MacroSpec):
             schema_columns.append(js["name"].lower())
 
         order_rules: List[dict] = [
-            {"expr": expr, "sort": r.sortType}
+            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
             for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty
@@ -461,7 +460,7 @@ class FindDuplicates(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             safe_str(props.groupByColumnNames),
             safe_str(props.column_group_rownum_condition),
             safe_str(props.output_type),
@@ -479,20 +478,21 @@ class FindDuplicates(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
         return FindDuplicates.FindDuplicatesProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
             ),
             column_group_rownum_condition=parametersMap.get(
                 "column_group_rownum_condition"
-            ),
-            grouped_count_rownum=parametersMap.get("grouped_count_rownum"),
-            lower_limit=parametersMap.get("lower_limit"),
-            upper_limit=parametersMap.get("upper_limit"),
-            output_type=parametersMap.get("output_type"),
-            generationMethod=parametersMap.get("generationMethod"),
+            ).lstrip("'").rstrip("'"),
+            grouped_count_rownum=parametersMap.get("grouped_count_rownum").lstrip("'").rstrip("'"),
+            lower_limit=parametersMap.get("lower_limit").lstrip("'").rstrip("'"),
+            upper_limit=parametersMap.get("upper_limit").lstrip("'").rstrip("'"),
+            output_type=parametersMap.get("output_type").lstrip("'").rstrip("'"),
+            generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
             orderByColumns=json.loads(
                 parametersMap.get("orderByColumns").replace("'", '"')
             ),
@@ -504,7 +504,7 @@ class FindDuplicates(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
@@ -521,7 +521,7 @@ class FindDuplicates(MacroSpec):
                 MacroParameter("output_type", str(properties.output_type)),
                 MacroParameter("generationMethod", str(properties.generationMethod)),
                 MacroParameter(
-                    "orderByColumns", json.dumps(properties.generationMethod)
+                    "orderByColumns", json.dumps(properties.orderByColumns)
                 ),
             ],
         )

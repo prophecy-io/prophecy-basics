@@ -1,11 +1,11 @@
-{% macro MultiColumnEdit(relation,
+{% macro MultiColumnEdit(relation_name,
     expressionToBeApplied,
     allColumnNames=[],
     columnNames=[],
     changeOutputFieldName=false,
     prefixSuffixOption = 'prefix / suffix',
     prefixSuffixToBeAdded='') -%}
-    {{ return(adapter.dispatch('MultiColumnEdit', 'prophecy_basics')(relation,
+    {{ return(adapter.dispatch('MultiColumnEdit', 'prophecy_basics')(relation_name,
     expressionToBeApplied,
     allColumnNames,
     columnNames,
@@ -16,7 +16,7 @@
 
 
 {%- macro default__MultiColumnEdit(
-    relation,
+    relation_name,
     expressionToBeApplied,
     allColumnNames=[],
     columnNames=[],
@@ -26,6 +26,7 @@
 ) -%}
 
     {%- set select_expressions = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if changeOutputFieldName -%}
         {%- for col in allColumnNames -%}
@@ -57,12 +58,12 @@
         {%- endfor -%}
     {%- endif -%}
 
-    select {{ select_expressions | join(',\n        ') }} from {{ relation }}
+    select {{ select_expressions | join(',\n        ') }} from {{ relation_list | join(', ') }}
 
 {%- endmacro -%}
 
 {%- macro duckdb__MultiColumnEdit(
-    relation,
+    relation_name,
     expressionToBeApplied,
     allColumnNames=[],
     columnNames=[],
@@ -72,6 +73,7 @@
 ) -%}
 
     {%- set select_expressions = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if changeOutputFieldName -%}
         {%- for col in allColumnNames -%}
@@ -102,6 +104,6 @@
         {%- endfor -%}
     {%- endif -%}
 
-    select {{ select_expressions | join(',\n        ') }} from {{ relation }}
+    select {{ select_expressions | join(',\n        ') }} from {{ relation_list | join(', ') }}
 
 {%- endmacro -%}

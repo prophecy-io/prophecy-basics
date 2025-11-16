@@ -646,7 +646,6 @@ class DataEncoderDecoder(MacroSpec):
 
     def apply(self, props: DataEncoderDecoderProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
         remaining_columns = ", ".join(
@@ -661,7 +660,7 @@ class DataEncoderDecoder(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             safe_str(props.column_names),
             safe_str(remaining_columns),
             safe_str(props.enc_dec_method),
@@ -685,24 +684,21 @@ class DataEncoderDecoder(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return DataEncoderDecoder.DataEncoderDecoderProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            enc_dec_method=parametersMap.get("enc_dec_method"),
-            enc_dec_charSet=parametersMap.get("enc_dec_charSet"),
-            aes_enc_dec_secretScope_key=parametersMap.get(
-                "aes_enc_dec_secretScope_key"
-            ),
-            aes_enc_dec_secretKey_key=parametersMap.get("aes_enc_dec_secretKey_key"),
-            aes_enc_dec_mode=parametersMap.get("aes_enc_dec_mode"),
-            aes_enc_dec_secretScope_aad=parametersMap.get(
-                "aes_enc_dec_secretScope_aad"
-            ),
-            aes_enc_dec_secretKey_aad=parametersMap.get("aes_enc_dec_secretKey_aad"),
-            aes_enc_dec_secretScope_iv=parametersMap.get("aes_enc_dec_secretScope_iv"),
-            aes_enc_dec_secretKey_iv=parametersMap.get("aes_enc_dec_secretKey_iv"),
+            enc_dec_method=parametersMap.get('enc_dec_method').lstrip("'").rstrip("'"),
+            enc_dec_charSet=parametersMap.get('enc_dec_charSet').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_key=parametersMap.get('aes_enc_dec_secretScope_key').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_key=parametersMap.get('aes_enc_dec_secretKey_key').lstrip("'").rstrip("'"),
+            aes_enc_dec_mode=parametersMap.get('aes_enc_dec_mode').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_aad=parametersMap.get('aes_enc_dec_secretScope_aad').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_aad=parametersMap.get('aes_enc_dec_secretKey_aad').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretScope_iv=parametersMap.get('aes_enc_dec_secretScope_iv').lstrip("'").rstrip("'"),
+            aes_enc_dec_secretKey_iv=parametersMap.get('aes_enc_dec_secretKey_iv').lstrip("'").rstrip("'"),
+
             prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
             new_column_add_method=parametersMap.get("new_column_add_method"),
             prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
@@ -714,7 +710,7 @@ class DataEncoderDecoder(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("enc_dec_method", str(properties.enc_dec_method)),
