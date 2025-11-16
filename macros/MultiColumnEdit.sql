@@ -80,19 +80,21 @@
         {%- endfor -%}
         {%- for col in columnNames -%}
             {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+            {%- set col_name_replacement = '"' ~ col ~ '"' -%}
             {%- if prefixSuffixOption | lower == "prefix" -%}
                 {%- set alias = prophecy_basics.quote_identifier(prefixSuffixToBeAdded ~ col) -%}
             {%- else -%}
                 {%- set alias = prophecy_basics.quote_identifier(col ~ prefixSuffixToBeAdded) -%}
             {%- endif -%}
-            {%- set expr = expressionToBeApplied | replace('column_value', quoted_col) | replace('column_name', quoted_col) -%}
+            {%- set expr = expressionToBeApplied | replace('column_value', quoted_col) | replace('column_name', col_name_replacement) -%}
             {%- do select_expressions.append(expr ~ ' as ' ~ alias) -%}
         {%- endfor -%}
     {%- else -%}
         {%- for col in allColumnNames -%}
             {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+            {%- set col_name_replacement = '"' ~ col ~ '"' -%}
             {%- if col in columnNames -%}
-                {%- set expr = expressionToBeApplied | replace('column_value', quoted_col) | replace('column_name', quoted_col) -%}
+                {%- set expr = expressionToBeApplied | replace('column_value', quoted_col) | replace('column_name', col_name_replacement) -%}
                 {%- do select_expressions.append(expr ~ ' as ' ~ quoted_col) -%}
             {%- else -%}
                 {%- do select_expressions.append(quoted_col) -%}
