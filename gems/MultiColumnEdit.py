@@ -314,7 +314,7 @@ class MultiColumnEdit(MacroSpec):
         add_cols = []
         selected_cols: SubstituteDisabled = self.props.columnNames
         change_field_name_flag: SubstituteDisabled = self.props.changeOutputFieldName
-        expression_template: SubstituteDisabled = self.props.expressionToBeApplied
+        expression_template = self.props.expressionToBeApplied
         prefix_suffix: SubstituteDisabled = self.props.prefixSuffixOption
         prefix_suffix_value: SubstituteDisabled = self.props.prefixSuffixToBeAdded
 
