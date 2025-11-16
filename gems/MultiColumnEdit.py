@@ -97,7 +97,6 @@ class MultiColumnEdit(MacroSpec):
                                             "85%",
                                         )
                                     )
-                                    .addColumn()
                                 )
                             )
                         )
