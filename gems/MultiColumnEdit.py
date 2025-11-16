@@ -325,9 +325,11 @@ class MultiColumnEdit(MacroSpec):
                 expression = "1"
                 if change_field_name_flag:
                     if prefix_suffix == "Prefix":
-                        add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
+                        # add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
+                        pass
                     else:
-                        add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
+                        # add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
+                        pass
                     new_cols.append(col_name)
                 else:
                     new_cols.append(expr(expression).alias(col_name))
