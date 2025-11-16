@@ -568,7 +568,7 @@ class FindDuplicates(MacroSpec):
                 col("temp_row_number") > 1).drop("temp_row_number")
         elif self.props.output_type == "custom_group_count":
             cond = self.props.column_group_rownum_condition
-            res = in0.withColumn("temp_row_count", count().over(window_count))
+            res = in0.withColumn("temp_row_count", count(lit(1)).over(window_count))
             if cond == "between":
                 res = res.filter(
                     col("temp_row_count").between(int(self.props.lower_limit), int(self.props.upper_limit))).drop(
