@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import expr, lit
 
 
 class DynamicSelect(MacroSpec):
