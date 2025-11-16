@@ -315,21 +315,19 @@ class MultiColumnEdit(MacroSpec):
         selected_cols: SubstituteDisabled = self.props.columnNames
         change_field_name_flag: SubstituteDisabled = self.props.changeOutputFieldName
         expression_template = self.props.expressionToBeApplied
-        prefix_suffix: SubstituteDisabled = self.props.prefixSuffixOption
-        prefix_suffix_value: SubstituteDisabled = self.props.prefixSuffixToBeAdded
+        prefix_suffix = self.props.prefixSuffixOption
+        prefix_suffix_value = self.props.prefixSuffixToBeAdded
 
         for col_name in in0.columns:
             if col_name in selected_cols:
                 expression = expression_template.replace("column_value", "`" + col_name + "`").replace("column_name",
                                                                                                        "'" + col_name + "'")
                 if change_field_name_flag:
-                    # if prefix_suffix == "Prefix":
-                    #     # add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
-                    #     pass
-                    # else:
-                    #     # add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
-                    #     pass
-                    # new_cols.append(col_name)
+                    if prefix_suffix == "Prefix":
+                        add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
+                    else:
+                        add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
+                    new_cols.append(col_name)
                     pass
                 else:
                     new_cols.append(expr(expression).alias(col_name))
