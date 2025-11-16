@@ -320,9 +320,8 @@ class MultiColumnEdit(MacroSpec):
 
         for col_name in in0.columns:
             if col_name in selected_cols:
-                # expression = expression_template.replace("column_value", "`" + col_name + "`").replace("column_name",
-                #                                                                                        "'" + col_name + "'")
-                expression = "1"
+                expression = expression_template.replace("column_value", "`" + col_name + "`").replace("column_name",
+                                                                                                       "'" + col_name + "'")
                 if change_field_name_flag:
                     # if prefix_suffix == "Prefix":
                     #     # add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
