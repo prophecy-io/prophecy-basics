@@ -312,7 +312,7 @@ class MultiColumnEdit(MacroSpec):
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         new_cols = []
         add_cols = []
-        selected_cols: SubstituteDisabled = self.props.columnNames
+        selected_cols = self.props.columnNames
         change_field_name_flag: SubstituteDisabled = self.props.changeOutputFieldName
         expression_template = self.props.expressionToBeApplied
         prefix_suffix = self.props.prefixSuffixOption
