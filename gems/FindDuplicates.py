@@ -547,10 +547,11 @@ class FindDuplicates(MacroSpec):
             group_cols = self.props.groupByColumnNames
             order_rules = self.props.orderByColumns
             order_cols = map(lambda x:
-                             x.expression.column().asc() if (
-                                     x.sortType == "asc") else x.expression.column().asc_nulls_last()
-                             if (x.sortType == "asc_nulls_last") else x.expression.column().desc_nulls_first() if (
-                                     x.sortType == "desc_nulls_first") else x.expression.column().desc(),
+                             expr(x.expression.expression).asc() if (
+                                     x.sortType == "asc") else expr(x.expression.expression).asc_nulls_last()
+                             if (x.sortType == "asc_nulls_last") else expr(
+                                 x.expression.expression).desc_nulls_first() if (
+                                     x.sortType == "desc_nulls_first") else expr(x.expression.expression).desc(),
                              order_rules) if len(order_rules) > 0 else [lit(1)]
         else:
             group_cols = in0.columns
