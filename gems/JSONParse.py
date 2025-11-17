@@ -291,7 +291,7 @@ class JSONParse(MacroSpec):
                 alias_col = f"`{self.props.columnName}_parsed`"
                 res = in0.selectExpr(
                     "*",
-                    f"from_xml({quoted_col}, '{schema_str}') as {alias_col}"
+                    f"from_json({quoted_col}, '{schema_str}') as {alias_col}"
                 )
 
         elif self.props.parsingMethod == "parseFromSampleRecord":
@@ -304,7 +304,7 @@ class JSONParse(MacroSpec):
                 alias_col = f"`{self.props.columnName}_parsed`"
                 res = in0.selectExpr(
                     "*",
-                    f"from_xml({quoted_col}, schema_of_xml('{sample_str_escaped}')) as {alias_col}"
+                    f"from_json({quoted_col}, schema_of_json('{sample_str_escaped}')) as {alias_col}"
                 )
         else:
             res = in0
