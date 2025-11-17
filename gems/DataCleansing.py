@@ -466,10 +466,6 @@ class DataCleansing(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        """
-        Apply data cleansing transformations based on component properties.
-        Handles null replacement, whitespace trimming, character cleaning, and case modification.
-        """
         remove_row_null_all_cols = self.props.removeRowNullAllCols
         cleansing_columns = self.props.columnNames
         replace_null_text_fields = self.props.replaceNullTextFields
