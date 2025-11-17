@@ -362,46 +362,46 @@ class DynamicSelect(MacroSpec):
             structTypeChecked = self.props.structTypeChecked
 
 
-            for col, dtype in dtypes_dict.items():
+            for col_name, col_dtype in dtypes_dict.items():
                 if strTypeChecked:
-                    if dtype == type_mapping['strTypeChecked']:
-                        desired_cols.append(col)
-                elif intTypeChecked:
-                    if dtype == type_mapping['intTypeChecked']:
-                        desired_cols.append(col)
-                elif boolTypeChecked:
-                    if dtype == type_mapping['boolTypeChecked']:
-                        desired_cols.append(col)
-                elif shortTypeChecked:
-                    if dtype == type_mapping['shortTypeChecked']:
-                        desired_cols.append(col)
-                elif byteTypeChecked:
-                    if dtype == type_mapping['byteTypeChecked']:
-                        desired_cols.append(col)
-                elif longTypeChecked:
-                    if dtype == type_mapping['longTypeChecked']:
-                        desired_cols.append(col)
-                elif floatTypeChecked:
-                    if dtype == type_mapping['floatTypeChecked']:
-                        desired_cols.append(col)
-                elif doubleTypeChecked:
-                    if dtype == type_mapping['doubleTypeChecked']:
-                        desired_cols.append(col)
-                elif decimalTypeChecked:
-                    if type_mapping['decimalTypeChecked'] in dtype:
-                        desired_cols.append(col)
-                elif binaryTypeChecked:
-                    if dtype == type_mapping['binaryTypeChecked']:
-                        desired_cols.append(col)
-                elif dateTypeChecked:
-                    if dtype == type_mapping['dateTypeChecked']:
-                        desired_cols.append(col)
-                elif timestampTypeChecked:
-                    if dtype == type_mapping['timestampTypeChecked']:
-                        desired_cols.append(col)
-                elif structTypeChecked:
-                    if type_mapping['structTypeChecked'] in dtype:
-                        desired_cols.append(col)
+                    if col_dtype == type_mapping['strTypeChecked']:
+                        desired_cols.append(col_name)
+                if intTypeChecked:
+                    if col_dtype == type_mapping['intTypeChecked']:
+                        desired_cols.append(col_name)
+                if boolTypeChecked:
+                    if col_dtype == type_mapping['boolTypeChecked']:
+                        desired_cols.append(col_name)
+                if shortTypeChecked:
+                    if col_dtype == type_mapping['shortTypeChecked']:
+                        desired_cols.append(col_name)
+                if byteTypeChecked:
+                    if col_dtype == type_mapping['byteTypeChecked']:
+                        desired_cols.append(col_name)
+                if longTypeChecked:
+                    if col_dtype == type_mapping['longTypeChecked']:
+                        desired_cols.append(col_name)
+                if floatTypeChecked:
+                    if col_dtype == type_mapping['floatTypeChecked']:
+                        desired_cols.append(col_name)
+                if doubleTypeChecked:
+                    if col_dtype == type_mapping['doubleTypeChecked']:
+                        desired_cols.append(col_name)
+                if decimalTypeChecked:
+                    if type_mapping['decimalTypeChecked'] in col_dtype:
+                        desired_cols.append(col_name)
+                if binaryTypeChecked:
+                    if col_dtype == type_mapping['binaryTypeChecked']:
+                        desired_cols.append(col_name)
+                if dateTypeChecked:
+                    if col_dtype == type_mapping['dateTypeChecked']:
+                        desired_cols.append(col_name)
+                if timestampTypeChecked:
+                    if col_dtype == type_mapping['timestampTypeChecked']:
+                        desired_cols.append(col_name)
+                if structTypeChecked:
+                    if type_mapping['structTypeChecked'] in col_dtype:
+                        desired_cols.append(col_name)
                 else:
                     pass
             res = in0.select(*desired_cols)
