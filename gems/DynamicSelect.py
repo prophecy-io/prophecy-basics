@@ -335,9 +335,9 @@ class DynamicSelect(MacroSpec):
                 'strTypeChecked': "string",
                 'intTypeChecked': "int",
                 'boolTypeChecked': "boolean",
-                'shortTypeChecked': "short",
+                'shortTypeChecked': "smallint",
                 'byteTypeChecked': "byte",
-                'longTypeChecked': "long",
+                'longTypeChecked': "bigint",
                 'floatTypeChecked': "float",
                 'doubleTypeChecked': "double",
                 'decimalTypeChecked': "decimal",
@@ -404,7 +404,7 @@ class DynamicSelect(MacroSpec):
                         desired_cols.append(col)
                 else:
                     pass
-                res = in0.select(*desired_cols)
+            res = in0.select(*desired_cols)
 
         else:
             columns_df: SubstituteDisabled = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
