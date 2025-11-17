@@ -3,6 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import expr, lit
 
 
 class DynamicSelect(MacroSpec):
@@ -19,9 +21,7 @@ class DynamicSelect(MacroSpec):
 
     @dataclass(frozen=True)
     class DynamicSelectProperties(MacroProperties):
-        # properties for the component with default values
         selectUsing: str = "SELECT_FIELD_TYPES"
-        # DATA TYPES
         boolTypeChecked: bool = False
         strTypeChecked: bool = False
         intTypeChecked: bool = False
@@ -38,7 +38,6 @@ class DynamicSelect(MacroSpec):
         schema: str = ""
         relation_name: List[str] = field(default_factory=list)
         targetTypes: str = ""
-        # custom expression
         customExpression: str = ""
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -146,19 +145,19 @@ class DynamicSelect(MacroSpec):
         # Validate the component's state
         diagnostics = super(DynamicSelect, self).validate(context, component)
         if component.properties.selectUsing == "SELECT_FIELD_TYPES" and not (
-            component.properties.boolTypeChecked
-            or component.properties.strTypeChecked
-            or component.properties.intTypeChecked
-            or component.properties.shortTypeChecked
-            or component.properties.byteTypeChecked
-            or component.properties.longTypeChecked
-            or component.properties.floatTypeChecked
-            or component.properties.doubleTypeChecked
-            or component.properties.decimalTypeChecked
-            or component.properties.binaryTypeChecked
-            or component.properties.dateTypeChecked
-            or component.properties.timestampTypeChecked
-            or component.properties.structTypeChecked
+                component.properties.boolTypeChecked
+                or component.properties.strTypeChecked
+                or component.properties.intTypeChecked
+                or component.properties.shortTypeChecked
+                or component.properties.byteTypeChecked
+                or component.properties.longTypeChecked
+                or component.properties.floatTypeChecked
+                or component.properties.doubleTypeChecked
+                or component.properties.decimalTypeChecked
+                or component.properties.binaryTypeChecked
+                or component.properties.dateTypeChecked
+                or component.properties.timestampTypeChecked
+                or component.properties.structTypeChecked
         ):
             diagnostics.append(
                 Diagnostic(
@@ -181,7 +180,7 @@ class DynamicSelect(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         target_types = []
@@ -238,7 +237,7 @@ class DynamicSelect(MacroSpec):
             props.targetTypes,
             "'" + props.selectUsing + "'",
             '"' + props.customExpression + '"',
-        ]
+            ]
         params = ",".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
@@ -326,3 +325,93 @@ class DynamicSelect(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+
+        if self.props.selectUsing == "SELECT_FIELD_TYPES":
+            dtypes_dict = dict(in0.dtypes)
+            desired_cols = []
+            type_mapping = {
+                'strTypeChecked': "string",
+                'intTypeChecked': "int",
+                'boolTypeChecked': "boolean",
+                'shortTypeChecked': "short",
+                'byteTypeChecked': "byte",
+                'longTypeChecked': "long",
+                'floatTypeChecked': "float",
+                'doubleTypeChecked': "double",
+                'decimalTypeChecked': "decimal",
+                'binaryTypeChecked': "binary",
+                'dateTypeChecked': "date",
+                'timestampTypeChecked': "timestamp",
+                'structTypeChecked': "struct"
+            }
+
+            strTypeChecked = self.props.strTypeChecked
+            intTypeChecked = self.props.intTypeChecked
+            boolTypeChecked = self.props.boolTypeChecked
+            shortTypeChecked = self.props.shortTypeChecked
+            byteTypeChecked = self.props.byteTypeChecked
+            longTypeChecked = self.props.longTypeChecked
+            floatTypeChecked = self.props.floatTypeChecked
+            doubleTypeChecked = self.props.doubleTypeChecked
+            decimalTypeChecked = self.props.decimalTypeChecked
+            binaryTypeChecked = self.props.binaryTypeChecked
+            dateTypeChecked = self.props.dateTypeChecked
+            timestampTypeChecked = self.props.timestampTypeChecked
+            structTypeChecked = self.props.structTypeChecked
+
+
+            for col, dtype in dtypes_dict.items():
+                if strTypeChecked:
+                    if dtype == type_mapping['strTypeChecked']:
+                        desired_cols.append(col)
+                elif intTypeChecked:
+                    if dtype == type_mapping['intTypeChecked']:
+                        desired_cols.append(col)
+                elif boolTypeChecked:
+                    if dtype == type_mapping['boolTypeChecked']:
+                        desired_cols.append(col)
+                elif shortTypeChecked:
+                    if dtype == type_mapping['shortTypeChecked']:
+                        desired_cols.append(col)
+                elif byteTypeChecked:
+                    if dtype == type_mapping['byteTypeChecked']:
+                        desired_cols.append(col)
+                elif longTypeChecked:
+                    if dtype == type_mapping['longTypeChecked']:
+                        desired_cols.append(col)
+                elif floatTypeChecked:
+                    if dtype == type_mapping['floatTypeChecked']:
+                        desired_cols.append(col)
+                elif doubleTypeChecked:
+                    if dtype == type_mapping['doubleTypeChecked']:
+                        desired_cols.append(col)
+                elif decimalTypeChecked:
+                    if type_mapping['decimalTypeChecked'] in dtype:
+                        desired_cols.append(col)
+                elif binaryTypeChecked:
+                    if dtype == type_mapping['binaryTypeChecked']:
+                        desired_cols.append(col)
+                elif dateTypeChecked:
+                    if dtype == type_mapping['dateTypeChecked']:
+                        desired_cols.append(col)
+                elif timestampTypeChecked:
+                    if dtype == type_mapping['timestampTypeChecked']:
+                        desired_cols.append(col)
+                elif structTypeChecked:
+                    if type_mapping['structTypeChecked'] in dtype:
+                        desired_cols.append(col)
+                else:
+                    pass
+                res = in0.select(*desired_cols)
+
+        else:
+            columns_df = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
+
+            columns_df = columns_df.withColumn("value", expr(self.props.customExpression))
+
+            column_output_df = columns_df.filter(col("value") == lit(True))
+            desired_cols = [ x[0] for x in column_output_df.collect()]
+            res = in0.select(*desired_cols)
+        return res
