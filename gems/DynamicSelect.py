@@ -344,7 +344,7 @@ class DynamicSelect(MacroSpec):
             timestampTypeChecked= self.props.timestampTypeChecked
             structTypeChecked   = self.props.structTypeChecked
 
-            type_mapping = [
+            type_mapping: SubstituteDisabled = [
                 (strTypeChecked,       "string",    False),
                 (intTypeChecked,       "int",       False),
                 (boolTypeChecked,      "boolean",   False),
