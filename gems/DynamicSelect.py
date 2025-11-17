@@ -3,8 +3,6 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import expr, lit
 
 
 class DynamicSelect(MacroSpec):
@@ -328,77 +326,3 @@ class DynamicSelect(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
-
-    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        
-        if self.props.selectUsing == "SELECT_FIELD_TYPES":
-            dtypes_dict = dict(in0.dtypes)
-            desired_cols = []
-            type_mapping = {
-                'strTypeChecked': "string",
-                'intTypeChecked': "int",
-                'boolTypeChecked': "boolean",
-                'shortTypeChecked': "short",
-                'byteTypeChecked': "byte",
-                'longTypeChecked': "long",
-                'floatTypeChecked': "float",
-                'doubleTypeChecked': "double",
-                'decimalTypeChecked': "decimal",
-                'binaryTypeChecked': "binary",
-                'dateTypeChecked': "date",
-                'timestampTypeChecked': "timestamp",
-                'structTypeChecked': "struct"
-            }
-            for col, dtype in dtypes_dict.items():
-                if self.props.strTypeChecked:
-                    if dtype == type_mapping['strTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.intTypeChecked:
-                    if dtype == type_mapping['intTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.boolTypeChecked:
-                    if dtype == type_mapping['boolTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.shortTypeChecked:
-                    if dtype == type_mapping['shortTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.byteTypeChecked:
-                    if dtype == type_mapping['byteTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.longTypeChecked:
-                    if dtype == type_mapping['longTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.floatTypeChecked:
-                    if dtype == type_mapping['floatTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.doubleTypeChecked:
-                    if dtype == type_mapping['doubleTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.decimalTypeChecked:
-                    if type_mapping['decimalTypeChecked'] in dtype:
-                        desired_cols.append(col)
-                elif self.props.binaryTypeChecked:
-                    if dtype == type_mapping['binaryTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.dateTypeChecked:
-                    if dtype == type_mapping['dateTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.timestampTypeChecked:
-                    if dtype == type_mapping['timestampTypeChecked']:
-                        desired_cols.append(col)
-                elif self.props.structTypeChecked:
-                    if type_mapping['structTypeChecked'] in dtype:
-                        desired_cols.append(col)
-                else:
-                    pass
-                res = in0.select(*desired_cols)
-
-        else:
-            columns_df = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
-
-            columns_df = columns_df.withColumn("value", expr(self.props.customExpression))
-            
-            column_output_df = columns_df.filter(col("value") == lit(True))
-            desired_cols = [ x[0] for x in column_output_df.colect()]
-            res = in0.select(*desired_cols)
-        return res
