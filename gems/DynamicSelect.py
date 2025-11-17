@@ -330,80 +330,47 @@ class DynamicSelect(MacroSpec):
 
         if self.props.selectUsing == "SELECT_FIELD_TYPES":
             dtypes_dict = dict(in0.dtypes)
-            desired_cols = []
-            type_mapping = {
-                'strTypeChecked': "string",
-                'intTypeChecked': "int",
-                'boolTypeChecked': "boolean",
-                'shortTypeChecked': "smallint",
-                'byteTypeChecked': "byte",
-                'longTypeChecked': "bigint",
-                'floatTypeChecked': "float",
-                'doubleTypeChecked': "double",
-                'decimalTypeChecked': "decimal",
-                'binaryTypeChecked': "binary",
-                'dateTypeChecked': "date",
-                'timestampTypeChecked': "timestamp",
-                'structTypeChecked': "struct"
-            }
+            strTypeChecked      = self.props.strTypeChecked
+            intTypeChecked      = self.props.intTypeChecked
+            boolTypeChecked     = self.props.boolTypeChecked
+            shortTypeChecked    = self.props.shortTypeChecked
+            byteTypeChecked     = self.props.byteTypeChecked
+            longTypeChecked     = self.props.longTypeChecked
+            floatTypeChecked    = self.props.floatTypeChecked
+            doubleTypeChecked   = self.props.doubleTypeChecked
+            decimalTypeChecked  = self.props.decimalTypeChecked
+            binaryTypeChecked   = self.props.binaryTypeChecked
+            dateTypeChecked     = self.props.dateTypeChecked
+            timestampTypeChecked= self.props.timestampTypeChecked
+            structTypeChecked   = self.props.structTypeChecked
 
-            strTypeChecked = self.props.strTypeChecked
-            intTypeChecked = self.props.intTypeChecked
-            boolTypeChecked = self.props.boolTypeChecked
-            shortTypeChecked = self.props.shortTypeChecked
-            byteTypeChecked = self.props.byteTypeChecked
-            longTypeChecked = self.props.longTypeChecked
-            floatTypeChecked = self.props.floatTypeChecked
-            doubleTypeChecked = self.props.doubleTypeChecked
-            decimalTypeChecked = self.props.decimalTypeChecked
-            binaryTypeChecked = self.props.binaryTypeChecked
-            dateTypeChecked = self.props.dateTypeChecked
-            timestampTypeChecked = self.props.timestampTypeChecked
-            structTypeChecked = self.props.structTypeChecked
+            type_mapping = [
+                (strTypeChecked,       "string",    False),
+                (intTypeChecked,       "int",       False),
+                (boolTypeChecked,      "boolean",   False),
+                (shortTypeChecked,     "smallint",  False),
+                (byteTypeChecked,      "byte",      False),
+                (longTypeChecked,      "bigint",    False),
+                (floatTypeChecked,     "float",     False),
+                (doubleTypeChecked,    "double",    False),
+                (decimalTypeChecked,   "decimal",   True),   # substring
+                (binaryTypeChecked,    "binary",    False),
+                (dateTypeChecked,      "date",      False),
+                (timestampTypeChecked, "timestamp", False),
+                (structTypeChecked,    "struct",    True)    # substring
+            ]
 
+            # Build list of enabled types
+            enabled = [(dtype, partial) for flag, dtype, partial in type_mapping if flag]
 
-            for col_name, col_dtype in dtypes_dict.items():
-                if strTypeChecked:
-                    if col_dtype == type_mapping['strTypeChecked']:
-                        desired_cols.append(col_name)
-                if intTypeChecked:
-                    if col_dtype == type_mapping['intTypeChecked']:
-                        desired_cols.append(col_name)
-                if boolTypeChecked:
-                    if col_dtype == type_mapping['boolTypeChecked']:
-                        desired_cols.append(col_name)
-                if shortTypeChecked:
-                    if col_dtype == type_mapping['shortTypeChecked']:
-                        desired_cols.append(col_name)
-                if byteTypeChecked:
-                    if col_dtype == type_mapping['byteTypeChecked']:
-                        desired_cols.append(col_name)
-                if longTypeChecked:
-                    if col_dtype == type_mapping['longTypeChecked']:
-                        desired_cols.append(col_name)
-                if floatTypeChecked:
-                    if col_dtype == type_mapping['floatTypeChecked']:
-                        desired_cols.append(col_name)
-                if doubleTypeChecked:
-                    if col_dtype == type_mapping['doubleTypeChecked']:
-                        desired_cols.append(col_name)
-                if decimalTypeChecked:
-                    if type_mapping['decimalTypeChecked'] in col_dtype:
-                        desired_cols.append(col_name)
-                if binaryTypeChecked:
-                    if col_dtype == type_mapping['binaryTypeChecked']:
-                        desired_cols.append(col_name)
-                if dateTypeChecked:
-                    if col_dtype == type_mapping['dateTypeChecked']:
-                        desired_cols.append(col_name)
-                if timestampTypeChecked:
-                    if col_dtype == type_mapping['timestampTypeChecked']:
-                        desired_cols.append(col_name)
-                if structTypeChecked:
-                    if type_mapping['structTypeChecked'] in col_dtype:
-                        desired_cols.append(col_name)
-                else:
-                    pass
+            # Select columns matching enabled types
+            desired_cols = [
+                col_name
+                for col_name, col_dtype in dtypes_dict.items()
+                for dtype, partial in enabled
+                if (dtype in col_dtype if partial else col_dtype == dtype)
+            ]
+
             res = in0.select(*desired_cols)
 
         else:
