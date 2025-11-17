@@ -283,7 +283,7 @@ class JSONParse(MacroSpec):
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         if self.props.parsingMethod == "parseFromSchema":
-            if not self.props.sampleSchema or self.props.sampleSchema.strip() == "":
+            if not self.props.sampleSchema or self.props.sampleSchema == "":
                 res = in0
             else:
                 schema_str = self.props.sampleSchema.replace("\n", " ").strip()
@@ -295,7 +295,7 @@ class JSONParse(MacroSpec):
                 )
 
         elif self.props.parsingMethod == "parseFromSampleRecord":
-            if not self.props.sampleRecord or self.props.sampleRecord.strip() == "":
+            if not self.props.sampleRecord or self.props.sampleRecord == "":
                 res = in0
             else:
                 sample_str = self.props.sampleRecord.replace("\n", " ").strip()
