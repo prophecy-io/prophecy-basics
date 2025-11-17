@@ -1,10 +1,8 @@
 import json
-from dataclasses import dataclass
 
-from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 
 
@@ -293,7 +291,7 @@ class JSONParse(MacroSpec):
                 alias_col = f"`{self.props.columnName}_parsed`"
                 res = in0.selectExpr(
                     "*",
-                    f"from_json({quoted_col}, '{schema_str}') as {alias_col}"
+                    f"from_xml({quoted_col}, '{schema_str}') as {alias_col}"
                 )
 
         elif self.props.parsingMethod == "parseFromSampleRecord":
@@ -306,7 +304,7 @@ class JSONParse(MacroSpec):
                 alias_col = f"`{self.props.columnName}_parsed`"
                 res = in0.selectExpr(
                     "*",
-                    f"from_json({quoted_col}, schema_of_json('{sample_str_escaped}')) as {alias_col}"
+                    f"from_xml({quoted_col}, schema_of_xml('{sample_str_escaped}')) as {alias_col}"
                 )
         else:
             res = in0
