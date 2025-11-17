@@ -306,3 +306,5 @@ class XMLParse(MacroSpec):
                 )
         else:
             res = in0
+
+        return res
