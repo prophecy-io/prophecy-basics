@@ -360,10 +360,8 @@ class DynamicSelect(MacroSpec):
                 (structTypeChecked,    "struct",    True)    # substring
             ]
 
-            # Build list of enabled types
             enabled = [(dtype, partial) for flag, dtype, partial in type_mapping if flag]
 
-            # Select columns matching enabled types
             desired_cols = [
                 col_name
                 for col_name, col_dtype in dtypes_dict.items()
