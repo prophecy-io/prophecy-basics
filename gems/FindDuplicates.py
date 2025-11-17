@@ -3,6 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, Window, DataFrame
+from pyspark.sql.functions import row_number, count, lit, expr
 
 
 @dataclass(frozen=True)
@@ -334,8 +336,8 @@ class FindDuplicates(MacroSpec):
                         )
                     )
         if component.properties.output_type in (
-            "custom_group_count",
-            "custom_row_number",
+                "custom_group_count",
+                "custom_row_number",
         ):
             if component.properties.column_group_rownum_condition == "":
                 diagnostics.append(
@@ -363,10 +365,10 @@ class FindDuplicates(MacroSpec):
                         )
                     )
                 if (
-                    (component.properties.upper_limit).isdigit()
-                    and (component.properties.lower_limit).isdigit()
-                    and int(component.properties.upper_limit)
-                    < int(component.properties.lower_limit)
+                        (component.properties.upper_limit).isdigit()
+                        and (component.properties.lower_limit).isdigit()
+                        and int(component.properties.upper_limit)
+                        < int(component.properties.lower_limit)
                 ):
                     diagnostics.append(
                         Diagnostic(
@@ -417,7 +419,7 @@ class FindDuplicates(MacroSpec):
         return relation_name
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
@@ -538,3 +540,67 @@ class FindDuplicates(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+
+        if self.props.generationMethod == "selectedCols":
+            group_cols = self.props.groupByColumnNames
+            order_rules = self.props.orderByColumns
+            order_cols = map(lambda x:
+                             expr(x.expression.expression).asc() if (
+                                     x.sortType == "asc") else expr(x.expression.expression).asc_nulls_last()
+                             if (x.sortType == "asc_nulls_last") else expr(
+                                 x.expression.expression).desc_nulls_first() if (
+                                     x.sortType == "desc_nulls_first") else expr(x.expression.expression).desc(),
+                             order_rules) if len(order_rules) > 0 else [lit(1)]
+        else:
+            group_cols = in0.columns
+            order_cols = [lit(1)]
+
+        window_rownum = Window.partitionBy(*group_cols).orderBy(*order_cols)
+        window_count = Window.partitionBy(*group_cols)
+
+        if self.props.output_type == "unique":
+            res = in0.withColumn("temp_row_number", row_number().over(window_rownum)).filter(
+                col("temp_row_number") == 1).drop("temp_row_number")
+        elif self.props.output_type == "duplicate":
+            res = in0.withColumn("temp_row_number", row_number().over(window_rownum)).filter(
+                col("temp_row_number") > 1).drop("temp_row_number")
+        elif self.props.output_type == "custom_group_count":
+            cond = self.props.column_group_rownum_condition
+            res = in0.withColumn("temp_row_count", count(lit(1)).over(window_count))
+            if cond == "between":
+                res = res.filter(
+                    col("temp_row_count").between(int(self.props.lower_limit), int(self.props.upper_limit))).drop(
+                    "temp_row_count")
+            elif cond == "equal_to":
+                res = res.filter(col("temp_row_count") == int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "not_equal_to":
+                res = res.filter(col("temp_row_count") != int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "less_than":
+                res = res.filter(col("temp_row_count") < int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "greater_than":
+                res = res.filter(col("temp_row_count") > int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            else:
+                res = res.drop("temp_row_count")
+        elif self.props.output_type == "custom_row_number":
+            cond = self.props.column_group_rownum_condition
+            res = in0.withColumn("temp_row_num", row_number().over(window_rownum))
+            if cond == "between":
+                res = res.filter(
+                    col("temp_row_num").between(int(self.props.lower_limit), int(self.props.upper_limit))).drop(
+                    "temp_row_num")
+            elif cond == "equal_to":
+                res = res.filter(col("temp_row_num") == int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "not_equal_to":
+                res = res.filter(col("temp_row_num") != int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "less_than":
+                res = res.filter(col("temp_row_num") < int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "greater_than":
+                res = res.filter(col("temp_row_num") > int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            else:
+                res = res.drop("temp_row_num")
+        else:
+            res = in0
+
+        return res

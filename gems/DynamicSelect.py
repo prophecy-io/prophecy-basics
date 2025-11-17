@@ -1,8 +1,6 @@
 import dataclasses
 import json
-from dataclasses import dataclass
 
-from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -68,7 +66,7 @@ class DynamicSelect(MacroSpec):
             .addColumn(Ports(), "content")
             .addColumn(VerticalDivider(), width="content")
             .addColumn(
-                StackLayout(gap=("1rem"), width="50%", height=("100%"))
+                StackLayout(gap=("1rem"), height=("100%"))
                 .addElement(
                     StepContainer().addElement(
                         Step().addElement(

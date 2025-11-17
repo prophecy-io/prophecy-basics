@@ -2,9 +2,13 @@ import dataclasses
 import json
 from dataclasses import dataclass
 
+from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+
+from pyspark.sql import DataFrame, SparkSession, Column
+from pyspark.sql.functions import expr, col
 
 
 class MultiColumnRename(MacroSpec):
@@ -196,8 +200,8 @@ class MultiColumnRename(MacroSpec):
             )
 
         if component.properties.renameMethod == "editPrefixSuffix" and (
-            len(component.properties.editType) == 0
-            or len(component.properties.editWith) == 0
+                len(component.properties.editType) == 0
+                or len(component.properties.editWith) == 0
         ):
             diagnostics.append(
                 Diagnostic(
@@ -208,8 +212,8 @@ class MultiColumnRename(MacroSpec):
             )
 
         if (
-            component.properties.renameMethod == "advancedRename"
-            and len(component.properties.customExpression) == 0
+                component.properties.renameMethod == "advancedRename"
+                and len(component.properties.customExpression) == 0
         ):
             diagnostics.append(
                 Diagnostic(
@@ -237,7 +241,7 @@ class MultiColumnRename(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
@@ -269,7 +273,7 @@ class MultiColumnRename(MacroSpec):
             "'" + str(props.editType) + "'",
             "'" + str(props.editWith) + "'",
             '"' + str(props.customExpression) + '"',
-        ]
+            ]
         params = ",".join([param for param in arguments])
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
@@ -318,3 +322,34 @@ class MultiColumnRename(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        new_cols = []
+        selected_cols: SubstituteDisabled = self.props.columnNames
+        if self.props.renameMethod == "editPrefixSuffix":
+            edit_str = self.props.editWith
+            edit_type = self.props.editType
+            for col_name in in0.columns:
+                if col_name in selected_cols:
+                    if edit_type == "Prefix":
+                        new_cols.append(col(col_name).alias(edit_str + col_name))
+                    elif edit_type == "Suffix":
+                        new_cols.append(col(col_name).alias(col_name + edit_str))
+                    else:
+                        new_cols.append(col(col_name))
+                else:
+                    new_cols.append(col(col_name))
+        else:
+            columns_df = spark.createDataFrame([(c,) for c in selected_cols], ["column_name"])
+
+            columns_df = columns_df.withColumn("value", expr(self.props.customExpression))
+
+            col_dict = {row["column_name"]: row["value"] for row in columns_df.collect()}
+
+            for col_name in in0.columns:
+                if col_name in col_dict.keys():
+                    new_cols.append(col(col_name).alias(col_dict[col_name]))
+                else:
+                    new_cols.append(col(col_name))
+
+        return in0.select(*new_cols)
