@@ -407,11 +407,9 @@ class DynamicSelect(MacroSpec):
                 res = in0.select(*desired_cols)
 
         else:
-            columns_df = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
+            columns_df: SubstituteDisabled = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
 
-            columns_df = columns_df.withColumn("value", expr(self.props.customExpression))
-
-            column_output_df = columns_df.filter(col("value") == lit(True))
-            desired_cols = [ x[0] for x in column_output_df.collect()]
+            column_output_df: SubstituteDisabled = columns_df.withColumn("value", expr(self.props.customExpression)).filter(col("value") == lit(True))
+            desired_cols: SubstituteDisabled = [ x[0] for x in column_output_df.collect()]
             res = in0.select(*desired_cols)
         return res
