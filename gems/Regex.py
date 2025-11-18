@@ -925,8 +925,11 @@ class Regex(MacroSpec):
                 
                 # Then explode the array to create multiple rows
                 # explode() preserves the order of elements in the array, so no window function needed
+                # Select all columns except the array column, then add the exploded column
+                # This avoids ambiguous reference errors
+                all_columns = [F.col(c) for c in result_df.columns if c != "token_value_new"]
                 result_df = result_df.select(
-                    "*",
+                    *all_columns,
                     F.explode(F.col("token_value_new")).alias("token_value_new")
                 )
                 
