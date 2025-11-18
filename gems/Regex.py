@@ -920,6 +920,7 @@ class Regex(MacroSpec):
             elif tokenize_output_method == "splitRows":
                 # Split to rows
                 # First add the array column
+                all_columns = [F.col(c) for c in result_df.columns]
                 extracted_array = F.regexp_extract_all(F.col(selected_column), F.lit(regex_pattern))
                 result_df = result_df.withColumn("token_value_new", extracted_array)
                 
@@ -927,7 +928,6 @@ class Regex(MacroSpec):
                 # explode() preserves the order of elements in the array, so no window function needed
                 # Select all columns except the array column, then add the exploded column
                 # This avoids ambiguous reference errors
-                all_columns = [F.col(c) for c in result_df.columns if c != "token_value_new"]
                 result_df = result_df.select(
                     *all_columns,
                     F.explode(F.col("token_value_new")).alias("token_value_new")
