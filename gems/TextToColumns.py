@@ -354,77 +354,64 @@ class TextToColumns(MacroSpec):
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         col_name = self.props.columnNames
         col_expr = col(col_name)
-        delimiter = self.props.delimiter
-        original_delimiter = delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
-        delimiter = original_delimiter
-
+        delimiter = self.props.delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        original_delimiter = delimiter
         import re
-
-        split_delimiter = delimiter
-        if delimiter not in ["\t", "\n", "\r"]:
-            special_chars = r'\.^$*+?{}[]|()'
-            if any(c in special_chars for c in delimiter):
-                split_delimiter = re.escape(delimiter)
+        special_regex_chars = r'\.^$*+?{}[]|()'
+        if delimiter in ["\t", "\n", "\r"]:
+            split_delimiter = delimiter
+        else:
+            split_delimiter = re.escape(delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
+        placeholder = "%%DELIM%%"
+        tmp_arr_col = "__split_arr_tmp__"
+        tmp_size_col = "__split_arr_size_tmp__"
 
         if self.props.split_strategy == "splitColumns":
-            placeholder = "%%DELIM%%"
             replaced_col = regexp_replace(col_expr, split_delimiter, placeholder)
-            split_array = split(replaced_col, placeholder)
-            result_df = in0
+            split_array_expr = split(replaced_col, placeholder)
+            result_df = in0.withColumn(tmp_arr_col, split_array_expr).withColumn(tmp_size_col, size(col(tmp_arr_col)))
 
             for i in range(1, self.props.noOfColumns):
                 token_col = when(
-                    size(split_array) > i - 1,
-                    trim(regexp_replace(split_array[i - 1], r'^"|"$', ''))
+                    col(tmp_size_col) > i - 1,
+                    trim(regexp_replace(col(tmp_arr_col)[i - 1], r'^"|"$', ''))
                 ).otherwise(None)
                 output_col = f"{self.props.splitColumnPrefix}_{i}_{self.props.splitColumnSuffix}"
                 result_df = result_df.withColumn(output_col, token_col)
 
             last_col_name = f"{self.props.splitColumnPrefix}_{self.props.noOfColumns}_{self.props.splitColumnSuffix}"
-
             if self.props.leaveExtraCharLastCol == "Leave extra in last column":
-                remaining_tokens = slice(split_array, self.props.noOfColumns, size(split_array))
+                remaining = slice(col(tmp_arr_col), self.props.noOfColumns, col(tmp_size_col))
                 last_col = when(
-                    size(split_array) >= self.props.noOfColumns,
-                    array_join(remaining_tokens, original_delimiter)
+                    col(tmp_size_col) >= self.props.noOfColumns,
+                    array_join(remaining, original_delimiter)
                 ).otherwise(None)
             else:
                 last_col = when(
-                    size(split_array) > self.props.noOfColumns - 1,
-                    trim(regexp_replace(split_array[self.props.noOfColumns - 1], r'^"|"$', ''))
+                    col(tmp_size_col) > self.props.noOfColumns - 1,
+                    trim(regexp_replace(col(tmp_arr_col)[self.props.noOfColumns - 1], r'^"|"$', ''))
                 ).otherwise(None)
 
-            result_df = result_df.withColumn(last_col_name, last_col)
-            return result_df
+            return result_df.withColumn(last_col_name, last_col).drop(tmp_arr_col, tmp_size_col)
 
         elif self.props.split_strategy == "splitRows":
-            placeholder = "%%DELIM%%"
-            replaced_col = regexp_replace(
-                when(col_expr.isNull(), lit("")).otherwise(col_expr),
-                split_delimiter,
-                placeholder
-            )
-            split_array = split(replaced_col, placeholder)
+            safe_col = when(col_expr.isNull(), lit("")).otherwise(col_expr)
+            replaced_col = regexp_replace(safe_col, split_delimiter, placeholder)
+            split_array_expr = split(replaced_col, placeholder)
+            result_df = in0.withColumn(tmp_arr_col, split_array_expr).withColumn(tmp_size_col, size(col(tmp_arr_col)))
 
-            other_cols = [col(c) for c in in0.columns if c != col_name]
-            result_df = in0.select(
-                other_cols + [explode(split_array).alias("col_temp")]
-            )
+            result_df = result_df.select([c for c in in0.columns if c != col_name] + [explode(col(tmp_arr_col)).alias("col_temp")])
+            result_df = result_df.filter((col("col_temp") != "") & col("col_temp").isNotNull())
 
-            result_df = result_df.filter(
-                (col("col_temp") != "") & (col("col_temp").isNotNull())
-            )
-
-            cleaned_col = trim(
+            cleaned = trim(
                 regexp_replace(
                     regexp_replace(col("col_temp"), r'[{}_]', ' '),
-                    r'\s+',
-                    ' '
+                    r'\s+', ' '
                 )
             )
 
-            result_df = result_df.withColumn(self.props.splitRowsColumnName, cleaned_col)
-            result_df = result_df.drop("col_temp")
-            return result_df
+            result_df = result_df.withColumn(self.props.splitRowsColumnName, cleaned).drop("col_temp")
+            return result_df.drop(tmp_arr_col, tmp_size_col)
+
         else:
             return in0
