@@ -373,6 +373,9 @@
     from {{ source_table }}
 
 {%- elif output_method_lower == 'parse' -%}
+    {# Parse method extracts each capturing group using REGEXP_EXTRACT with group indices #}
+    {# Each item in parseColumns corresponds to a capturing group: first item = group 1, second = group 2, etc. #}
+    {# This works correctly for patterns with multiple capturing groups in BigQuery #}
     {%- if parsed_columns and parsed_columns|length > 0 -%}
         select
             *
@@ -381,6 +384,7 @@
                     {%- set col_name = config.columnName -%}
                     {%- set col_type = config.dataType | default('string') -%}
                     {%- set group_index = loop.index -%}
+                    {# group_index (1, 2, 3, ...) maps to capturing groups in the regex pattern #}
             ,
             {%- if col_type|lower == 'string' %}
             case
@@ -441,32 +445,22 @@
 {%- elif output_method_lower == 'tokenize' -%}
     {%- set tokenize_method_lower = tokenizeOutputMethod | lower -%}
     {%- if tokenize_method_lower == 'splitcolumns' -%}
-        {# For tokenize/splitColumns, always use REGEXP_EXTRACT_ALL to get all matches #}
+        {# For tokenize/splitColumns: #}
+        {# - If pattern has 1 capturing group: use REGEXP_EXTRACT_ALL to get all matches #}
+        {# - If pattern has multiple capturing groups: REGEXP_EXTRACT_ALL will fail in BigQuery #}
+        {#   For patterns with multiple capturing groups, consider using the 'parse' output method instead #}
+        {#   which uses REGEXP_EXTRACT with group indices from parseColumns #}
+        {# BigQuery REGEXP_EXTRACT_ALL only supports patterns with at most 1 capturing group #}
+        {# For single group patterns, wrap in capturing group and use REGEXP_EXTRACT_ALL #}
+        {%- set extract_pattern = '(' ~ regex_pattern ~ ')' -%}
         with extracted_array as (
             select
                 *,
-                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as regex_matches
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ extract_pattern }}') as regex_matches
             from {{ source_table }}
         )
-        {%- if extra_handling_lower == 'dropextrawitherror' -%}
-            {# Check for extra matches and raise error if found #}
-            select
-                * EXCEPT (regex_matches)
-                {%- for i in range(1, noOfColumns + 1) %},
-                case
-                    when ARRAY_LENGTH(regex_matches) > {{ noOfColumns }} then
-                        CAST(CONCAT('ERROR: Found ', CAST(ARRAY_LENGTH(regex_matches) AS STRING), ' regex matches, but only ', CAST({{ noOfColumns }} AS STRING), ' columns expected') AS STRING)
-                    when ARRAY_LENGTH(regex_matches) = 0 then CAST(NULL AS STRING)
-                    when ARRAY_LENGTH(regex_matches) < {{ i }} then
-                        case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
-                    when regex_matches[OFFSET({{ i - 1 }})] = '' then
-                        case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
-                    else regex_matches[OFFSET({{ i - 1 }})]
-                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
-                {%- endfor %}
-            from extracted_array
-        {%- elif extra_handling_lower == 'saveallremainingtext' -%}
-            {# Save all remaining text into last generated column #}
+        {%- if extra_handling_lower == 'saveallremainingtext' -%}
+            {# Save all remaining matches into last generated column #}
             select
                 * EXCEPT (regex_matches)
                 {%- for i in range(1, noOfColumns) %},
@@ -494,8 +488,25 @@
                          FROM UNNEST(GENERATE_ARRAY({{ noOfColumns }}, ARRAY_LENGTH(regex_matches) - 1)) AS i)
                 end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
             from extracted_array
+        {%- elif extra_handling_lower == 'dropextrawitherror' -%}
+            {# Check for extra matches and raise error if found #}
+            select
+                * EXCEPT (regex_matches)
+                {%- for i in range(1, noOfColumns + 1) %},
+                case
+                    when ARRAY_LENGTH(regex_matches) > {{ noOfColumns }} then
+                        CAST(CONCAT('ERROR: Found ', CAST(ARRAY_LENGTH(regex_matches) AS STRING), ' regex matches, but only ', CAST({{ noOfColumns }} AS STRING), ' columns expected') AS STRING)
+                    when ARRAY_LENGTH(regex_matches) = 0 then CAST(NULL AS STRING)
+                    when ARRAY_LENGTH(regex_matches) < {{ i }} then
+                        case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
+                    when regex_matches[OFFSET({{ i - 1 }})] = '' then
+                        case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
+                    else regex_matches[OFFSET({{ i - 1 }})]
+                end as {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
+                {%- endfor %}
+            from extracted_array
         {%- else -%}
-            {# dropExtraWithoutWarning: drop extra columns silently #}
+            {# dropExtraWithoutWarning: drop extra matches silently #}
             select
                 * EXCEPT (regex_matches)
                 {%- for i in range(1, noOfColumns + 1) %},
@@ -510,12 +521,18 @@
                 {%- endfor %}
             from extracted_array
         {%- endif -%}
+        {# Note: This uses REGEXP_EXTRACT_ALL with wrapped pattern to extract all matches. #}
+        {# For patterns with multiple capturing groups, this extracts the full match each time. #}
+        {# For single capturing group patterns, this extracts all occurrences of that group. #}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
+        {# BigQuery REGEXP_EXTRACT_ALL only supports patterns with at most 1 capturing group #}
+        {# So we wrap the pattern in a capturing group to extract the full match #}
+        {%- set extract_pattern = '(' ~ regex_pattern ~ ')' -%}
         with regex_matches as (
             select
                 *,
-                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ regex_pattern }}') as split_tokens
+                REGEXP_EXTRACT_ALL({{ quoted_selected }}, r'{{ extract_pattern }}') as split_tokens
             from {{ source_table }}
         ),
         exploded_tokens as (

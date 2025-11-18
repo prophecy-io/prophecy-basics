@@ -392,6 +392,38 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
+        # Validate that splitRows is not used with multiple capturing groups
+        if (hasattr(props, 'outputMethod') and props.outputMethod and 
+            props.outputMethod.lower() == 'tokenize' and
+            hasattr(props, 'tokenizeOutputMethod') and props.tokenizeOutputMethod and
+            props.tokenizeOutputMethod.lower() == 'splitrows' and
+            hasattr(props, 'regexExpression') and props.regexExpression):
+            capturing_groups = self.extract_capturing_groups(props.regexExpression)
+            if len(capturing_groups) > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.tokenizeOutputMethod",
+                        f"splitRows is not supported with multiple capturing groups for some SQL dialects. Found {len(capturing_groups)} capturing groups in the regex pattern. Please use splitColumns instead.",
+                        SeverityLevelEnum.Error
+                    )
+                )
+
+        # Validate that splitColumns with multiple capturing groups suggests using parse option
+        if (hasattr(props, 'outputMethod') and props.outputMethod and 
+            props.outputMethod.lower() == 'tokenize' and
+            hasattr(props, 'tokenizeOutputMethod') and props.tokenizeOutputMethod and
+            props.tokenizeOutputMethod.lower() == 'splitcolumns' and
+            hasattr(props, 'regexExpression') and props.regexExpression):
+            capturing_groups = self.extract_capturing_groups(props.regexExpression)
+            if len(capturing_groups) > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.outputMethod",
+                        f"splitColumns with multiple capturing groups ({len(capturing_groups)} groups found) may not work correctly in some dialects. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
+                        SeverityLevelEnum.Warning
+                    )
+                )
+
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
