@@ -30,7 +30,7 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        ProviderTypeEnum.BigQuery,
+        # ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
         ProviderTypeEnum.ProphecyManaged
     ]
 
@@ -424,6 +424,28 @@ class Regex(MacroSpec):
                     )
                 )
 
+        # Validate that BigQuery does not allow regex with multiple capturing groups
+        if (hasattr(props, 'regexExpression') and props.regexExpression):
+            capturing_groups = self.extract_capturing_groups(props.regexExpression)
+            if len(capturing_groups) > 1:
+                # Check if the current provider is BigQuery
+                # Try to get provider from context if available
+                is_bigquery = False
+                if hasattr(context, 'provider') and context.provider == ProviderTypeEnum.BigQuery:
+                    is_bigquery = True
+                elif hasattr(context, 'graph') and hasattr(context.graph, 'provider'):
+                    if context.graph.provider == ProviderTypeEnum.BigQuery:
+                        is_bigquery = True    
+                
+                if is_bigquery:
+                    diagnostics.append(
+                        Diagnostic(
+                            "component.properties.regexExpression",
+                            f"BigQuery does not support regex patterns with multiple capturing groups. Found {len(capturing_groups)} capturing groups in the regex pattern. BigQuery's REGEXP_EXTRACT and REGEXP_EXTRACT_ALL functions only support patterns with at most 1 capturing group. Please use a pattern with a single capturing group or restructure your regex.",
+                            SeverityLevelEnum.Error
+                        )
+                    )
+
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
@@ -733,6 +755,7 @@ class Regex(MacroSpec):
         parse_columns = self.props.parseColumns
         match_column_name = self.props.matchColumnName
         error_if_not_matched = self.props.errorIfNotMatched
+        extra_columns_handling = self.props.extraColumnsHandling
 
         # Build regex pattern with case sensitivity flag
         regex_pattern = regex_expression
@@ -816,29 +839,94 @@ class Regex(MacroSpec):
                 else:
                     # Use regexp_extract_all for patterns without capture groups
                     extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
+                    array_size = F.size(extracted_array)
                     
-                    for i in range(1, no_of_columns + 1):
-                        col_val = F.when(
-                            F.size(extracted_array) == 0,
+                    extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
+                    
+                    if extra_handling_lower == "saveallremainingtext":
+                        # For columns 1 to (no_of_columns - 1), extract normally
+                        for i in range(1, no_of_columns):
+                            col_val = F.when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                "" if allow_blank_tokens else None
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                "" if allow_blank_tokens else None
+                            ).otherwise(extracted_array[i - 1])
+                            
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+                        
+                        # Last column: concatenate all remaining matches from no_of_columns onwards
+                        last_col_val = F.when(
+                            array_size == 0,
                             None
                         ).when(
-                            F.size(extracted_array) < i,
+                            array_size < no_of_columns,
                             "" if allow_blank_tokens else None
                         ).when(
-                            extracted_array[i - 1] == "",
-                            "" if allow_blank_tokens else None
-                        ).otherwise(extracted_array[i - 1])
+                            array_size > no_of_columns,
+                            # Concatenate remaining matches
+                            # slice is 1-based, so start at no_of_columns + 1 (which is index no_of_columns in 0-based)
+                            F.concat_ws("", F.slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
+                        ).when(
+                            array_size == no_of_columns,
+                            # Exactly no_of_columns matches - return the last one
+                            F.when(
+                                extracted_array[no_of_columns - 1] == "",
+                                "" if allow_blank_tokens else None
+                            ).otherwise(extracted_array[no_of_columns - 1])
+                        ).otherwise(None)
                         
-                        result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+                        result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
+                    
+                    elif extra_handling_lower == "dropextrawitherror":
+                        # Check for extra matches and raise error if found
+                        for i in range(1, no_of_columns + 1):
+                            col_val = F.when(
+                                array_size > no_of_columns,
+                                F.lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
+                            ).when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                "" if allow_blank_tokens else None
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                "" if allow_blank_tokens else None
+                            ).otherwise(extracted_array[i - 1])
+                            
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+                    
+                    else:
+                        # dropExtraWithoutWarning: drop extra matches silently
+                        for i in range(1, no_of_columns + 1):
+                            col_val = F.when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                "" if allow_blank_tokens else None
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                "" if allow_blank_tokens else None
+                            ).otherwise(extracted_array[i - 1])
+                            
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
             
             elif tokenize_output_method == "splitRows":
                 # Split to rows
+                # First add the array column
                 extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
+                result_df = result_df.withColumn("token_value_new", extracted_array)
                 
-                # Explode the array to create multiple rows
+                # Then explode the array to create multiple rows
                 result_df = result_df.select(
                     "*",
-                    F.explode(extracted_array).alias("token_value_new")
+                    F.explode(F.col("token_value_new")).alias("token_value_new")
                 )
                 
                 # Add token sequence
