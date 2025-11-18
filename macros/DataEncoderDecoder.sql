@@ -179,11 +179,11 @@
         {% for column in column_names %}
             {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
             {%- if change_col_name == "inplace_substitute" -%}
-                {%- do withColumn_clause.append("hex(encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "')) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+                {%- do withColumn_clause.append("encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append("hex(encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "')) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+                {%- do withColumn_clause.append("encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
             {%- else -%}
-                {%- do withColumn_clause.append("hex(encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "')) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- do withColumn_clause.append("encode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
             {%- endif -%}
         {% endfor %}
     {%- endif -%}
@@ -191,11 +191,11 @@
         {% for column in column_names %}
             {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
             {%- if change_col_name == "inplace_substitute" -%}
-                {%- do withColumn_clause.append("decode(unhex(" ~ quoted_column ~ "), '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column)) -%}
+                {%- do withColumn_clause.append("decode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append("decode(unhex(" ~ quoted_column ~ "), '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+                {%- do withColumn_clause.append("decode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
             {%- else -%}
-                {%- do withColumn_clause.append("decode(unhex(" ~ quoted_column ~ "), '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- do withColumn_clause.append("decode(" ~ quoted_column ~ ", '" ~ enc_dec_charSet ~ "') AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
             {%- endif -%}
         {% endfor %}
     {%- endif -%}
