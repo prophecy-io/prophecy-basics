@@ -793,24 +793,26 @@ class Regex(MacroSpec):
                     extracted = regexp_extract(col(selected_column), regex_pattern, idx)
                     
                     # Cast to appropriate type
+                    # For non-string types, always use None (not lit("")) to avoid casting errors
                     if col_type.lower() == "int" or col_type.lower() == "integer":
-                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(IntegerType())
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
                     elif col_type.lower() == "bigint":
-                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(LongType())
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(LongType())
                     elif col_type.lower() == "double" or col_type.lower() == "float":
-                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(DoubleType())
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(DoubleType())
                     elif col_type.lower() == "bool" or col_type.lower() == "boolean":
-                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(BooleanType())
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(BooleanType())
                     elif col_type.lower() == "date":
-                        extracted = when(extracted != "", to_date(extracted)).otherwise(val_if_not_found)
+                        extracted = when(extracted != "", to_date(extracted)).otherwise(None)
                     elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
-                        extracted = when(extracted != "", to_timestamp(extracted)).otherwise(val_if_not_found)
+                        extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
                     else:
-                        # String type - return null if empty
+                        # String type - use lit("") if allow_blank_tokens, otherwise None
+                        val_if_not_found = lit("") if allow_blank_tokens else None
                         extracted = when(
                                 (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
                                 (extracted == ""),
-                                None
+                                val_if_not_found
                             ).otherwise(extracted)
                     
                     result_df = result_df.withColumn(col_name, extracted)
