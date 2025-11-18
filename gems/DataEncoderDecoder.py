@@ -26,7 +26,7 @@ class DataEncoderDecoder(MacroSpec):
         column_names: List[str] = field(default_factory=list)
         prefix_suffix_option: str = "Prefix"
         new_column_add_method: str = "inplace_substitute"
-        prefix_suffix_added: str = None
+        prefix_suffix_added: str = "new_"
         enc_dec_method: str = ""
         enc_dec_charSet: str = "UTF-8"
         aes_enc_dec_mode: str = "GCM"
