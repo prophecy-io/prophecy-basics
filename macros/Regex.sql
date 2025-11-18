@@ -363,9 +363,9 @@
     from {{ source_table }}
 
 {%- elif output_method_lower == 'parse' -%}
-    {# Parse method extracts each capturing group using REGEXP_EXTRACT with group indices #}
-    {# Each item in parseColumns corresponds to a capturing group: first item = group 1, second = group 2, etc. #}
-    {# This works correctly for patterns with multiple capturing groups in BigQuery #}
+    {# Parse method extracts each capturing group using REGEXP_EXTRACT #}
+    {# BigQuery REGEXP_EXTRACT only supports patterns with at most 1 capturing group #}
+    {# So we use a helper macro to construct a pattern with only the target group capturing #}
     {%- if parsed_columns and parsed_columns|length > 0 -%}
         select
             *
@@ -374,55 +374,55 @@
                     {%- set col_name = config.columnName -%}
                     {%- set col_type = config.dataType | default('string') -%}
                     {%- set group_index = loop.index -%}
-                    {# group_index (1, 2, 3, ...) maps to capturing groups in the regex pattern #}
+                    {%- set single_capture_pattern = prophecy_basics.build_single_capture_pattern(escaped_regex, parsed_columns, group_index, caseInsensitive) -%}
             ,
             {%- if col_type|lower == 'string' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }})
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'int' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS INT64)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS INT64)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'bigint' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS INT64)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS INT64)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'double' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS FLOAT64)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS FLOAT64)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'bool' or col_type|lower == 'boolean' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS BOOL)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS BOOL)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'date' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS DATE)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS DATE)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'datetime' or col_type|lower == 'timestamp' %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) AS TIMESTAMP)
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else CAST(REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) AS TIMESTAMP)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- else %}
             case
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', 0) = '' then null
-                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }}) = '' then null
-                else REGEXP_EXTRACT({{ quoted_selected }}, r'{{ regex_pattern }}', {{ group_index }})
+                when not REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then null
+                when REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1) = '' then null
+                else REGEXP_EXTRACT({{ quoted_selected }}, r'{{ single_capture_pattern }}', 1)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- endif %}
                 {%- endif -%}
@@ -467,14 +467,19 @@
                 case
                     when ARRAY_LENGTH(regex_matches) = 0 then CAST(NULL AS STRING)
                     when ARRAY_LENGTH(regex_matches) < {{ noOfColumns }} then
+                        {# Not enough matches - return null or empty based on allowBlankTokens #}
+                        case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
+                    when ARRAY_LENGTH(regex_matches) > {{ noOfColumns }} then
+                        {# Concatenate remaining matches - ensure GENERATE_ARRAY range is valid #}
+                        {# Only use GENERATE_ARRAY if end >= start (i.e., ARRAY_LENGTH - 1 >= noOfColumns) #}
+                        ARRAY_TO_STRING(ARRAY(SELECT regex_matches[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns }}, GREATEST({{ noOfColumns }}, ARRAY_LENGTH(regex_matches) - 1))) AS i), '')
+                    when ARRAY_LENGTH(regex_matches) = {{ noOfColumns }} then
+                        {# Exactly noOfColumns matches - return the last one #}
                         case
                             when regex_matches[OFFSET({{ noOfColumns - 1 }})] = '' then
                                 case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
                             else regex_matches[OFFSET({{ noOfColumns - 1 }})]
                         end
-                    when ARRAY_LENGTH(regex_matches) >= {{ noOfColumns }} then
-                        {# Concatenate remaining matches using STRING_AGG - only if there are remaining matches #}
-                        ARRAY_TO_STRING(ARRAY(SELECT regex_matches[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns - 1 }}, ARRAY_LENGTH(regex_matches) - 1)) AS i), '')
                     else CAST(NULL AS STRING)
                 end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
             from extracted_array
