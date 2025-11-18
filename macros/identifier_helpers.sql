@@ -35,6 +35,20 @@
     {% endif %}
 {% endmacro %}
 
+{% macro bigquery__quote_identifier(identifier) %}
+    {% if identifier is string %}
+        {% set clean_identifier = identifier | trim %}
+        {% if ' ' in clean_identifier or clean_identifier.startswith('`') == false %}
+            {% set bt = "`" %}
+            {{ bt ~ clean_identifier ~ bt }}
+        {% else %}
+            {{ clean_identifier }}
+        {% endif %}
+    {% else %}
+        {{ identifier }}
+    {% endif %}
+{% endmacro %}
+
 {% macro duckdb__quote_identifier(identifier, quote_char='"') %}
     {%- if identifier is string -%}
         {# Single identifier - return quoted string #}
