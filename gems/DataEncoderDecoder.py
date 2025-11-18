@@ -818,7 +818,7 @@ class DataEncoderDecoder(MacroSpec):
                 target = cname if new_column_add_method == "inplace_substitute" else (
                     f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
                 )
-                result_df = result_df.withColumn(target, decode(col(cname)), enc_dec_charSet)
+                result_df = result_df.withColumn(target, decode(col(cname), enc_dec_charSet))
 
         elif enc_dec_method == "aes_encrypt":
             aes_enc_dec_secretScope_key = self.props.aes_enc_dec_secretScope_key
