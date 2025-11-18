@@ -279,7 +279,7 @@ class TextToColumns(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
@@ -357,10 +357,8 @@ class TextToColumns(MacroSpec):
         original_delimiter = delimiter
         import re
         special_regex_chars = r'\.^$*+?{}[]|()'
-        if delimiter in ["\t", "\n", "\r"]:
-            split_delimiter: SubstituteDisabled = delimiter
-        else:
-            split_delimiter: SubstituteDisabled = re.escape(delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
+        split_delimiter: SubstituteDisabled = delimiter if delimiter in ["\t", "\n", "\r"] else re.escape(
+            delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
         placeholder = "%%DELIM%%"
         tmp_arr_col = "__split_arr_tmp__"
         tmp_size_col = "__split_arr_size_tmp__"
@@ -399,7 +397,8 @@ class TextToColumns(MacroSpec):
             split_array_expr = split(replaced_col, placeholder)
             result_df = in0.withColumn(tmp_arr_col, split_array_expr).withColumn(tmp_size_col, size(col(tmp_arr_col)))
 
-            result_df = result_df.select([c for c in in0.columns if c != col_name] + [explode(col(tmp_arr_col)).alias("col_temp")])
+            result_df = result_df.select(
+                [c for c in in0.columns if c != col_name] + [explode(col(tmp_arr_col)).alias("col_temp")])
             result_df = result_df.filter((col("col_temp") != "") & col("col_temp").isNotNull())
 
             cleaned = trim(
