@@ -672,6 +672,13 @@ class Regex(MacroSpec):
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        parseColumnsJsonList = json.dumps([{
+                    "columnName": fld.columnName,
+                    "dataType": fld.dataType,
+                    "rgxExpression": fld.rgxExpression
+                }
+                for fld in properties.parseColumns
+            ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
