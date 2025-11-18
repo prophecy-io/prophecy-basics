@@ -920,7 +920,7 @@ class Regex(MacroSpec):
             elif tokenize_output_method == "splitRows":
                 # Split to rows
                 # First add the array column
-                extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
+                extracted_array = F.regexp_extract_all(F.col(selected_column), F.lit(regex_pattern))
                 result_df = result_df.withColumn("token_value_new", extracted_array)
                 
                 # Then explode the array to create multiple rows
