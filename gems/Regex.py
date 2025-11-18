@@ -5,7 +5,7 @@ import json
 import re
 
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
+from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from pyspark.sql.window import Window
 
@@ -763,16 +763,17 @@ class Regex(MacroSpec):
             regex_pattern = f"(?i){regex_expression}"
 
         result_df = in0
+        val_if_not_found = None if allow_blank_tokens else lit("")  
 
         if output_method == "replace":
             # Replace matched text with replacement text
-            replaced_col = F.regexp_replace(F.col(selected_column), regex_pattern, replacement_text)
+            replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
             if copy_unmatched_text:
                 # Only replace if matched, otherwise keep original
-                replaced_col = F.when(
-                    F.col(selected_column).rlike(regex_pattern),
+                replaced_col = when(
+                    col(selected_column).rlike(regex_pattern),
                     replaced_col
-                ).otherwise(F.col(selected_column))
+                ).otherwise(col(selected_column))
             
             result_df = result_df.withColumn(
                 f"{selected_column}_replaced",
@@ -789,25 +790,25 @@ class Regex(MacroSpec):
                     col_type = parse_col.dataType
                     
                     # Extract the group
-                    extracted = F.regexp_extract(F.col(selected_column), regex_pattern, idx)
+                    extracted = regexp_extract(col(selected_column), regex_pattern, idx)
                     
                     # Cast to appropriate type
                     if col_type.lower() == "int" or col_type.lower() == "integer":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(IntegerType())
+                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(IntegerType())
                     elif col_type.lower() == "bigint":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(LongType())
+                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(LongType())
                     elif col_type.lower() == "double" or col_type.lower() == "float":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(DoubleType())
+                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(DoubleType())
                     elif col_type.lower() == "bool" or col_type.lower() == "boolean":
-                        extracted = F.when(extracted != "", extracted).otherwise(None).cast(BooleanType())
+                        extracted = when(extracted != "", extracted).otherwise(val_if_not_found).cast(BooleanType())
                     elif col_type.lower() == "date":
-                        extracted = F.when(extracted != "", F.to_date(extracted)).otherwise(None)
+                        extracted = when(extracted != "", to_date(extracted)).otherwise(val_if_not_found)
                     elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
-                        extracted = F.when(extracted != "", F.to_timestamp(extracted)).otherwise(None)
+                        extracted = when(extracted != "", to_timestamp(extracted)).otherwise(val_if_not_found)
                     else:
                         # String type - return null if empty
-                        extracted = F.when(
-                                (F.regexp_extract(F.col(selected_column), regex_pattern, 0) == "") |
+                        extracted = when(
+                                (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
                                 (extracted == ""),
                                 None
                             ).otherwise(extracted)
@@ -823,60 +824,60 @@ class Regex(MacroSpec):
                 if has_capture_groups:
                     # Extract each group individually
                     for i in range(1, no_of_columns + 1):
-                        extracted = F.regexp_extract(F.col(selected_column), regex_pattern, i)
+                        extracted = regexp_extract(col(selected_column), regex_pattern, i)
                         if not allow_blank_tokens:
-                            extracted = F.when(
-                                (F.col(selected_column).rlike(regex_pattern)) & (extracted != ""),
+                            extracted = when(
+                                (col(selected_column).rlike(regex_pattern)) & (extracted != ""),
                                 extracted
                             ).otherwise(None)
                         else:
-                            extracted = F.when(
-                                F.col(selected_column).rlike(regex_pattern),
+                            extracted = when(
+                                col(selected_column).rlike(regex_pattern),
                                 extracted
-                            ).otherwise("" if allow_blank_tokens else None)
+                            ).otherwise(val)
                         
                         result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
                 else:
                     # Use regexp_extract_all for patterns without capture groups
-                    extracted_array = F.regexp_extract_all(F.col(selected_column), regex_pattern)
-                    array_size = F.size(extracted_array)
+                    extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
+                    array_size = size(extracted_array)
                     
                     extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
                     
                     if extra_handling_lower == "saveallremainingtext":
                         # For columns 1 to (no_of_columns - 1), extract normally
                         for i in range(1, no_of_columns):
-                            col_val = F.when(
+                            col_val = when(
                                 array_size == 0,
                                 None
                             ).when(
                                 array_size < i,
-                                "" if allow_blank_tokens else None
+                                val
                             ).when(
                                 extracted_array[i - 1] == "",
-                                "" if allow_blank_tokens else None
+                                val
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
                         
                         # Last column: concatenate all remaining matches from no_of_columns onwards
-                        last_col_val = F.when(
+                        last_col_val = when(
                             array_size == 0,
                             None
                         ).when(
                             array_size < no_of_columns,
-                            "" if allow_blank_tokens else None
+                            val
                         ).when(
                             array_size > no_of_columns,
                             # Concatenate remaining matches
                             # slice is 1-based, so start at no_of_columns + 1 (which is index no_of_columns in 0-based)
-                            F.concat_ws("", F.slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
+                            concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
                         ).when(
                             array_size == no_of_columns,
                             # Exactly no_of_columns matches - return the last one
-                            F.when(
+                            when(
                                 extracted_array[no_of_columns - 1] == "",
-                                "" if allow_blank_tokens else None
+                                val_if_not_found
                             ).otherwise(extracted_array[no_of_columns - 1])
                         ).otherwise(None)
                         
@@ -893,10 +894,10 @@ class Regex(MacroSpec):
                                 None
                             ).when(
                                 array_size < i,
-                                "" if allow_blank_tokens else None
+                                val
                             ).when(
                                 extracted_array[i - 1] == "",
-                                "" if allow_blank_tokens else None
+                                val
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
@@ -904,15 +905,15 @@ class Regex(MacroSpec):
                     else:
                         # dropExtraWithoutWarning: drop extra matches silently
                         for i in range(1, no_of_columns + 1):
-                            col_val = F.when(
+                            col_val = when(
                                 array_size == 0,
                                 None
                             ).when(
                                 array_size < i,
-                                "" if allow_blank_tokens else None
+                                val
                             ).when(
                                 extracted_array[i - 1] == "",
-                                "" if allow_blank_tokens else None
+                                val
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
@@ -920,8 +921,8 @@ class Regex(MacroSpec):
             elif tokenize_output_method == "splitRows":
                 # Split to rows
                 # First add the array column
-                all_columns = [F.col(c) for c in result_df.columns]
-                extracted_array = F.regexp_extract_all(F.col(selected_column), F.lit(regex_pattern))
+                all_columns = [col(c) for c in result_df.columns]
+                extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
                 result_df = result_df.withColumn("token_value_new", extracted_array)
                 
                 # Then explode the array to create multiple rows
@@ -930,7 +931,7 @@ class Regex(MacroSpec):
                 # This avoids ambiguous reference errors
                 result_df = result_df.select(
                     *all_columns,
-                    F.explode(F.col("token_value_new")).alias("token_value_new")
+                    explode(col("token_value_new")).alias("token_value_new")
                 )
                 
                 # Rename token column
@@ -938,17 +939,17 @@ class Regex(MacroSpec):
                 # Filter blank tokens if not allowed
                 if not allow_blank_tokens:
                     result_df = result_df.filter(
-                        (F.col(output_root_name) != "") & 
-                        (F.col(output_root_name).isNotNull())
+                        (col(output_root_name) != "") & 
+                        (col(output_root_name).isNotNull())
                     )
 
         elif output_method == "match":
             # Create match column with 1/0
-            match_col = F.when(
-                F.col(selected_column).isNull(),
+            match_col = when(
+                col(selected_column).isNull(),
                 0
             ).when(
-                F.col(selected_column).rlike(regex_pattern),
+                col(selected_column).rlike(regex_pattern),
                 1
             ).otherwise(0)
             
@@ -956,7 +957,7 @@ class Regex(MacroSpec):
             
             # Filter if error_if_not_matched
             if error_if_not_matched:
-                result_df = result_df.filter(F.col(selected_column).rlike(regex_pattern))
+                result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
         return result_df
 
