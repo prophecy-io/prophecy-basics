@@ -69,30 +69,14 @@
 
 {# Parse parseColumns if its a string #}
 {%- if parseColumns is string -%}
-    {# Try to parse JSON - fromjson() may fail with escaped strings, so we try multiple approaches #}
     {%- set parsed_columns = fromjson(parseColumns) -%}
-    {# If fromjson() failed (returned None or empty), try unescaping single quotes and parsing again #}
-    {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-        {{ log("WARNING: fromjson() failed for parseColumns. Input length: " ~ parseColumns|length, info=True) }}
-        {# Try unescaping double single quotes (SQL escaping) and parsing again #}
-        {%- set unescaped_json = parseColumns | replace("''", "'") -%}
-        {%- set parsed_columns = fromjson(unescaped_json) -%}
-        {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-            {{ log("ERROR: Failed to parse parseColumns JSON after unescaping. Input preview: " ~ parseColumns[:300], info=True) }}
-        {%- else -%}
-            {{ log("SUCCESS: Successfully parsed parseColumns after unescaping.", info=True) }}
-        {%- endif -%}
-    {%- endif -%}
 {%- else -%}
     {%- set parsed_columns = parseColumns -%}
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{# Use helper macro for proper SQL string escaping #}
-{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
+{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
-{# For replacement text, escape SQL string literals #}
-{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
 {%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
@@ -103,11 +87,11 @@
         {% if copyUnmatchedText %}
         case
             when {{ quoted_selected }} rlike '{{ regex_pattern }}' then
-                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
+                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}')
             else {{ quoted_selected }}
         end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% endif %}
     from {{ source_table }}
 
@@ -375,11 +359,8 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{# Use helper macro for proper SQL string escaping #}
-{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=false) -%}
+{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
-{# For replacement text, escape SQL string literals #}
-{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=false) -%}
 {%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
@@ -390,11 +371,11 @@
         {% if copyUnmatchedText %}
         case
             when REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then
-                REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}')
+                REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}')
             else {{ quoted_selected }}
         end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% else %}
-        REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% endif %}
     from {{ source_table }}
 
@@ -676,11 +657,8 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{# Use helper macro for proper SQL string escaping #}
-{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
+{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
-{# For replacement text, escape SQL string literals #}
-{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
 {%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
@@ -691,11 +669,11 @@
         {% if copyUnmatchedText %}
         case
             when {{ quoted_selected }} ~ '{{ regex_pattern }}' then
-                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
+                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}')
             else {{ quoted_selected }}
         end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% endif %}
     from {{ source_table }}
 
