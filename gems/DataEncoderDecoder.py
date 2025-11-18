@@ -3,6 +3,7 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, base64, unbase64, hex as pyspark_hex, unhex, encode, decode, expr
 
 
@@ -767,7 +768,7 @@ class DataEncoderDecoder(MacroSpec):
         )
         return component.bindProperties(newProperties)
 
-    def applyPython(self, spark, in0):
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         column_names = self.props.column_names
         enc_dec_method = self.props.enc_dec_method
         enc_dec_charSet = self.props.enc_dec_charSet
@@ -777,72 +778,49 @@ class DataEncoderDecoder(MacroSpec):
 
         result_df = in0
 
-        # Process each column based on the encoding/decoding method
         if enc_dec_method == "base64":
-            for column_name in column_names:
-                encoded_col = base64(col(column_name))
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, encoded_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, encoded_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, base64(col(cname)))
 
         elif enc_dec_method == "unbase64":
-            for column_name in column_names:
-                decoded_col = unbase64(col(column_name)).cast("string")
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, decoded_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, decoded_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(unbase64(col(cname)), "UTF-8"))
 
         elif enc_dec_method == "hex":
-            for column_name in column_names:
-                hex_col = pyspark_hex(col(column_name))
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, hex_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, hex_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, hex(col(cname)))
 
         elif enc_dec_method == "unhex":
-            for column_name in column_names:
-                # SQL macro uses: decode(unhex(column), 'UTF-8')
-                unhex_col = decode(unhex(col(column_name)), "UTF-8")
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, unhex_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, unhex_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(unhex(col(cname)), "UTF-8"))
 
         elif enc_dec_method == "encode":
-            for column_name in column_names:
-                # SQL macro uses: hex(encode(column, charset))
-                encoded_col = pyspark_hex(encode(col(column_name), enc_dec_charSet))
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, encoded_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, encoded_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, encode(col(cname), enc_dec_charSet))
 
         elif enc_dec_method == "decode":
-            for column_name in column_names:
-                # SQL macro uses: decode(unhex(column), charset)
-                decoded_col = decode(unhex(col(column_name)), enc_dec_charSet)
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, decoded_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, decoded_col)
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(col(cname)), enc_dec_charSet)
 
         elif enc_dec_method == "aes_encrypt":
-            # AES encryption requires Databricks secrets
             aes_enc_dec_secretScope_key = self.props.aes_enc_dec_secretScope_key
             aes_enc_dec_secretKey_key = self.props.aes_enc_dec_secretKey_key
             aes_enc_dec_mode = self.props.aes_enc_dec_mode
@@ -851,32 +829,23 @@ class DataEncoderDecoder(MacroSpec):
             aes_enc_dec_secretScope_aad = self.props.aes_enc_dec_secretScope_aad
             aes_enc_dec_secretKey_aad = self.props.aes_enc_dec_secretKey_aad
 
-            for column_name in column_names:
-                # Build AES encrypt expression
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
                 args = [
-                    f"`{column_name}`",
+                    f"`{cname}`",
                     f"secret('{aes_enc_dec_secretScope_key}', '{aes_enc_dec_secretKey_key}')",
                     f"'{aes_enc_dec_mode}'",
                     "'DEFAULT'"
                 ]
-
-                # Add IV if provided
                 if aes_enc_dec_secretScope_iv and aes_enc_dec_secretKey_iv:
                     args.append(f"secret('{aes_enc_dec_secretScope_iv}', '{aes_enc_dec_secretKey_iv}')")
                 else:
                     args.append('""')
-
-                # Add AAD if provided
                 if aes_enc_dec_secretScope_aad and aes_enc_dec_secretKey_aad:
                     args.append(f"secret('{aes_enc_dec_secretScope_aad}', '{aes_enc_dec_secretKey_aad}')")
-
                 aes_expr = f"base64(aes_encrypt({', '.join(args)}))"
-                encrypted_col = expr(aes_expr)
-
-                if new_column_add_method == "inplace_substitute":
-                    result_df = result_df.withColumn(column_name, encrypted_col)
-                elif new_column_add_method == "prefix_suffix_substitute":
-                    new_col_name = f"{prefix_suffix_added}{column_name}" if prefix_suffix_option == "Prefix" else f"{column_name}{prefix_suffix_added}"
-                    result_df = result_df.withColumn(new_col_name, encrypted_col)
+                result_df = result_df.withColumn(target, expr(aes_expr))
 
         return result_df
