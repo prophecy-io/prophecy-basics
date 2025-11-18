@@ -392,59 +392,62 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
-        # Validate that splitRows is not used with multiple capturing groups
-        if (hasattr(props, 'outputMethod') and props.outputMethod and 
-            props.outputMethod.lower() == 'tokenize' and
-            hasattr(props, 'tokenizeOutputMethod') and props.tokenizeOutputMethod and
-            props.tokenizeOutputMethod.lower() == 'splitrows' and
-            hasattr(props, 'regexExpression') and props.regexExpression):
+        # Helper: Check if output method is tokenize
+        is_tokenize = (hasattr(props, 'outputMethod') and props.outputMethod and 
+                      props.outputMethod.lower() == 'tokenize')
+        
+        # Helper: Check if regex expression exists
+        has_regex = (hasattr(props, 'regexExpression') and props.regexExpression)
+        
+        # Helper: Get capturing groups count if regex exists
+        capturing_groups_count = 0
+        if has_regex:
             capturing_groups = self.extract_capturing_groups(props.regexExpression)
-            if len(capturing_groups) > 1:
+            capturing_groups_count = len(capturing_groups)
+        
+        # Validate splitRows with multiple capturing groups
+        if is_tokenize and has_regex:
+            tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and 
+                             props.tokenizeOutputMethod and 
+                             props.tokenizeOutputMethod.lower())
+            
+            if tokenize_method == 'splitrows' and capturing_groups_count > 1:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.tokenizeOutputMethod",
-                        f"splitRows is not supported with multiple capturing groups for some SQL dialects. Found {len(capturing_groups)} capturing groups in the regex pattern. Please use splitColumns instead.",
+                        f"splitRows is not supported with multiple capturing groups for some SQL dialects. Found {capturing_groups_count} capturing groups in the regex pattern. Please use splitColumns instead.",
                         SeverityLevelEnum.Error
                     )
                 )
-
-        # Validate that splitColumns with multiple capturing groups suggests using parse option
-        if (hasattr(props, 'outputMethod') and props.outputMethod and 
-            props.outputMethod.lower() == 'tokenize' and
-            hasattr(props, 'tokenizeOutputMethod') and props.tokenizeOutputMethod and
-            props.tokenizeOutputMethod.lower() == 'splitcolumns' and
-            hasattr(props, 'regexExpression') and props.regexExpression):
-            capturing_groups = self.extract_capturing_groups(props.regexExpression)
-            if len(capturing_groups) > 1:
+            
+            # Validate splitColumns with multiple capturing groups
+            elif tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.outputMethod",
-                        f"splitColumns with multiple capturing groups ({len(capturing_groups)} groups found) may not work correctly in some dialects. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
+                        f"splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work correctly in some dialects. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
                         SeverityLevelEnum.Warning
                     )
                 )
 
-        # Validate that BigQuery does not allow regex with multiple capturing groups
-        if (hasattr(props, 'regexExpression') and props.regexExpression):
-            capturing_groups = self.extract_capturing_groups(props.regexExpression)
-            if len(capturing_groups) > 1:
-                # Check if the current provider is BigQuery
-                # Try to get provider from context if available
-                is_bigquery = False
-                if hasattr(context, 'provider') and context.provider == ProviderTypeEnum.BigQuery:
+        # Validate BigQuery does not allow multiple capturing groups
+        if has_regex and capturing_groups_count > 1:
+            # Check if the current provider is BigQuery
+            is_bigquery = False
+            if hasattr(context, 'provider') and context.provider == ProviderTypeEnum.BigQuery:
+                is_bigquery = True
+            elif hasattr(context, 'graph') and hasattr(context.graph, 'provider'):
+                if context.graph.provider == ProviderTypeEnum.BigQuery:
                     is_bigquery = True
-                elif hasattr(context, 'graph') and hasattr(context.graph, 'provider'):
-                    if context.graph.provider == ProviderTypeEnum.BigQuery:
-                        is_bigquery = True    
-                
-                if is_bigquery:
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.regexExpression",
-                            f"BigQuery does not support regex patterns with multiple capturing groups. Found {len(capturing_groups)} capturing groups in the regex pattern. BigQuery's REGEXP_EXTRACT and REGEXP_EXTRACT_ALL functions only support patterns with at most 1 capturing group. Please use a pattern with a single capturing group or restructure your regex.",
-                            SeverityLevelEnum.Error
-                        )
+            
+            if is_bigquery:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.regexExpression",
+                        f"BigQuery does not support regex patterns with multiple capturing groups. Found {capturing_groups_count} capturing groups in the regex pattern. BigQuery's REGEXP_EXTRACT and REGEXP_EXTRACT_ALL functions only support patterns with at most 1 capturing group. Please use a pattern with a single capturing group or restructure your regex.",
+                        SeverityLevelEnum.Error
                     )
+                )
 
         return diagnostics
 
@@ -604,78 +607,49 @@ class Regex(MacroSpec):
     def apply(self, props: RegexProperties) -> str:
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        # Create list of parse columns dictionaries
-        parse_columns_list = [
-            {
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in props.parseColumns
-            ]
 
-        def safe_str(val):
-            """
-            Safely convert a value to a SQL string literal, handling None and empty strings.
-            
-            For regex expressions: This escapes single quotes for the SQL string literal parameter.
-            The macro will then receive the unescaped value and escape it again via 
-            escape_regex_pattern() for use in the actual SQL query. This two-stage escaping
-            is correct and necessary.
-            
-            Note: Backslashes in regex expressions are NOT escaped here - they are preserved
-            as part of the regex pattern and will be handled by escape_regex_pattern() in the macro.
-            """
-            if val is None or val == "":
-                return "''"
-            if isinstance(val, str):
-                # Escape single quotes for SQL string literals ('' represents a single quote in SQL)
-                # This is the first stage of escaping - for the macro parameter
-                escaped = val.replace("'", "''")
-                return f"'{escaped}'"
-            if isinstance(val, list):
-                return str(val)
-            return f"'{str(val)}'"
+        parse_columns_list = [
+            {"columnName": fld.columnName, "dataType": fld.dataType, "rgxExpression": fld.rgxExpression}
+            for fld in props.parseColumns
+        ]
 
         parameter_list = [
-            safe_str(props.relation_name),
-            safe_str(parse_columns_list),
-            safe_str(props.schema),
-            safe_str(props.selectedColumnName),
-            safe_str(props.regexExpression),  # Regex expression - escaped for SQL string literal parameter
-            safe_str(props.outputMethod),
-            str(props.caseInsensitive).lower(),
-            str(props.allowBlankTokens).lower(),
-            safe_str(props.replacementText),
-            str(props.copyUnmatchedText).lower(),
-            safe_str(props.tokenizeOutputMethod),
-            str(props.noOfColumns),
-            safe_str(props.extraColumnsHandling),
-            safe_str(props.outputRootName),
-            safe_str(props.matchColumnName),
-            str(props.errorIfNotMatched).lower(),
+            props.relation_name,
+            parse_columns_list,
+            props.schema,
+            props.selectedColumnName,
+            props.regexExpression,
+            props.outputMethod,
+            props.caseInsensitive,
+            props.allowBlankTokens,
+            props.replacementText,
+            props.copyUnmatchedText,
+            props.tokenizeOutputMethod,
+            props.noOfColumns,
+            props.extraColumnsHandling,
+            props.outputRootName,
+            props.matchColumnName,
+            props.errorIfNotMatched,
         ]
-        # Join all parameters - don't filter out empty strings, use "''" instead
-        non_empty_param = ",".join(parameter_list)
+        param_list_clean = []
+        for p in parameter_list:
+            if type(p) == str:
+                param_list_clean.append("'" + p + "'")
+            elif type(p) == bool:
+                param_list_clean.append(str(p).lower())
+            else:
+                param_list_clean.append(str(p))
+        non_empty_param = ",".join([param for param in param_list_clean if param != ''])
         return f'{{{{ {resolved_macro_name}({non_empty_param}) }}}}'
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        parseColumns = []
-        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
-        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
-        for fld in parseCols:
-            parseColumns.append(
-                ColumnParse(
-                    columnName=fld.get("columnName"),
-                    dataType=fld.get("dataType"),
-                    rgxExpression=fld.get("rgxExpression")
-                )
-            )
         return Regex.RegexProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            parseColumns=parseColumns,
+            parseColumns=json.loads(
+                parametersMap.get("parseColumns").replace("'", '"')
+            ),
             schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
@@ -698,19 +672,12 @@ class Regex(MacroSpec):
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
-        parseColumnsJsonList = json.dumps([{
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in properties.parseColumns
-            ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("parseColumns", parseColumnsJsonList),
+                MacroParameter("parseColumns", json.dumps(properties.parseColumns)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("selectedColumnName", str(properties.selectedColumnName)),
                 MacroParameter("outputMethod", str(properties.outputMethod)),
