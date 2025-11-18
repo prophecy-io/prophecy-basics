@@ -924,18 +924,14 @@ class Regex(MacroSpec):
                 result_df = result_df.withColumn("token_value_new", extracted_array)
                 
                 # Then explode the array to create multiple rows
+                # explode() preserves the order of elements in the array, so no window function needed
                 result_df = result_df.select(
                     "*",
                     F.explode(F.col("token_value_new")).alias("token_value_new")
                 )
                 
-                # Add token sequence
-                window_spec = Window.partitionBy(selected_column).orderBy(F.monotonically_increasing_id())
-                result_df = result_df.withColumn("token_sequence", F.row_number().over(window_spec))
-                
                 # Rename token column
                 result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
-                
                 # Filter blank tokens if not allowed
                 if not allow_blank_tokens:
                     result_df = result_df.filter(
