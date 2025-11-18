@@ -82,6 +82,7 @@ class TextToColumns(MacroSpec):
                                     TextBox("")
                                     .bindPlaceholder("delimiter")
                                     .bindProperty("delimiter")
+                                    .enableEscapeSequence()
                                 )
                                 .addElement(
                                     AlertBox(
