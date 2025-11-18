@@ -302,10 +302,6 @@
 {%- endif -%}
 
 {% endmacro %}
-
-{# ============================================ #}
-{# BIGQUERY Implementation                     #}
-{# ============================================ #}
 {% macro bigquery__Regex(
     relation_name,
     parseColumns,
@@ -340,20 +336,7 @@
 
 {# Parse parseColumns if its a string #}
 {%- if parseColumns is string -%}
-    {# Try to parse JSON - fromjson() may fail with escaped strings, so we try multiple approaches #}
     {%- set parsed_columns = fromjson(parseColumns) -%}
-    {# If fromjson() failed (returned None or empty), try unescaping single quotes and parsing again #}
-    {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-        {{ log("WARNING: fromjson() failed for parseColumns. Input length: " ~ parseColumns|length, info=True) }}
-        {# Try unescaping double single quotes (SQL escaping) and parsing again #}
-        {%- set unescaped_json = parseColumns | replace("''", "'") -%}
-        {%- set parsed_columns = fromjson(unescaped_json) -%}
-        {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-            {{ log("ERROR: Failed to parse parseColumns JSON after unescaping. Input preview: " ~ parseColumns[:300], info=True) }}
-        {%- else -%}
-            {{ log("SUCCESS: Successfully parsed parseColumns after unescaping.", info=True) }}
-        {%- endif -%}
-    {%- endif -%}
 {%- else -%}
     {%- set parsed_columns = parseColumns -%}
 {%- endif -%}
@@ -638,20 +621,7 @@
 
 {# Parse parseColumns if its a string #}
 {%- if parseColumns is string -%}
-    {# Try to parse JSON - fromjson() may fail with escaped strings, so we try multiple approaches #}
     {%- set parsed_columns = fromjson(parseColumns) -%}
-    {# If fromjson() failed (returned None or empty), try unescaping single quotes and parsing again #}
-    {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-        {{ log("WARNING: fromjson() failed for parseColumns. Input length: " ~ parseColumns|length, info=True) }}
-        {# Try unescaping double single quotes (SQL escaping) and parsing again #}
-        {%- set unescaped_json = parseColumns | replace("''", "'") -%}
-        {%- set parsed_columns = fromjson(unescaped_json) -%}
-        {%- if parsed_columns is none or (parsed_columns is iterable and parsed_columns|length == 0) -%}
-            {{ log("ERROR: Failed to parse parseColumns JSON after unescaping. Input preview: " ~ parseColumns[:300], info=True) }}
-        {%- else -%}
-            {{ log("SUCCESS: Successfully parsed parseColumns after unescaping.", info=True) }}
-        {%- endif -%}
-    {%- endif -%}
 {%- else -%}
     {%- set parsed_columns = parseColumns -%}
 {%- endif -%}

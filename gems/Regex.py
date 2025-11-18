@@ -582,18 +582,15 @@ class Regex(MacroSpec):
     def apply(self, props: RegexProperties) -> str:
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-        # Create JSON string - json.dumps() handles double quotes, but we need to escape
-        # single quotes for SQL string literals. The safe_str() function will handle this.
-        parseColumnsJson = json.dumps([
+        # Create list of parse columns dictionaries
+        parse_columns_list = [
             {
                     "columnName": fld.columnName,
                     "dataType": fld.dataType,
                     "rgxExpression": fld.rgxExpression
                 }
                 for fld in props.parseColumns
-            ])
+            ]
 
         def safe_str(val):
             """
@@ -619,8 +616,8 @@ class Regex(MacroSpec):
             return f"'{str(val)}'"
 
         parameter_list = [
-            safe_str(table_name),  # relation_name - must be present even if empty
-            safe_str(parseColumnsJson),  # parseColumns as JSON string
+            safe_str(props.relation_name),
+            safe_str(parse_columns_list),
             safe_str(props.schema),
             safe_str(props.selectedColumnName),
             safe_str(props.regexExpression),  # Regex expression - escaped for SQL string literal parameter
@@ -644,7 +641,8 @@ class Regex(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         parseColumns = []
-        parseCols = json.loads(parametersMap.get('parseColumns'))
+        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
+        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
         for fld in parseCols:
             parseColumns.append(
                 ColumnParse(
@@ -655,9 +653,7 @@ class Regex(MacroSpec):
             )
         return Regex.RegexProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            parseColumns=json.loads(
-                parametersMap.get("parseColumns").replace("'", '"')
-            ),
+            parseColumns=parseColumns,
             schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
