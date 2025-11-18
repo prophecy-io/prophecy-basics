@@ -472,10 +472,10 @@
                                 case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
                             else regex_matches[OFFSET({{ noOfColumns - 1 }})]
                         end
-                    else
-                        {# Concatenate remaining matches using STRING_AGG #}
-                        (SELECT STRING_AGG(regex_matches[OFFSET(i)], '')
-                         FROM UNNEST(GENERATE_ARRAY({{ noOfColumns }}, ARRAY_LENGTH(regex_matches) - 1)) AS i)
+                    when ARRAY_LENGTH(regex_matches) >= {{ noOfColumns }} then
+                        {# Concatenate remaining matches using STRING_AGG - only if there are remaining matches #}
+                        ARRAY_TO_STRING(ARRAY(SELECT regex_matches[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns - 1 }}, ARRAY_LENGTH(regex_matches) - 1)) AS i), '')
+                    else CAST(NULL AS STRING)
                 end as {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
             from extracted_array
         {%- elif extra_handling_lower == 'dropextrawitherror' -%}
