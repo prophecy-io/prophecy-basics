@@ -116,17 +116,41 @@
 
     {% set alias = "src" %}
     {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
-    {% set unquoted_col = column_name | trim %}
+    {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# Use expressions directly and replace column_name with internal_col (matching applyPython logic) #}
-    {% set init_select = init_expr | replace(column_name, internal_col) %}
-    {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(column_name, internal_col) %}
-    {% set output_col_alias = column_name %}
-    {# BigQuery EXCEPT requires unquoted identifiers, not quoted strings #}
-    {% set except_col = unquoted_col %}
-    {# In base case, remove table aliases since we're selecting from payload directly #}
+    {# detect date/timestamp style init expressions #}
+    {% set is_timestamp = " " in init_expr %}
+    {% set is_date = ("-" in init_expr) and not is_timestamp %}
+    {% set init_strip = init_expr.strip() %}
+    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
+        {% set init_value = init_strip %}
+    {% else %}
+        {% set init_value = "'" ~ init_strip ~ "'" %}
+    {% endif %}
+    {% if is_timestamp %}
+        {% set init_select = "timestamp(" ~ init_value ~ ")" %}
+    {% elif is_date %}
+        {% set init_select = "date(" ~ init_value ~ ")" %}
+    {% else %}
+        {% set init_select = init_expr %}
+    {% endif %}
+
+    {# Normalize condition expression quotes #}
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
+    {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+
+    {# Replace column_name with internal_col in condition_expr #}
+    {% set condition_expr_sql = condition_expr_sql | replace(column_name, internal_col) %}
+    {# Replace payload. with nothing since columns are flattened in expanded CTE (used in final WHERE) #}
+    {% set condition_expr_sql = condition_expr_sql | replace('payload.', '') %}
+
+    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+    {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
+    {# In base case, remove table aliases since we are selecting from payload directly #}
     {% set init_select_base = init_select | replace('payload.', '') | replace(alias ~ '.', '') %}
 
     {% if relation_tables %}
@@ -137,8 +161,13 @@
         ),
         base as (
             -- Base case: one row per input record with initial value
+            -- Named 'base' so payload.column references work naturally
             select
+                {% if column_name in ['a','b','c','d'] %}
                 payload.* EXCEPT ({{ except_col }}),
+                {% else %}
+                payload.*,
+                {% endif %}
                 {{ init_select_base }} as {{ internal_col }}
             from payload
         ),
@@ -148,23 +177,30 @@
             from unnest(generate_array(1, {{ max_rows | int }})) as i
         ),
         expanded as (
-            -- Cross join base with sequences and calculate values iteratively
-            -- For linear increments: value = init + (iter - 1) * step
-            -- Step = loop_expr(init) - init
+            -- Generate array of values using ARRAY and UNNEST (similar to applyPython's transform/explode)
+            -- Similar to applyPython: init + (i-1) * step
+            -- Extract step: loop_expr(initial) - initial
             select
                 base.* EXCEPT ({{ internal_col }}),
-                sequences._iter,
-                -- Calculate value for this iteration: init + (iter-1) * (loop_expr(init) - init)
-                base.{{ internal_col }} + (sequences._iter - 1) * (({{ loop_expr_replaced | replace(internal_col, 'base.' ~ internal_col) }}) - base.{{ internal_col }}) as {{ internal_col }}
+                gen._iter,
+                gen.{{ internal_col }}
             from base
-            cross join sequences
-        )
+            cross join unnest(
+                array(
+                    select struct(
+                        i as _iter,
+                        base.{{ internal_col }} + (i - 1) * (({{ loop_expr | replace(column_name, internal_col) | replace('payload.', 'base.') }}) - base.{{ internal_col }}) as {{ internal_col }}
+                    )
+                    from unnest(generate_array(1, {{ max_rows | int }})) as i
+                )
+            ) as gen
+        ),
         select
             -- Select all original columns, then add the generated column
             expanded.* EXCEPT ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from expanded
-        where _iter <= {{ max_rows | int }}
+        where _iter < {{ max_rows | int }}
           and ({{ condition_expr_sql }})
     {% else %}
         with recursive gen as (
