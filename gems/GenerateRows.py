@@ -211,91 +211,58 @@ class GenerateRows(MacroSpec):
         if in0 is None:
             in0 = spark.createDataFrame([], StructType([]))
         
-        # Match SQL macro: if no input columns, don't create payload struct (matches {% else %} branch)
+        # Create payload struct if input columns exist (matching SQL macro: struct(alias.*) as payload)
+        # If no columns, use spark.range(1) as base (matching SQL macro {% else %} branch)
         if in0.columns:
-            # Create payload struct (matching SQL macro: struct(alias.*) as payload)
             payload_struct = F.struct(*[F.col(c) for c in in0.columns]).alias("payload")
             base = in0.select(payload_struct)
-            
-            # Base case: one row per input record with initial value (matching SQL macro base case)
-            base_with_init = base.select(
-                F.col("payload"),
-                F.expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
-            )
-            
-            # Generate values using sequence and transform
-            # Use loop_expr directly as step
-            step_expr = str(loop_expr).replace(column_name, internal_col)
-            
-            # Generate array of values: init + (i-1) * step for each iteration
-            # Also track iteration number to filter by max_rows
-            result = base_with_init.select(
-                F.col("payload"),
-                F.explode(
-                    F.expr(f"""
-                        transform(
-                            sequence(1, {max_rows}),
-                            i -> struct(
-                                {internal_col} + (i - 1) * ({step_expr}) as {internal_col},
-                                i as _iter
-                            )
-                        )
-                    """)
-                ).alias("_gen")
-            ).select(
-                F.col("payload"),
-                F.col("_gen._iter").alias("_iter"),
-                F.col(f"_gen.{internal_col}").alias(internal_col)
-            )
-            
-            # Filter where condition is true OR iteration < max_rows (matching SQL macro's WHERE clauses)
-            filtered = result.filter(
-                (F.col("_iter") < max_rows) |
-                F.expr(str(condition_expr).replace(column_name, internal_col))
-            )
-            
-            # Expand payload and select final columns (matching SQL macro's payload.*)
-            payload_cols = [F.col(f"payload.{c}").alias(c) for c in in0.columns]
-            result = filtered.select(
-                *payload_cols,
-                F.col(internal_col).alias(column_name)
-            )
         else:
-            # No input columns: match SQL macro {% else %} branch (no payload struct)
-            base_with_init = spark.range(1).select(
-                F.expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
-            )
-            
-            # Generate values using sequence and transform
-            # Use loop_expr directly as step
-            step_expr = str(loop_expr).replace(column_name, internal_col)
-            
-            result = base_with_init.select(
-                F.explode(
-                    F.expr(f"""
-                        transform(
-                            sequence(1, {max_rows}),
-                            i -> struct(
-                                {internal_col} + (i - 1) * ({step_expr}) as {internal_col},
-                                i as _iter
-                            )
+            payload_struct = F.struct().alias("payload")
+            base = spark.range(1).select(payload_struct)
+        
+        # Base case: one row per input record with initial value (matching SQL macro base case)
+        base_with_init = base.select(
+            F.col("payload"),
+            F.expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
+        )
+        
+        # Generate values using sequence and transform
+        # Use loop_expr directly as step
+        step_expr = str(loop_expr).replace(column_name, internal_col)
+        
+        # Generate array of values: init + (i-1) * step for each iteration
+        # Also track iteration number to filter by max_rows
+        result = base_with_init.select(
+            F.col("payload"),
+            F.explode(
+                F.expr(f"""
+                    transform(
+                        sequence(1, {max_rows}),
+                        i -> struct(
+                            {internal_col} + (i - 1) * ({step_expr}) as {internal_col},
+                            i as _iter
                         )
-                    """)
-                ).alias("_gen")
-            ).select(
-                F.col("_gen._iter").alias("_iter"),
-                F.col(f"_gen.{internal_col}").alias(internal_col)
-            )
-            
-            # Filter where condition is true OR iteration < max_rows
-            filtered = result.filter(
-                (F.col("_iter") < max_rows) |
-                F.expr(str(condition_expr).replace(column_name, internal_col))
-            )
-            
-            # Select only the generated column (no payload expansion)
-            result = filtered.select(
-                F.col(internal_col).alias(column_name)
-            )
+                    )
+                """)
+            ).alias("_gen")
+        ).select(
+            F.col("payload"),
+            F.col("_gen._iter").alias("_iter"),
+            F.col(f"_gen.{internal_col}").alias(internal_col)
+        )
+        
+        # Filter where condition is true OR iteration < max_rows (matching SQL macro's WHERE clauses)
+        filtered = result.filter(
+            (F.col("_iter") < max_rows) |
+            F.expr(str(condition_expr).replace(column_name, internal_col))
+        )
+        
+        # Expand payload and select final columns (matching SQL macro's payload.*)
+        # If no input columns, payload will be empty struct, so only select generated column
+        payload_cols = [F.col(f"payload.{c}").alias(c) for c in in0.columns]
+        result = filtered.select(
+            *payload_cols,
+            F.col(internal_col).alias(column_name)
+        )
         
         return result
