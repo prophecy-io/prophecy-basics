@@ -268,8 +268,13 @@
     {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record
+            -- BigQuery doesn't support struct.* expansion, so select all columns directly
             select
-                struct({{ alias }}.*) as payload,
+                {% if column_name in ['a','b','c','d'] %}
+                {{ alias }}.* EXCEPT ({{ except_col }}),
+                {% else %}
+                {{ alias }}.*,
+                {% endif %}
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_tables }} {{ alias }}
@@ -278,7 +283,7 @@
 
             -- recursive step
             select
-                gen.payload as payload,
+                gen.* EXCEPT ({{ internal_col }}, _iter),
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
@@ -286,12 +291,8 @@
               and ({{ recursion_condition }})
         )
         select
-            -- BigQuery doesn't support EXCEPT, so use SELECT * and exclude manually if needed
-            {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ except_col }}),
-            {% else %}
-                payload.*,
-            {% endif %}
+            -- Select all original columns (already excluding conflicting column_name if needed), then add the generated column
+            gen.* EXCEPT ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
@@ -417,8 +418,13 @@
     {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record
+            -- DuckDB: select all columns directly (consistent with BigQuery approach)
             select
-                struct({{ alias }}.*) as payload,
+                {% if column_name in ['a','b','c','d'] %}
+                {{ alias }}.* EXCEPT ({{ except_col }}),
+                {% else %}
+                {{ alias }}.*,
+                {% endif %}
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_tables }} {{ alias }}
@@ -427,7 +433,7 @@
 
             -- recursive step
             select
-                gen.payload as payload,
+                gen.* EXCEPT ({{ internal_col }}, _iter),
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
@@ -435,12 +441,8 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Use safe EXCEPT only if base column might exist; otherwise fallback
-            {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ except_col }}),
-            {% else %}
-                payload.*,
-            {% endif %}
+            -- Select all original columns (already excluding conflicting column_name if needed), then add the generated column
+            gen.* EXCEPT ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
