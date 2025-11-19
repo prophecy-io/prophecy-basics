@@ -106,60 +106,6 @@ class GenerateRows(MacroSpec):
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super().validate(context, component)
-        
-        # Check if loop_expr is non-linear (will produce incorrect results with linear formula)
-        loop_expr = component.properties.loop_expr if hasattr(component.properties, 'loop_expr') else None
-        column_name = component.properties.column_name if hasattr(component.properties, 'column_name') else None
-        
-        if loop_expr and column_name:
-            # Remove whitespace for easier pattern matching
-            loop_expr_clean = str(loop_expr).replace(" ", "")
-            column_name_clean = str(column_name).replace(" ", "")
-            
-            # Check for non-linear operations: multiplication, division, exponentiation, modulo
-            # These operations make the expression non-linear when applied recursively
-            non_linear_patterns = [
-                f"{column_name_clean}*",  # value * something
-                f"*{column_name_clean}",  # something * value
-                f"{column_name_clean}/",  # value / something
-                f"/{column_name_clean}",  # something / value
-                f"{column_name_clean}**",  # value ** something (exponentiation)
-                f"**{column_name_clean}",  # something ** value
-                f"{column_name_clean}^",  # value ^ something (exponentiation)
-                f"^{column_name_clean}",  # something ^ value
-                f"{column_name_clean}%",  # value % something (modulo)
-                f"%{column_name_clean}",  # something % value
-            ]
-            
-            # Also check for function calls that might be non-linear
-            # Common non-linear functions: pow, power, exp, log, sqrt
-            non_linear_functions = ["pow", "power", "exp", "log", "sqrt", "square"]
-            
-            is_non_linear = False
-            for pattern in non_linear_patterns:
-                if pattern in loop_expr_clean:
-                    is_non_linear = True
-                    break
-            
-            if not is_non_linear:
-                # Check for function calls
-                loop_expr_lower = loop_expr_clean.lower()
-                for func in non_linear_functions:
-                    if func in loop_expr_lower and column_name_clean.lower() in loop_expr_lower:
-                        is_non_linear = True
-                        break
-            
-            if is_non_linear:
-                diagnostics.append(
-                    Diagnostic(
-                        severity=SeverityLevelEnum.Warning,
-                        message=f"Loop expression '{loop_expr}' appears to be non-linear (contains multiplication, division, exponentiation, or non-linear functions). "
-                                f"The current implementation uses a linear formula which only works correctly for linear progressions (e.g., 'value + k' or 'value - k'). "
-                                f"Non-linear expressions may produce incorrect results. Consider using a recursive approach or a linear expression instead.",
-                        component=component
-                    )
-                )
-        
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
