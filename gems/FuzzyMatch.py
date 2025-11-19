@@ -357,6 +357,7 @@ class FuzzyMatch(MacroSpec):
         for field in self.props.matchFields:
             key = field.matchFunction
             col_name = field.columnName
+
             if key in ("custom", "name", "address"):
                 column_value = upper(regexp_replace(col(col_name).cast("string"), r"[^\w\s]", ""))
             else:
@@ -389,7 +390,9 @@ class FuzzyMatch(MacroSpec):
 
             selects.append(in0.select(*base_cols))
 
-        match_function = reduce(lambda a, b: a.unionByName(b, allowMissingColumns=True), selects)
+        match_function = selects[0]
+        for x in selects[1:]:
+            match_function = match_function.unionByName(x, allowMissingColumns=True)
 
         df0 = match_function.alias("df0")
         df1 = match_function.alias("df1")
@@ -452,8 +455,6 @@ class FuzzyMatch(MacroSpec):
         threshold = float(self.props.matchThresholdPercentage or 0)
 
         if self.props.includeSimilarityScore:
-            result = final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2", "similarity_score")
+            return final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2", "similarity_score")
         else:
-            result = final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2")
-
-        return result
+            return final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2")
