@@ -255,12 +255,12 @@
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% if relation_tables %}
-        with payload as (
+        with recursive payload as (
             -- Select all columns from source table
             select *
             from {{ relation_tables }} {{ alias }}
         ),
-        recursive gen as (
+        gen as (
             -- base case: one row per input record
             select
                 payload.*,
