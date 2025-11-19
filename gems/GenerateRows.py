@@ -293,46 +293,52 @@ class GenerateRows(MacroSpec):
             base = spark.range(1).select(payload_struct)
 
         # Base case: one row per input record with initial value (matching SQL macro base case)
-        # Add _iter column to track iteration
         base_with_init = base.select(
-            col("payload"),
-            expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col),
-            lit(1).alias("_iter")
+            F.col("payload"),
+            F.expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
         )
 
-        # Recursive/iterative approach: union all new rows until max_rows reached
-        # Iterate up to max_rows times, applying loop_expr in each iteration
-        result = base_with_init
-        x_range = range(2, max_rows + 1)
-        for iteration in x_range:
-            # Generate next iteration: apply loop_expr and increment _iter
-            # Reference columns directly (not with gen. prefix) since we're selecting from the aliased DataFrame
-            loop_expr_replaced = str(loop_expr).replace(column_name, internal_col)
-            
-            next_iter = result.select(
-                col("payload"),
-                expr(loop_expr_replaced).alias(internal_col),
-                lit(iteration).alias("_iter")
-            )
-            
-            # Union with previous results
-            result = result.unionByName(next_iter, allowMissingColumns=True)
+        # Generate values using sequence and transform
+        # NOTE: This uses a linear formula which only works for linear progressions (value + k, value - k)
+        # For non-linear expressions (value * 2, value * value), this will produce incorrect results
+        # Extract step: loop_expr(initial) - initial
+        # For loop_expr = "value + 1" with init=1: step = (1+1) - 1 = 1
+        loop_expr_with_init = str(loop_expr).replace(column_name, internal_col)
+        step_expr = f"({loop_expr_with_init}) - {internal_col}"
 
-        # Apply condition_expr as final filter (matching SQL macro's WHERE clause)
-        condition_expr_replaced = str(condition_expr).replace(column_name, internal_col)
-        filtered = result.filter(expr(condition_expr_replaced))
+        # Generate array of values: init + (i-1) * step for each iteration
+        # Also track iteration number to filter by max_rows
+        result = base_with_init.select(
+            col("payload"),
+            explode(
+                expr(f"""
+                    transform(
+                        sequence(1, {max_rows}),
+                        i -> struct(
+                            {internal_col} + (i - 1) * ({step_expr}) as {internal_col},
+                            i as _iter
+                        )
+                    )
+                """)
+            ).alias("_gen")
+        ).select(
+            col("payload"),
+            col("_gen._iter").alias("_iter"),
+            col(f"_gen.{internal_col}").alias(internal_col)
+        )
+
+        # Filter where condition is true & iteration < max_rows (matching SQL macro's WHERE clauses)
+        filtered = result.filter(
+            (col("_iter") <= max_rows) &
+            expr(str(condition_expr).replace(column_name, internal_col))
+        )
 
         # Expand payload and select final columns (matching SQL macro's payload.*)
         # If no input columns, payload will be empty struct, so only select generated column
-        if in0.columns:
-            payload_cols = [col(f"payload.{c}").alias(c) for c in in0.columns]
-            result = filtered.select(
-                *payload_cols,
-                col(internal_col).alias(column_name)
-            )
-        else:
-            result = filtered.select(
-                col(internal_col).alias(column_name)
-            )
+        payload_cols = [col(f"payload.{c}").alias(c) for c in in0.columns]
+        result = filtered.select(
+            *payload_cols,
+            col(internal_col).alias(column_name)
+        )
 
         return result
