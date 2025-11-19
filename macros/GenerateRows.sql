@@ -250,7 +250,10 @@
     {% set init_select = init_expr | replace(column_name, internal_col) %}
     {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
     {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
-    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
+    {# Replace payload. references with gen. in recursion condition since payload columns are flattened into gen #}
+    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
+    {# Replace payload. references in final WHERE clause since columns are flattened #}
+    {% set condition_expr_sql = condition_expr_sql | replace('payload.', '') %}
     {% set output_col_alias = column_name %}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
