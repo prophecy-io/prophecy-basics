@@ -122,38 +122,50 @@
     {# Use expressions directly and replace column_name with internal_col (matching applyPython logic) #}
     {% set init_select = init_expr | replace(column_name, internal_col) %}
     {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
-    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = loop_expr | replace(column_name, internal_col) %}
     {% set output_col_alias = column_name %}
     {# BigQuery EXCEPT requires unquoted identifiers, not quoted strings #}
     {% set except_col = unquoted_col %}
+    {# In base case, remove table aliases since we're selecting from payload directly #}
+    {% set init_select_base = init_select | replace('payload.', '') | replace(alias ~ '.', '') %}
 
     {% if relation_tables %}
-        with recursive gen as (
-            -- base case: one row per input record
-            select
-                STRUCT({{ alias }}.*) as payload,
-                {{ init_select }} as {{ internal_col }},
-                1 as _iter
+        with payload as (
+            -- Select all columns from source table
+            select *
             from {{ relation_tables }} {{ alias }}
-
-            union all
-
-            -- recursive step
+        ),
+        base as (
+            -- Base case: one row per input record with initial value
             select
-                gen.payload as payload,
-                {{ loop_expr_replaced }} as {{ internal_col }},
-                _iter + 1
-            from gen
-            where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
+                payload.* EXCEPT ({{ except_col }}),
+                {{ init_select_base }} as {{ internal_col }}
+            from payload
+        ),
+        sequences as (
+            -- Generate sequence numbers
+            select i as _iter
+            from unnest(generate_array(1, {{ max_rows | int }})) as i
+        ),
+        expanded as (
+            -- Cross join base with sequences and calculate values iteratively
+            -- For linear increments: value = init + (iter - 1) * step
+            -- Step = loop_expr(init) - init
+            select
+                base.* EXCEPT ({{ internal_col }}),
+                sequences._iter,
+                -- Calculate value for this iteration: init + (iter-1) * (loop_expr(init) - init)
+                base.{{ internal_col }} + (sequences._iter - 1) * (({{ loop_expr_replaced | replace(internal_col, 'base.' ~ internal_col) }}) - base.{{ internal_col }}) as {{ internal_col }}
+            from base
+            cross join sequences
         )
         select
-            -- Exclude column_name if it exists to avoid duplicate column error
-            payload.* EXCEPT ({{ except_col }}),
+            -- Select all original columns, then add the generated column
+            expanded.* EXCEPT ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
-        from gen
-        where {{ condition_expr_sql }}
+        from expanded
+        where _iter <= {{ max_rows | int }}
+          and ({{ condition_expr_sql }})
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
