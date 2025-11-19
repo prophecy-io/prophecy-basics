@@ -222,17 +222,22 @@
     {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
 
     {% if relation_tables %}
-        with base as (
+        with payload as (
+            -- Select all columns from source table
+            select *
+            from {{ relation_tables }} {{ alias }}
+        ),
+        base as (
             -- Base case: one row per input record with initial value
             -- Named 'base' so payload.column references work naturally
             select
                 {% if column_name in ['a','b','c','d'] %}
-                {{ alias }}.* EXCEPT ({{ except_col }}),
+                payload.* EXCEPT ({{ except_col }}),
                 {% else %}
-                {{ alias }}.*,
+                payload.*,
                 {% endif %}
                 {{ init_select }} as {{ internal_col }}
-            from {{ relation_tables }} {{ alias }}
+            from payload
         ),
         expanded as (
             -- Generate array of values using ARRAY and UNNEST (similar to applyPython's transform/explode)
