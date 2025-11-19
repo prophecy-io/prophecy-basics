@@ -255,19 +255,24 @@
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% if relation_tables %}
-        with recursive gen as (
+        with payload as (
+            -- Select all columns from source table
+            select *
+            from {{ relation_tables }} {{ alias }}
+        ),
+        recursive gen as (
             -- base case: one row per input record
             select
-                row({{ alias }}.*) as payload,
+                payload.*,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
-            from {{ relation_tables }} {{ alias }}
+            from payload
 
             union all
 
             -- recursive step
             select
-                gen.payload as payload,
+                gen.* EXCLUDE ({{ internal_col }}, _iter),
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
@@ -275,8 +280,8 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Exclude column_name if it exists in payload to avoid duplicate column error
-            payload.* EXCLUDE ({{ except_col }}),
+            -- Exclude column_name if it exists to avoid duplicate column error
+            gen.* EXCLUDE ({{ except_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
