@@ -353,7 +353,7 @@ class FuzzyMatch(MacroSpec):
         if not (self.props.matchFields and (self.props.mode == "PURGE" or self.props.mode == "MERGE")):
             return in0
 
-        selects = []
+        selects: SubstituteDisabled = []
         for field in self.props.matchFields:
             key = field.matchFunction
             col_name = field.columnName
@@ -390,14 +390,14 @@ class FuzzyMatch(MacroSpec):
 
             selects.append(in0.select(*base_cols))
 
-        match_function = selects[0]
+        match_function: SubstituteDisabled = selects[0]
         for x in selects[1:]:
             match_function = match_function.unionByName(x, allowMissingColumns=True)
 
-        df0 = match_function.alias("df0")
-        df1 = match_function.alias("df1")
+        df0: SubstituteDisabled = match_function.alias("df0")
+        df1: SubstituteDisabled = match_function.alias("df1")
 
-        join_cond = (
+        join_cond: SubstituteDisabled = (
                 (col("df0.function_name") == col("df1.function_name")) &
                 (col("df0.column_name") == col("df1.column_name")) &
                 (col("df0.record_id") != col("df1.record_id"))
@@ -406,7 +406,7 @@ class FuzzyMatch(MacroSpec):
         if self.props.mode == "MERGE":
             join_cond = join_cond & (col("df0.source_id") != col("df1.source_id"))
 
-        cross_joined = df0.join(df1, join_cond).select(
+        cross_joined: SubstituteDisabled = df0.join(df1, join_cond).select(
             col("df0.record_id").alias("record_id1"),
             col("df1.record_id").alias("record_id2"),
             *( [col("df0.source_id").alias("source_id1"), col("df1.source_id").alias("source_id2")] if self.props.mode == "MERGE" else [] ),
@@ -416,7 +416,7 @@ class FuzzyMatch(MacroSpec):
             col("df0.function_name").alias("function_name")
         )
 
-        similarity = when(col("function_name") == "LEVENSHTEIN",
+        similarity: SubstituteDisabled = when(col("function_name") == "LEVENSHTEIN",
                           (1 - (levenshtein(col("column_value_1"), col("column_value_2")) /
                                 greatest(length(col("column_value_1")), length(col("column_value_2"))))) * 100
                           ).when(
@@ -442,7 +442,7 @@ class FuzzyMatch(MacroSpec):
 
         imposed = cross_joined.withColumn("similarity_score", similarity)
 
-        replaced = imposed.select(
+        replaced : SubstituteDisabled = imposed.select(
             when(col("record_id1").cast("long") >= col("record_id2").cast("long"), col("record_id1")).otherwise(col("record_id2")).alias("record_id1"),
             when(col("record_id1").cast("long") >= col("record_id2").cast("long"), col("record_id2")).otherwise(col("record_id1")).alias("record_id2"),
             col("column_name"),
@@ -452,7 +452,7 @@ class FuzzyMatch(MacroSpec):
 
         final_output = replaced.groupBy("record_id1", "record_id2").agg(round(avg("similarity_score"), 2).alias("similarity_score"))
 
-        threshold = float(self.props.matchThresholdPercentage or 0)
+        threshold: SubstituteDisabled = float(self.props.matchThresholdPercentage or 0)
 
         if self.props.includeSimilarityScore:
             return final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2", "similarity_score")
