@@ -713,180 +713,180 @@ class Regex(MacroSpec):
         error_if_not_matched = self.props.errorIfNotMatched
         extra_columns_handling = self.props.extraColumnsHandling
 
-        regex_pattern = regex_expression
-        if case_insensitive:
-            regex_pattern = f"(?i){regex_expression}"
+        # regex_pattern = regex_expression
+        # if case_insensitive:
+        #     regex_pattern = f"(?i){regex_expression}"
+        #
+        # result_df = in0
+        # val_if_not_found = None if allow_blank_tokens else lit("")
+        #
+        # if output_method == "replace":
+        #     replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
+        #     if copy_unmatched_text:
+        #         replaced_col = when(
+        #             col(selected_column).rlike(regex_pattern),
+        #             replaced_col
+        #         ).otherwise(col(selected_column))
+        #
+        #     result_df = result_df.withColumn(
+        #         f"{selected_column}_replaced",
+        #         replaced_col
+        #     )
+        #
+        # elif output_method == "parse":
+        #     if parse_columns and len(parse_columns) > 0:
+        #         idx = 0
+        #         for parse_col in parse_columns:
+        #             idx += 1
+        #             col_name = parse_col.columnName
+        #             col_type = parse_col.dataType
+        #
+        #             extracted = regexp_extract(col(selected_column), regex_pattern, idx)
+        #
+        #             if col_type.lower() == "int" or col_type.lower() == "integer":
+        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
+        #             elif col_type.lower() == "bigint":
+        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(LongType())
+        #             elif col_type.lower() == "double" or col_type.lower() == "float":
+        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(DoubleType())
+        #             elif col_type.lower() == "bool" or col_type.lower() == "boolean":
+        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(BooleanType())
+        #             elif col_type.lower() == "date":
+        #                 extracted = when(extracted != "", to_date(extracted)).otherwise(None)
+        #             elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
+        #                 extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
+        #             else:
+        #                 val_if_not_found = lit("") if allow_blank_tokens else None
+        #                 extracted = when(
+        #                     (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
+        #                     (extracted == ""),
+        #                     val_if_not_found
+        #                 ).otherwise(extracted)
+        #
+        #             result_df = result_df.withColumn(col_name, extracted)
+        #
+        # elif output_method == "tokenize":
+        #     if tokenize_output_method == "splitColumns":
+        #         has_capture_groups = '(' in regex_expression
+        #
+        #         if has_capture_groups:
+        #             for i in range(1, no_of_columns + 1):
+        #                 extracted = regexp_extract(col(selected_column), regex_pattern, i)
+        #                 if not allow_blank_tokens:
+        #                     extracted = when(
+        #                         (col(selected_column).rlike(regex_pattern)) & (extracted != ""),
+        #                         extracted
+        #                     ).otherwise(None)
+        #                 else:
+        #                     extracted = when(
+        #                         col(selected_column).rlike(regex_pattern),
+        #                         extracted
+        #                     ).otherwise(None)
+        #
+        #                 result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
+        #         else:
+        #             extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
+        #             array_size = size(extracted_array)
+        #
+        #             extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
+        #
+        #             if extra_handling_lower == "saveallremainingtext":
+        #                 for i in range(1, no_of_columns):
+        #                     col_val = when(
+        #                         array_size == 0,
+        #                         None
+        #                     ).when(
+        #                         array_size < i,
+        #                         None
+        #                     ).when(
+        #                         extracted_array[i - 1] == "",
+        #                         None
+        #                     ).otherwise(extracted_array[i - 1])
+        #
+        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+        #
+        #                 last_col_val = when(
+        #                     array_size == 0,
+        #                     None
+        #                 ).when(
+        #                     array_size < no_of_columns,
+        #                     None
+        #                 ).when(
+        #                     array_size > no_of_columns,
+        #                     concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
+        #                 ).when(
+        #                     array_size == no_of_columns,
+        #                     when(
+        #                         extracted_array[no_of_columns - 1] == "",
+        #                         val_if_not_found
+        #                     ).otherwise(extracted_array[no_of_columns - 1])
+        #                 ).otherwise(None)
+        #
+        #                 result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
+        #
+        #             elif extra_handling_lower == "dropextrawitherror":
+        #                 for i in range(1, no_of_columns + 1):
+        #                     col_val = when(
+        #                         array_size > no_of_columns,
+        #                         lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
+        #                     ).when(
+        #                         array_size == 0,
+        #                         None
+        #                     ).when(
+        #                         array_size < i,
+        #                         None
+        #                     ).when(
+        #                         extracted_array[i - 1] == "",
+        #                         None
+        #                     ).otherwise(extracted_array[i - 1])
+        #
+        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+        #
+        #             else:
+        #                 for i in range(1, no_of_columns + 1):
+        #                     col_val = when(
+        #                         array_size == 0,
+        #                         None
+        #                     ).when(
+        #                         array_size < i,
+        #                         None
+        #                     ).when(
+        #                         extracted_array[i - 1] == "",
+        #                         None
+        #                     ).otherwise(extracted_array[i - 1])
+        #
+        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+        #
+        #     elif tokenize_output_method == "splitRows":
+        #         all_columns = [col(c) for c in result_df.columns]
+        #         extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
+        #         result_df = result_df.withColumn("token_value_new", extracted_array)
+        #
+        #         result_df = result_df.select(
+        #             *all_columns,
+        #             explode(col("token_value_new")).alias("token_value_new")
+        #         )
+        #
+        #         # Rename token column
+        #         result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
+        #         if not allow_blank_tokens:
+        #             result_df = result_df.filter(
+        #                 (col(output_root_name) != "") &
+        #                 (col(output_root_name).isNotNull())
+        #             )
+        #
+        # elif output_method == "match":
+        #     match_col = when(
+        #         col(selected_column).isNull(),
+        #         0
+        #     ).when(
+        #         col(selected_column).rlike(regex_pattern),
+        #         1
+        #     ).otherwise(0)
+        #
+        #     result_df = result_df.withColumn(match_column_name, match_col)
+        #
+        #     if error_if_not_matched:
+        #         result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
-        result_df = in0
-        val_if_not_found = None if allow_blank_tokens else lit("")
-
-        if output_method == "replace":
-            replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
-            if copy_unmatched_text:
-                replaced_col = when(
-                    col(selected_column).rlike(regex_pattern),
-                    replaced_col
-                ).otherwise(col(selected_column))
-
-            result_df = result_df.withColumn(
-                f"{selected_column}_replaced",
-                replaced_col
-            )
-
-        elif output_method == "parse":
-            if parse_columns and len(parse_columns) > 0:
-                idx = 0
-                for parse_col in parse_columns:
-                    idx += 1
-                    col_name = parse_col.columnName
-                    col_type = parse_col.dataType
-
-                    extracted = regexp_extract(col(selected_column), regex_pattern, idx)
-
-                    if col_type.lower() == "int" or col_type.lower() == "integer":
-                        extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
-                    elif col_type.lower() == "bigint":
-                        extracted = when(extracted != "", extracted).otherwise(None).cast(LongType())
-                    elif col_type.lower() == "double" or col_type.lower() == "float":
-                        extracted = when(extracted != "", extracted).otherwise(None).cast(DoubleType())
-                    elif col_type.lower() == "bool" or col_type.lower() == "boolean":
-                        extracted = when(extracted != "", extracted).otherwise(None).cast(BooleanType())
-                    elif col_type.lower() == "date":
-                        extracted = when(extracted != "", to_date(extracted)).otherwise(None)
-                    elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
-                        extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
-                    else:
-                        val_if_not_found = lit("") if allow_blank_tokens else None
-                        extracted = when(
-                            (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
-                            (extracted == ""),
-                            val_if_not_found
-                        ).otherwise(extracted)
-
-                    result_df = result_df.withColumn(col_name, extracted)
-
-        elif output_method == "tokenize":
-            if tokenize_output_method == "splitColumns":
-                has_capture_groups = '(' in regex_expression
-
-                if has_capture_groups:
-                    for i in range(1, no_of_columns + 1):
-                        extracted = regexp_extract(col(selected_column), regex_pattern, i)
-                        if not allow_blank_tokens:
-                            extracted = when(
-                                (col(selected_column).rlike(regex_pattern)) & (extracted != ""),
-                                extracted
-                            ).otherwise(None)
-                        else:
-                            extracted = when(
-                                col(selected_column).rlike(regex_pattern),
-                                extracted
-                            ).otherwise(None)
-
-                        result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
-                else:
-                    extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
-                    array_size = size(extracted_array)
-
-                    extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
-
-                    if extra_handling_lower == "saveallremainingtext":
-                        for i in range(1, no_of_columns):
-                            col_val = when(
-                                array_size == 0,
-                                None
-                            ).when(
-                                array_size < i,
-                                None
-                            ).when(
-                                extracted_array[i - 1] == "",
-                                None
-                            ).otherwise(extracted_array[i - 1])
-
-                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
-                        last_col_val = when(
-                            array_size == 0,
-                            None
-                        ).when(
-                            array_size < no_of_columns,
-                            None
-                        ).when(
-                            array_size > no_of_columns,
-                            concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
-                        ).when(
-                            array_size == no_of_columns,
-                            when(
-                                extracted_array[no_of_columns - 1] == "",
-                                val_if_not_found
-                            ).otherwise(extracted_array[no_of_columns - 1])
-                        ).otherwise(None)
-
-                        result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
-
-                    elif extra_handling_lower == "dropextrawitherror":
-                        for i in range(1, no_of_columns + 1):
-                            col_val = when(
-                                array_size > no_of_columns,
-                                lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
-                            ).when(
-                                array_size == 0,
-                                None
-                            ).when(
-                                array_size < i,
-                                None
-                            ).when(
-                                extracted_array[i - 1] == "",
-                                None
-                            ).otherwise(extracted_array[i - 1])
-
-                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
-                    else:
-                        for i in range(1, no_of_columns + 1):
-                            col_val = when(
-                                array_size == 0,
-                                None
-                            ).when(
-                                array_size < i,
-                                None
-                            ).when(
-                                extracted_array[i - 1] == "",
-                                None
-                            ).otherwise(extracted_array[i - 1])
-
-                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
-            elif tokenize_output_method == "splitRows":
-                all_columns = [col(c) for c in result_df.columns]
-                extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
-                result_df = result_df.withColumn("token_value_new", extracted_array)
-
-                result_df = result_df.select(
-                    *all_columns,
-                    explode(col("token_value_new")).alias("token_value_new")
-                )
-
-                # Rename token column
-                result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
-                if not allow_blank_tokens:
-                    result_df = result_df.filter(
-                        (col(output_root_name) != "") &
-                        (col(output_root_name).isNotNull())
-                    )
-
-        elif output_method == "match":
-            match_col = when(
-                col(selected_column).isNull(),
-                0
-            ).when(
-                col(selected_column).rlike(regex_pattern),
-                1
-            ).otherwise(0)
-
-            result_df = result_df.withColumn(match_column_name, match_col)
-
-            if error_if_not_matched:
-                result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
-
-        return result_df
+        return in0
