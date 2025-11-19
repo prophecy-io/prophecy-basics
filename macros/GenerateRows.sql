@@ -194,7 +194,7 @@
                     from unnest(generate_array(1, {{ max_rows | int }})) as i
                 )
             ) as gen
-        ),
+        )
         select
             -- Select all original columns, then add the generated column
             expanded.* EXCEPT ({{ internal_col }}, _iter),
