@@ -280,8 +280,11 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Exclude column_name if it exists to avoid duplicate column error
-            gen.* EXCLUDE ({{ except_col }}, _iter),
+            -- Exclude internal_col and _iter. Note: We don't exclude column_name here because
+            -- DuckDB errors if we try to EXCLUDE a non-existent column. If column_name exists
+            -- in source, it will be included and then we'll add it again, causing a duplicate
+            -- column error which is expected (user shouldn't have a column with same name as output)
+            gen.* EXCLUDE ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
