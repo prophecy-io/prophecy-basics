@@ -250,6 +250,7 @@ class Transpose(MacroSpec):
             "'" + props.nameColumn + "'",
             "'" + props.valueColumn + "'",
             str(allColumnNames),
+            str(props.customNames).lower(),
         ]
 
         params = ",".join([param for param in arguments])
@@ -266,6 +267,8 @@ class Transpose(MacroSpec):
             valueColumn=parametersMap.get("valueColumn").lstrip("'").rstrip("'"),
             keyColumns=json.loads(parametersMap.get("keyColumns").replace("'", '"')),
             dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
+            customNames=parametersMap.get("customNames").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -280,6 +283,10 @@ class Transpose(MacroSpec):
                 MacroParameter("valueColumn", str(properties.valueColumn)),
                 MacroParameter("keyColumns", json.dumps(properties.keyColumns)),
                 MacroParameter("dataColumns", json.dumps(properties.dataColumns)),
+                MacroParameter(
+                    "customNames",
+                    str(properties.customNames).lower(),
+                ),
             ],
         )
 
