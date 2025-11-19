@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, IntegerType
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -197,92 +198,87 @@ class GenerateRows(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        import re
+        init_expr = self.props.init_expr
+        condition_expr = self.props.condition_expr
+        loop_expr = self.props.loop_expr
+        column_name = self.props.column_name
+        max_rows = int(self.props.max_rows)
         
-        init_expr = self.props.init_expr or "1"
-        condition_expr = self.props.condition_expr or "value <= 10"
-        loop_expr = self.props.loop_expr or "value + 1"
-        column_name = self.props.column_name or "value"
-        max_rows = int(self.props.max_rows) if self.props.max_rows else 100000
-        
-        def to_num(s):
-            try:
-                return float(s) if '.' in str(s) else int(s)
-            except (ValueError, TypeError):
-                return None
-        
-        def build_expr(expr, ref_col):
-            if not expr:
-                return F.lit(1)
-            return F.expr(str(expr).replace(column_name, ref_col))
-        
-        # Check if input DataFrame has data
-        has_input = in0 is not None and in0.count() > 0
-        
-        # Extract numeric values for optimization
-        init_val = to_num(init_expr)
-        step_match = re.search(r'value\s*\+\s*(\d+(?:\.\d+)?)', loop_expr)
-        cond_match = re.search(r'value\s*<=\s*(\d+(?:\.\d+)?)', condition_expr)
-        
-        # Optimized path: simple numeric case using F.sequence()
-        if init_val is not None and step_match and cond_match:
-            step_val = float(step_match.group(1))
-            end_val = to_num(cond_match.group(1))
-            if end_val is not None:
-                seq = F.sequence(F.lit(init_val), F.lit(end_val), F.lit(step_val))
-                base_df = in0 if has_input else spark.range(1)
-                if has_input:
-                    result = base_df.select(
-                        *[F.col(c) for c in in0.columns],
-                        F.explode(seq).alias(column_name)
-                    ).filter(F.col(column_name) <= end_val)
-                else:
-                    result = base_df.select(
-                        F.explode(seq).alias(column_name)
-                    ).filter(F.col(column_name) <= end_val)
-                return result
-        
-        # General case: build expressions and use DataFrame operations
+        # Internal column name for the generated value
         internal_col = f"__gen_{column_name.replace(' ', '_')}"
         
-        # Create base with initial value
-        init_col = build_expr(init_expr, internal_col)
-        if has_input:
-            col_list = [F.col(c) for c in in0.columns]
-            base = in0.select(*col_list, init_col.alias(internal_col))
-        else:
-            base = spark.range(1).select(init_col.alias(internal_col))
+        def replace_column_name(expr_str, new_col):
+            """Replace column_name in expression with new_col"""
+            return str(expr_str).replace(column_name, new_col)
         
-        # Try to extract step and end values for F.sequence() optimization
-        step_match = re.search(r'\+?\s*(\d+(?:\.\d+)?)', loop_expr)
-        cond_match = re.search(r'<=?\s*(\d+(?:\.\d+)?)', condition_expr)
-        step_val = float(step_match.group(1)) if step_match else None
-        end_val = to_num(cond_match.group(1)) if cond_match else None
-        
-        if step_val and end_val:
-            seq = F.sequence(F.col(internal_col), F.lit(end_val), F.lit(step_val))
-            cond = build_expr(condition_expr, column_name)
+        # Handle None input (matching SQL macro's else branch when relation_tables is empty)
+        if in0 is None:
+            # No input case - generate rows without payload
+            base = spark.range(1).select(
+                F.expr(replace_column_name(init_expr, internal_col)).alias(internal_col)
+            )
+            
+            # Extract step from loop_expr by replacing column_name with 0
+            step_expr = replace_column_name(loop_expr, "0")
+            
+            # Generate array of values: init + (i-1) * step for each iteration
             result = base.select(
-                *[F.col(c) for c in base.columns if c != internal_col],
-                F.explode(seq).alias(column_name)
-            ).filter(cond)
-        else:
-            # Generate iterations using cross join
-            iterations = spark.range(max_rows).select((F.col("id") + 1).alias("_iter"))
-            expanded = base.crossJoin(iterations)
+                F.explode(
+                    F.expr(f"""
+                        transform(
+                            sequence(1, {max_rows}),
+                            i -> {internal_col} + (i - 1) * ({step_expr})
+                        )
+                    """)
+                ).alias(internal_col)
+            )
             
-            # Calculate value at each iteration
-            loop = build_expr(loop_expr, internal_col)
-            cond = build_expr(condition_expr, internal_col)
+            # Filter where condition is true
+            filtered = result.filter(
+                F.expr(replace_column_name(condition_expr, internal_col))
+            )
             
-            if step_val:
-                value_col = (F.col(internal_col) + (F.col("_iter") - 1) * F.lit(step_val)).alias(column_name)
-            else:
-                value_col = loop.alias(column_name)
-            
-            result = expanded.select(
-                *[F.col(c) for c in base.columns if c != internal_col],
-                value_col
-            ).filter(cond).drop("_iter")
+            # Select final column
+            return filtered.select(
+                F.col(internal_col).alias(column_name)
+            )
+        
+        # Create payload struct (matching SQL macro: struct(alias.*) as payload)
+        payload_struct = F.struct(*[F.col(c) for c in in0.columns]).alias("payload")
+        base = in0.select(payload_struct)
+        
+        # Base case: one row per input record with initial value (matching SQL macro base case)
+        base_with_init = base.select(
+            F.col("payload"),
+            F.expr(replace_column_name(init_expr, internal_col)).alias(internal_col)
+        )
+        
+        # Generate values using sequence: row_number() * incremental_step + initial_condition
+        # Extract step from loop_expr by replacing column_name with 0
+        step_expr = replace_column_name(loop_expr, "0")
+        
+        # Generate array of values: init + (i-1) * step for each iteration
+        result = base_with_init.select(
+            F.col("payload"),
+            F.explode(
+                F.expr(f"""
+                    transform(
+                        sequence(1, {max_rows}),
+                        i -> {internal_col} + (i - 1) * ({step_expr})
+                    )
+                """)
+            ).alias(internal_col)
+        )
+        
+        # Filter where condition is true (matching SQL macro's WHERE clause)
+        filtered = result.filter(
+            F.expr(replace_column_name(condition_expr, internal_col))
+        )
+        
+        # Expand payload and select final columns (matching SQL macro's payload.*)
+        result = filtered.select(
+            *[F.col(f"payload.{c}").alias(c) for c in in0.columns],
+            F.col(internal_col).alias(column_name)
+        )
         
         return result
