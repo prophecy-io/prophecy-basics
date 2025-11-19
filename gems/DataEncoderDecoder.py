@@ -3,6 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col, base64, unbase64, hex as pyspark_hex, unhex, encode, decode, expr
 
 
 class DataEncoderDecoder(MacroSpec):
@@ -25,7 +27,7 @@ class DataEncoderDecoder(MacroSpec):
         column_names: List[str] = field(default_factory=list)
         prefix_suffix_option: str = "Prefix"
         new_column_add_method: str = "inplace_substitute"
-        prefix_suffix_added: str = None
+        prefix_suffix_added: str = "new_"
         enc_dec_method: str = ""
         enc_dec_charSet: str = "UTF-8"
         aes_enc_dec_mode: str = "GCM"
@@ -765,3 +767,85 @@ class DataEncoderDecoder(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        column_names = self.props.column_names
+        enc_dec_method = self.props.enc_dec_method
+        enc_dec_charSet = self.props.enc_dec_charSet
+        new_column_add_method = self.props.new_column_add_method
+        prefix_suffix_option = self.props.prefix_suffix_option
+        prefix_suffix_added = self.props.prefix_suffix_added
+
+        result_df = in0
+
+        if enc_dec_method == "base64":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, base64(col(cname)))
+
+        elif enc_dec_method == "unbase64":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(unbase64(col(cname)), "UTF-8"))
+
+        elif enc_dec_method == "hex":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, hex(col(cname)))
+
+        elif enc_dec_method == "unhex":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(unhex(col(cname)), "UTF-8"))
+
+        elif enc_dec_method == "encode":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, encode(col(cname), enc_dec_charSet))
+
+        elif enc_dec_method == "decode":
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, decode(col(cname), enc_dec_charSet))
+
+        elif enc_dec_method == "aes_encrypt":
+            aes_enc_dec_secretScope_key = self.props.aes_enc_dec_secretScope_key
+            aes_enc_dec_secretKey_key = self.props.aes_enc_dec_secretKey_key
+            aes_enc_dec_mode = self.props.aes_enc_dec_mode
+            aes_enc_dec_secretScope_iv = self.props.aes_enc_dec_secretScope_iv
+            aes_enc_dec_secretKey_iv = self.props.aes_enc_dec_secretKey_iv
+            aes_enc_dec_secretScope_aad = self.props.aes_enc_dec_secretScope_aad
+            aes_enc_dec_secretKey_aad = self.props.aes_enc_dec_secretKey_aad
+
+            for cname in column_names:
+                target = cname if new_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                args = [
+                    f"`{cname}`",
+                    f"secret('{aes_enc_dec_secretScope_key}', '{aes_enc_dec_secretKey_key}')",
+                    f"'{aes_enc_dec_mode}'",
+                    "'DEFAULT'"
+                ]
+                if aes_enc_dec_secretScope_iv and aes_enc_dec_secretKey_iv:
+                    args.append(f"secret('{aes_enc_dec_secretScope_iv}', '{aes_enc_dec_secretKey_iv}')")
+                else:
+                    args.append('""')
+                if aes_enc_dec_secretScope_aad and aes_enc_dec_secretKey_aad:
+                    args.append(f"secret('{aes_enc_dec_secretScope_aad}', '{aes_enc_dec_secretKey_aad}')")
+                aes_expr = f"base64(aes_encrypt({', '.join(args)}))"
+                result_df = result_df.withColumn(target, expr(aes_expr))
+
+        return result_df

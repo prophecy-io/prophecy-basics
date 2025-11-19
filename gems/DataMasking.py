@@ -1,11 +1,10 @@
-from dataclasses import dataclass
-
 import dataclasses
 import json
-from collections import defaultdict
-from prophecy.cb.sql.Component import *
+
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
 
 
 class DataMasking(MacroSpec):
@@ -556,3 +555,84 @@ class DataMasking(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        column_names = self.props.column_names
+        masking_method = self.props.masking_method
+        masked_column_add_method = self.props.masked_column_add_method
+        prefix_suffix_option = self.props.prefix_suffix_option
+        prefix_suffix_added = self.props.prefix_suffix_added
+        combined_hash_column_name = self.props.combined_hash_column_name
+
+        result_df = in0
+
+        if masking_method == "mask":
+            for cname in column_names:
+                args = [f"`{cname}`"]
+                subs = [
+                    ("upperChar", getattr(self.props, "upper_char_substitute")),
+                    ("lowerChar", getattr(self.props, "lower_char_substitute")),
+                    ("digitChar", getattr(self.props, "digit_char_substitute")),
+                    ("otherChar", getattr(self.props, "other_char_substitute")),
+                ]
+                for param, val in subs:
+                    if val is None:
+                        continue
+                    v = str(val)
+                    if v.upper() == "NULL":
+                        args.append(f"{param} => NULL")
+                    elif v != "":
+                        args.append(f"{param} => '{v}'")
+
+                mask_expr = f"mask({', '.join(args)})"
+                target = cname if masked_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, expr(mask_expr))
+
+        elif masking_method == "hash":
+            if masked_column_add_method == "combinedHash_substitute":
+                hash_expr = hash(*[col(c) for c in column_names])
+                result_df = result_df.withColumn(combined_hash_column_name, hash_expr)
+            else:
+                for cname in column_names:
+                    hash_expr = hash(col(cname))
+                    target = cname if masked_column_add_method == "inplace_substitute" else (
+                        f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                    )
+                    result_df = result_df.withColumn(target, hash_expr)
+
+        elif masking_method == "sha2":
+            sha2_bit_length = int(self.props.sha2_bit_length) if self.props.sha2_bit_length else 256
+            for cname in column_names:
+                sha2_expr = sha2(col(cname).cast("string"), sha2_bit_length)
+                target = cname if masked_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, sha2_expr)
+
+        elif masking_method == "sha":
+            for cname in column_names:
+                sha_expr = sha1(col(cname).cast("string"))
+                target = cname if masked_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, sha_expr)
+
+        elif masking_method == "md5":
+            for cname in column_names:
+                md5_expr = md5(col(cname).cast("string"))
+                target = cname if masked_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, md5_expr)
+
+        elif masking_method == "crc32":
+            for cname in column_names:
+                crc32_expr = crc32(col(cname).cast("string"))
+                target = cname if masked_column_add_method == "inplace_substitute" else (
+                    f"{prefix_suffix_added}{cname}" if prefix_suffix_option == "Prefix" else f"{cname}{prefix_suffix_added}"
+                )
+                result_df = result_df.withColumn(target, crc32_expr)
+
+        return result_df
