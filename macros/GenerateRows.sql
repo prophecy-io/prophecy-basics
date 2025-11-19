@@ -285,13 +285,14 @@
         expanded as (
             -- Cross join base rows with iterations, then calculate values
             -- Similar to applyPython: init + (i-1) * step
-            -- Extract step from loop_expr by replacing column_name with internal_col (initial value)
+            -- Extract step: loop_expr(initial) - initial
+            -- For loop_expr = "value + 1" with init=1: step = (1+1) - 1 = 1
             select
                 base.* EXCEPT ({{ internal_col }}),
                 iterations._iter,
                 -- Calculate value: base.{{ internal_col }} + (iterations._iter - 1) * step
-                -- step is loop_expr with column_name replaced by internal_col
-                base.{{ internal_col }} + (iterations._iter - 1) * ({{ loop_expr | replace(column_name, internal_col) }}) as {{ internal_col }}
+                -- step = (loop_expr with initial value) - initial value
+                base.{{ internal_col }} + (iterations._iter - 1) * (({{ loop_expr | replace(column_name, internal_col) }}) - base.{{ internal_col }}) as {{ internal_col }}
             from base
             cross join iterations
         )
