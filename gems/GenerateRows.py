@@ -227,7 +227,8 @@ class GenerateRows(MacroSpec):
         )
         
         # Generate values using sequence and transform
-        # Use loop_expr directly as step
+        # Extract step from loop_expr by replacing column_name with internal_col (initial value)
+        # For loop_expr = "value + 1", this gives "__gen_value + 1" which evaluates using the initial value
         step_expr = str(loop_expr).replace(column_name, internal_col)
         
         # Generate array of values: init + (i-1) * step for each iteration
