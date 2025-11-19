@@ -85,8 +85,8 @@ class GenerateRows(MacroSpec):
                 .addElement(
                     TitleElement("Advanced options")
                 )
-                .addElement(TextBox("Max rows per iteration (default: 100000)").bindPlaceholder(
-                    """100000""").bindProperty("max_rows"))
+                .addElement(TextBox("Max rows per iteration (default: 100)").bindPlaceholder(
+                    """100""").bindProperty("max_rows"))
             )
         )
 
@@ -317,12 +317,6 @@ class GenerateRows(MacroSpec):
             ).filter(
                 expr(recursion_condition)
             )
-            
-            # Check if any new rows would be generated (stop early if condition fails)
-            next_iter_count = next_iter.count()
-            if next_iter_count == 0:
-                # No more rows match the condition, stop recursion
-                break
             
             # Union with previous results
             result = result.unionByName(next_iter, allowMissingColumns=True)
