@@ -275,23 +275,23 @@ class GenerateRows(MacroSpec):
         loop_expr = self.props.loop_expr
         column_name = self.props.column_name
         max_rows = int(self.props.max_rows)
-        
+
         # Internal column name for the generated value
         internal_col = f"__gen_{column_name.replace(' ', '_')}"
-        
+
         # Handle None input - create empty DataFrame with empty columns list
         if in0 is None:
             in0 = spark.createDataFrame([], StructType([]))
-        
+
         # Create payload struct if input columns exist (matching SQL macro: struct(alias.*) as payload)
         # If no columns, use spark.range(1) as base (matching SQL macro {% else %} branch)
         if in0.columns:
-            payload_struct = struct(*[col(c) for c in in0.columns]).alias("payload")
+            payload_struct = F.struct(*[F.col(c) for c in in0.columns]).alias("payload")
             base = in0.select(payload_struct)
         else:
-            payload_struct = struct().alias("payload")
+            payload_struct = F.struct().alias("payload")
             base = spark.range(1).select(payload_struct)
-        
+
         # Base case: one row per input record with initial value (matching SQL macro base case)
         # Add _iter column to track iteration
         base_with_init = base.select(
@@ -299,32 +299,29 @@ class GenerateRows(MacroSpec):
             expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col),
             lit(1).alias("_iter")
         )
-        
-        # Recursive/iterative approach: union all new rows until condition fails or max_rows reached
-        # Iterate up to max_rows times (matching SQL recursive CTE behavior)
+
+        # Recursive/iterative approach: union all new rows until max_rows reached
+        # Iterate up to max_rows times, applying loop_expr in each iteration
         result = base_with_init
         x_range = range(2, max_rows + 1)
         for iteration in x_range:
             # Generate next iteration: apply loop_expr and increment _iter
             # Reference columns directly (not with gen. prefix) since we're selecting from the aliased DataFrame
             loop_expr_replaced = str(loop_expr).replace(column_name, internal_col)
-            recursion_condition = str(condition_expr).replace(column_name, internal_col)
             
             next_iter = result.select(
                 col("payload"),
                 expr(loop_expr_replaced).alias(internal_col),
                 lit(iteration).alias("_iter")
-            ).filter(
-                expr(recursion_condition)
             )
             
             # Union with previous results
             result = result.unionByName(next_iter, allowMissingColumns=True)
-        
-        # Filter by final condition expression
+
+        # Apply condition_expr as final filter (matching SQL macro's WHERE clause)
         condition_expr_replaced = str(condition_expr).replace(column_name, internal_col)
         filtered = result.filter(expr(condition_expr_replaced))
-        
+
         # Expand payload and select final columns (matching SQL macro's payload.*)
         # If no input columns, payload will be empty struct, so only select generated column
         if in0.columns:
@@ -337,5 +334,5 @@ class GenerateRows(MacroSpec):
             result = filtered.select(
                 col(internal_col).alias(column_name)
             )
-        
+
         return result
