@@ -5,9 +5,6 @@ import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import lit, when, to_date, to_timestamp, regexp_extract, regexp_extract_all, regexp_replace, \
-    size, explode, concat_ws
-from pyspark.sql.types import *
 
 
 @dataclass(frozen=True)

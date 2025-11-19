@@ -1,14 +1,10 @@
 import dataclasses
 import json
-from collections import defaultdict
 
-from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-import json
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
-from pyspark.sql.types import *
 
 
 @dataclass(frozen=True)
