@@ -16,8 +16,8 @@ class GenerateRows(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.ProphecyManaged
     ]
 
 
