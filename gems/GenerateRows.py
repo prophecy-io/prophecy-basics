@@ -3,7 +3,7 @@ import json
 from typing import List, Optional
 
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
+from pyspark.sql.functions import *
 from pyspark.sql.types import StructType, StructField, IntegerType
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
@@ -233,9 +233,9 @@ class GenerateRows(MacroSpec):
         # Generate array of values: init + (i-1) * step for each iteration
         # Also track iteration number to filter by max_rows
         result = base_with_init.select(
-            F.col("payload"),
-            F.explode(
-                F.expr(f"""
+            col("payload"),
+            explode(
+                expr(f"""
                     transform(
                         sequence(1, {max_rows}),
                         i -> struct(
@@ -246,23 +246,23 @@ class GenerateRows(MacroSpec):
                 """)
             ).alias("_gen")
         ).select(
-            F.col("payload"),
-            F.col("_gen._iter").alias("_iter"),
-            F.col(f"_gen.{internal_col}").alias(internal_col)
+            col("payload"),
+            col("_gen._iter").alias("_iter"),
+            col(f"_gen.{internal_col}").alias(internal_col)
         )
         
-        # Filter where condition is true OR iteration < max_rows (matching SQL macro's WHERE clauses)
+        # Filter where condition is true & iteration < max_rows (matching SQL macro's WHERE clauses)
         filtered = result.filter(
-            (F.col("_iter") < max_rows) |
-            F.expr(str(condition_expr).replace(column_name, internal_col))
+            (col("_iter") <= max_rows) &
+            expr(str(condition_expr).replace(column_name, internal_col))
         )
         
         # Expand payload and select final columns (matching SQL macro's payload.*)
         # If no input columns, payload will be empty struct, so only select generated column
-        payload_cols = [F.col(f"payload.{c}").alias(c) for c in in0.columns]
+        payload_cols = [col(f"payload.{c}").alias(c) for c in in0.columns]
         result = filtered.select(
             *payload_cols,
-            F.col(internal_col).alias(column_name)
+            col(internal_col).alias(column_name)
         )
         
         return result
