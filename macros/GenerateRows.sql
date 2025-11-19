@@ -266,36 +266,39 @@
     {% endif %}
 
     {% if relation_tables %}
-        with recursive gen as (
-            -- base case: one row per input record
-            -- BigQuery doesn't support struct.* expansion, so select all columns directly
+        with base as (
+            -- Base case: one row per input record with initial value
             select
                 {% if column_name in ['a','b','c','d'] %}
                 {{ alias }}.* EXCEPT ({{ except_col }}),
                 {% else %}
                 {{ alias }}.*,
                 {% endif %}
-                {{ init_select }} as {{ internal_col }},
-                1 as _iter
+                {{ init_select }} as {{ internal_col }}
             from {{ relation_tables }} {{ alias }}
-
-            union all
-
-            -- recursive step
+        ),
+        iterations as (
+            -- Generate sequence of iteration numbers (similar to applyPython's sequence(1, max_rows))
+            select i as _iter
+            from unnest(generate_array(1, {{ max_rows | int }})) as i
+        ),
+        expanded as (
+            -- Cross join base rows with iterations, then calculate values
+            -- Use loop_expr directly, replacing column_name with internal_col
             select
-                gen.* EXCEPT ({{ internal_col }}, _iter),
-                {{ loop_expr_replaced }} as {{ internal_col }},
-                _iter + 1
-            from gen
-            where _iter < {{ max_rows | int }}
-              and ({{ recursion_condition }})
+                base.*,
+                iterations._iter,
+                ({{ loop_expr | replace(column_name, internal_col) }}) as {{ internal_col }}
+            from base
+            cross join iterations
         )
         select
-            -- Select all original columns (already excluding conflicting column_name if needed), then add the generated column
-            gen.* EXCEPT ({{ internal_col }}, _iter),
+            -- Select all original columns, then add the generated column
+            expanded.* EXCEPT ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
-        from gen
-        where {{ condition_expr_sql }}
+        from expanded
+        where (_iter < {{ max_rows | int }} or ({{ condition_expr | replace(column_name, internal_col) }}))
+          and ({{ condition_expr | replace(column_name, internal_col) }})
     {% else %}
         with recursive gen as (
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
