@@ -633,7 +633,7 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression) -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
 {%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
@@ -665,49 +665,65 @@
             ,
             {%- if col_type|lower == 'string' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }})
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'int' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS INTEGER)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'bigint' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS BIGINT)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'double' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS DOUBLE)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'bool' or col_type|lower == 'boolean' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS BOOLEAN)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'date' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS DATE)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- elif col_type|lower == 'datetime' or col_type|lower == 'timestamp' %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else CAST(regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) AS TIMESTAMP)
             end as {{ prophecy_basics.quote_identifier(col_name) }}
             {%- else %}
             case
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', 0) = '' then null
+                when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) is null then null
                 when regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }}) = '' then null
                 else regexp_extract({{ quoted_selected }}, '{{ regex_pattern }}', {{ group_index }})
             end as {{ prophecy_basics.quote_identifier(col_name) }}
@@ -807,7 +823,6 @@
         numbered_tokens as (
             select
                 *,
-                token_value_new,
                 ROW_NUMBER() OVER (PARTITION BY {{ quoted_selected }} ORDER BY (SELECT NULL)) as token_position
             from exploded_tokens
         )
