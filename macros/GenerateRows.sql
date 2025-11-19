@@ -132,7 +132,7 @@
         with recursive gen as (
             -- base case: one row per input record
             select
-                *,
+                STRUCT({{ alias }}.*) as payload,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_tables }} {{ alias }}
@@ -141,7 +141,7 @@
 
             -- recursive step
             select
-                gen.* EXCEPT ({{ internal_col }}, _iter),
+                gen.payload as payload,
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
@@ -150,7 +150,7 @@
         )
         select
             -- Exclude column_name if it exists to avoid duplicate column error
-            * EXCEPT ({{ except_col }}, _iter),
+            payload.* EXCEPT ({{ except_col }}),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
