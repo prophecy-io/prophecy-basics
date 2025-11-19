@@ -1,10 +1,13 @@
+
 import dataclasses
+from dataclasses import dataclass, field
 import json
 import re
 
+from collections import defaultdict
+from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-from pyspark.sql import SparkSession, DataFrame
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,7 @@ class Regex(MacroSpec):
         # Match
         matchColumnName: str = "regex_match"
         errorIfNotMatched: bool = False
+
 
     def dialog(self) -> Dialog:
         return Dialog("MacroRegex").addElement(
@@ -176,8 +180,7 @@ class Regex(MacroSpec):
                             .addOption(
                                 "Match",
                                 "match",
-                                description=(
-                                    "Create new column with 1/0 value, based on the column value matching the regex expression.")
+                                description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
                             )
                             .setOptionType("button")
                             .setVariant("medium")
@@ -230,8 +233,7 @@ class Regex(MacroSpec):
                                         )
                                         .addElement(
                                             Condition()
-                                            .ifEqual(PropExpr("component.properties.tokenizeOutputMethod"),
-                                                     StringExpr("splitColumns"))
+                                            .ifEqual(PropExpr("component.properties.tokenizeOutputMethod"), StringExpr("splitColumns"))
                                             .then(
                                                 StackLayout(height="100%")
                                                 .addElement(
@@ -242,11 +244,9 @@ class Regex(MacroSpec):
                                                     )
                                                     .addColumn(
                                                         SelectBox(titleVar="For Extra Columns")
-                                                        .addOption("Drop Extra without Warning",
-                                                                   "dropExtraWithoutWarning")
+                                                        .addOption("Drop Extra without Warning", "dropExtraWithoutWarning")
                                                         .addOption("Drop Extra with Error", "dropExtraWithError")
-                                                        .addOption("Save all remaining text into last generated column",
-                                                                   "saveAllRemainingText")
+                                                        .addOption("Save all remaining text into last generated column", "saveAllRemainingText")
                                                         .bindProperty("extraColumnsHandling")
                                                     )
                                                 )
@@ -268,8 +268,7 @@ class Regex(MacroSpec):
                                                     AlertBox(
                                                         variant="info",
                                                         _children=[
-                                                            Markdown(
-                                                                "Configure the output columns for parsed groups. Each capture group in your regex will create a new column.")
+                                                            Markdown("Configure the output columns for parsed groups. Each capture group in your regex will create a new column.")
                                                         ]
                                                     )
                                                 )
@@ -300,8 +299,7 @@ class Regex(MacroSpec):
                                                                     "Regex Expression",
                                                                     "rgxExpression",
                                                                     TextBox("", disabledView=True)
-                                                                    .bindPlaceholder(
-                                                                        "Auto-generated from regex groups"),
+                                                                    .bindPlaceholder("Auto-generated from regex groups"),
                                                                     width="35%"
                                                                 )
                                                             ])
@@ -333,8 +331,7 @@ class Regex(MacroSpec):
                                                     AlertBox(
                                                         variant="info",
                                                         _children=[
-                                                            Markdown(
-                                                                "This will add a new column containing 1 if the regex matched, 0 if it did not match.")
+                                                            Markdown("This will add a new column containing 1 if the regex matched, 0 if it did not match.")
                                                         ]
                                                     )
                                                 )
@@ -374,27 +371,21 @@ class Regex(MacroSpec):
         props = component.properties
 
         # Check if columnName is provided
-        if not hasattr(props, 'selectedColumnName') or not props.selectedColumnName or len(
-                props.selectedColumnName.strip()) == 0:
+        if not hasattr(props, 'selectedColumnName') or not props.selectedColumnName or len(props.selectedColumnName.strip()) == 0:
             diagnostics.append(
-                Diagnostic("component.properties.selectedColumnName", "Column Name is required and cannot be empty",
-                           SeverityLevelEnum.Error))
+                Diagnostic("component.properties.selectedColumnName", "Column Name is required and cannot be empty", SeverityLevelEnum.Error))
 
         # Check if regexExpression is provided
-        if not hasattr(props, 'regexExpression') or not props.regexExpression or len(
-                props.regexExpression.strip()) == 0:
+        if not hasattr(props, 'regexExpression') or not props.regexExpression or len(props.regexExpression.strip()) == 0:
             diagnostics.append(
-                Diagnostic("component.properties.regexExpression", "Regex Expression is required and cannot be empty",
-                           SeverityLevelEnum.Error))
+                Diagnostic("component.properties.regexExpression", "Regex Expression is required and cannot be empty", SeverityLevelEnum.Error))
 
         # Validate that columnName exists in input schema
         if (hasattr(props, 'selectedColumnName') and props.selectedColumnName and
                 hasattr(props, 'schema') and props.schema):
             if props.selectedColumnName not in props.schema:
                 diagnostics.append(
-                    Diagnostic("component.properties.selectedColumnName",
-                               f"Selected column '{props.selectedColumnName}' is not present in input schema.",
-                               SeverityLevelEnum.Error))
+                    Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
         return diagnostics
 
@@ -408,12 +399,12 @@ class Regex(MacroSpec):
             # Check if current character is an opening parenthesis
             if pattern[i] == '(':
                 # Check if it's escaped
-                if i > 0 and pattern[i - 1] == '\\':
+                if i > 0 and pattern[i-1] == '\\':
                     i += 1
                     continue
 
                 # Check if it's a non-capturing group (?:...) or other special groups (?=...), (?!...), etc.
-                if i + 1 < len(pattern) and pattern[i + 1] == '?':
+                if i + 1 < len(pattern) and pattern[i+1] == '?':
                     # Find the end of this non-capturing group and skip it
                     paren_count = 1
                     j = i + 2  # Skip the '(' and '?'
@@ -482,7 +473,7 @@ class Regex(MacroSpec):
                     # Check if we already have configuration for this group index
                     existing_col = None
                     if i <= len(existing_parse_columns):
-                        existing_col = existing_parse_columns[i - 1]
+                        existing_col = existing_parse_columns[i-1]
 
                     if existing_col:
                         # Preserve existing configuration but update regex expression
@@ -521,6 +512,7 @@ class Regex(MacroSpec):
         )
         return newState.bindProperties(newProperties)
 
+
     def infer_data_type_from_pattern(self, regex_pattern):
         """Infer likely data type from regex pattern."""
         pattern_lower = regex_pattern.lower()
@@ -544,8 +536,7 @@ class Regex(MacroSpec):
             return "bool"
 
         # Check for date patterns
-        elif any(date_indicator in inner_pattern for date_indicator in
-                 ['\\d{4}', '\\d{2}[-/]\\d{2}', 'yyyy', 'mm', 'dd']):
+        elif any(date_indicator in inner_pattern for date_indicator in ['\\d{4}', '\\d{2}[-/]\\d{2}', 'yyyy', 'mm', 'dd']):
             return "date"
 
         # Default to String for everything else
@@ -570,12 +561,12 @@ class Regex(MacroSpec):
         def safe_str(val):
             """
             Safely convert a value to a SQL string literal, handling None and empty strings.
-            
+
             For regex expressions: This escapes single quotes for the SQL string literal parameter.
-            The macro will then receive the unescaped value and escape it again via 
+            The macro will then receive the unescaped value and escape it again via
             escape_regex_pattern() for use in the actual SQL query. This two-stage escaping
             is correct and necessary.
-            
+
             Note: Backslashes in regex expressions are NOT escaped here - they are preserved
             as part of the regex pattern and will be handled by escape_regex_pattern() in the macro.
             """
@@ -693,197 +684,3 @@ class Regex(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
-
-    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        selected_column = self.props.selectedColumnName
-        regex_expression = self.props.regexExpression
-        output_method = self.props.outputMethod
-        case_insensitive = self.props.caseInsensitive
-        replacement_text = self.props.replacementText
-        copy_unmatched_text = self.props.copyUnmatchedText
-        tokenize_output_method = self.props.tokenizeOutputMethod
-        no_of_columns = self.props.noOfColumns
-        allow_blank_tokens = self.props.allowBlankTokens
-        output_root_name = self.props.outputRootName
-        parse_columns = self.props.parseColumns
-        match_column_name = self.props.matchColumnName
-        error_if_not_matched = self.props.errorIfNotMatched
-        extra_columns_handling = self.props.extraColumnsHandling
-
-        # regex_pattern = regex_expression
-        # if case_insensitive:
-        #     regex_pattern = f"(?i){regex_expression}"
-        #
-        # result_df = in0
-        # val_if_not_found = None if allow_blank_tokens else lit("")
-        #
-        # if output_method == "replace":
-        #     replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
-        #     if copy_unmatched_text:
-        #         replaced_col = when(
-        #             col(selected_column).rlike(regex_pattern),
-        #             replaced_col
-        #         ).otherwise(col(selected_column))
-        #
-        #     result_df = result_df.withColumn(
-        #         f"{selected_column}_replaced",
-        #         replaced_col
-        #     )
-        #
-        # elif output_method == "parse":
-        #     if parse_columns and len(parse_columns) > 0:
-        #         idx = 0
-        #         for parse_col in parse_columns:
-        #             idx += 1
-        #             col_name = parse_col.columnName
-        #             col_type = parse_col.dataType
-        #
-        #             extracted = regexp_extract(col(selected_column), regex_pattern, idx)
-        #
-        #             if col_type.lower() == "int" or col_type.lower() == "integer":
-        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
-        #             elif col_type.lower() == "bigint":
-        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(LongType())
-        #             elif col_type.lower() == "double" or col_type.lower() == "float":
-        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(DoubleType())
-        #             elif col_type.lower() == "bool" or col_type.lower() == "boolean":
-        #                 extracted = when(extracted != "", extracted).otherwise(None).cast(BooleanType())
-        #             elif col_type.lower() == "date":
-        #                 extracted = when(extracted != "", to_date(extracted)).otherwise(None)
-        #             elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
-        #                 extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
-        #             else:
-        #                 val_if_not_found = lit("") if allow_blank_tokens else None
-        #                 extracted = when(
-        #                     (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
-        #                     (extracted == ""),
-        #                     val_if_not_found
-        #                 ).otherwise(extracted)
-        #
-        #             result_df = result_df.withColumn(col_name, extracted)
-        #
-        # elif output_method == "tokenize":
-        #     if tokenize_output_method == "splitColumns":
-        #         has_capture_groups = '(' in regex_expression
-        #
-        #         if has_capture_groups:
-        #             for i in range(1, no_of_columns + 1):
-        #                 extracted = regexp_extract(col(selected_column), regex_pattern, i)
-        #                 if not allow_blank_tokens:
-        #                     extracted = when(
-        #                         (col(selected_column).rlike(regex_pattern)) & (extracted != ""),
-        #                         extracted
-        #                     ).otherwise(None)
-        #                 else:
-        #                     extracted = when(
-        #                         col(selected_column).rlike(regex_pattern),
-        #                         extracted
-        #                     ).otherwise(None)
-        #
-        #                 result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
-        #         else:
-        #             extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
-        #             array_size = size(extracted_array)
-        #
-        #             extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
-        #
-        #             if extra_handling_lower == "saveallremainingtext":
-        #                 for i in range(1, no_of_columns):
-        #                     col_val = when(
-        #                         array_size == 0,
-        #                         None
-        #                     ).when(
-        #                         array_size < i,
-        #                         None
-        #                     ).when(
-        #                         extracted_array[i - 1] == "",
-        #                         None
-        #                     ).otherwise(extracted_array[i - 1])
-        #
-        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-        #
-        #                 last_col_val = when(
-        #                     array_size == 0,
-        #                     None
-        #                 ).when(
-        #                     array_size < no_of_columns,
-        #                     None
-        #                 ).when(
-        #                     array_size > no_of_columns,
-        #                     concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
-        #                 ).when(
-        #                     array_size == no_of_columns,
-        #                     when(
-        #                         extracted_array[no_of_columns - 1] == "",
-        #                         val_if_not_found
-        #                     ).otherwise(extracted_array[no_of_columns - 1])
-        #                 ).otherwise(None)
-        #
-        #                 result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
-        #
-        #             elif extra_handling_lower == "dropextrawitherror":
-        #                 for i in range(1, no_of_columns + 1):
-        #                     col_val = when(
-        #                         array_size > no_of_columns,
-        #                         lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
-        #                     ).when(
-        #                         array_size == 0,
-        #                         None
-        #                     ).when(
-        #                         array_size < i,
-        #                         None
-        #                     ).when(
-        #                         extracted_array[i - 1] == "",
-        #                         None
-        #                     ).otherwise(extracted_array[i - 1])
-        #
-        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-        #
-        #             else:
-        #                 for i in range(1, no_of_columns + 1):
-        #                     col_val = when(
-        #                         array_size == 0,
-        #                         None
-        #                     ).when(
-        #                         array_size < i,
-        #                         None
-        #                     ).when(
-        #                         extracted_array[i - 1] == "",
-        #                         None
-        #                     ).otherwise(extracted_array[i - 1])
-        #
-        #                     result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-        #
-        #     elif tokenize_output_method == "splitRows":
-        #         all_columns = [col(c) for c in result_df.columns]
-        #         extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
-        #         result_df = result_df.withColumn("token_value_new", extracted_array)
-        #
-        #         result_df = result_df.select(
-        #             *all_columns,
-        #             explode(col("token_value_new")).alias("token_value_new")
-        #         )
-        #
-        #         # Rename token column
-        #         result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
-        #         if not allow_blank_tokens:
-        #             result_df = result_df.filter(
-        #                 (col(output_root_name) != "") &
-        #                 (col(output_root_name).isNotNull())
-        #             )
-        #
-        # elif output_method == "match":
-        #     match_col = when(
-        #         col(selected_column).isNull(),
-        #         0
-        #     ).when(
-        #         col(selected_column).rlike(regex_pattern),
-        #         1
-        #     ).otherwise(0)
-        #
-        #     result_df = result_df.withColumn(match_column_name, match_col)
-        #
-        #     if error_if_not_matched:
-        #         result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
-
-        return in0
