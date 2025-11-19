@@ -125,7 +125,8 @@
     {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
     {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
     {% set output_col_alias = column_name %}
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+    {# BigQuery EXCEPT requires unquoted identifiers, not quoted strings #}
+    {% set except_col = unquoted_col %}
 
     {% if relation_tables %}
         with recursive gen as (

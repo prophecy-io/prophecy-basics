@@ -303,8 +303,8 @@ class GenerateRows(MacroSpec):
         # Recursive/iterative approach: union all new rows until condition fails or max_rows reached
         # Iterate up to max_rows times (matching SQL recursive CTE behavior)
         result = base_with_init
-        
-        for iteration in range(2, max_rows + 1):
+        x_range = range(2, max_rows + 1)
+        for iteration in x_range:
             # Generate next iteration: apply loop_expr and increment _iter
             # Reference columns directly (not with gen. prefix) since we're selecting from the aliased DataFrame
             loop_expr_replaced = str(loop_expr).replace(column_name, internal_col)
