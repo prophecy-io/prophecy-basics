@@ -286,7 +286,7 @@
             -- Cross join base rows with iterations, then calculate values
             -- Use loop_expr directly, replacing column_name with internal_col
             select
-                base.*,
+                base.* EXCEPT ({{ internal_col }}),
                 iterations._iter,
                 ({{ loop_expr | replace(column_name, internal_col) }}) as {{ internal_col }}
             from base
