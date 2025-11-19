@@ -217,6 +217,8 @@
     {% endif %}
     {# Replace column_name with internal_col in condition_expr #}
     {% set condition_expr_sql = condition_expr_sql | replace(column_name, internal_col) %}
+    {# Replace payload. with nothing since columns are flattened in expanded CTE (used in final WHERE) #}
+    {% set condition_expr_sql = condition_expr_sql | replace('payload.', '') %}
 
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
     {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
@@ -252,7 +254,7 @@
                 array(
                     select struct(
                         i as _iter,
-                        base.{{ internal_col }} + (i - 1) * (({{ loop_expr | replace(column_name, internal_col) }}) - base.{{ internal_col }}) as {{ internal_col }}
+                        base.{{ internal_col }} + (i - 1) * (({{ loop_expr | replace(column_name, internal_col) | replace('payload.', 'base.') }}) - base.{{ internal_col }}) as {{ internal_col }}
                     )
                     from unnest(generate_array(1, {{ max_rows | int }})) as i
                 )
