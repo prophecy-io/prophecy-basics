@@ -828,8 +828,7 @@
         )
         select
             * EXCLUDE (token_value_new),
-            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_position as token_sequence
+            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }}
         from numbered_tokens
         {% if not allowBlankTokens %}
         where token_value_new != '' and token_value_new is not null
