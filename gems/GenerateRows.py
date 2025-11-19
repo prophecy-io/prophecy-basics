@@ -1,9 +1,9 @@
 import dataclasses
 import json
+from typing import List, Optional
 
-from pyspark.sql import SparkSession, DataFrame, Row
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql.types import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -15,8 +15,8 @@ class GenerateRows(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        ProviderTypeEnum.BigQuery,
-        ProviderTypeEnum.ProphecyManaged
+        # ProviderTypeEnum.BigQuery,
+        # ProviderTypeEnum.ProphecyManaged
     ]
 
 
@@ -105,78 +105,6 @@ class GenerateRows(MacroSpec):
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super().validate(context, component)
-        props = component.properties
-        
-        # Check if init_expr is provided (required - marked with * in UI)
-        if not hasattr(props, 'init_expr') or not props.init_expr or (isinstance(props.init_expr, str) and len(props.init_expr.strip()) == 0):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.init_expr",
-                    "Initialization expression is required and cannot be empty",
-                    SeverityLevelEnum.Error
-                )
-            )
-        
-        # Check if condition_expr is provided (required - marked with * in UI)
-        if not hasattr(props, 'condition_expr') or not props.condition_expr or (isinstance(props.condition_expr, str) and len(props.condition_expr.strip()) == 0):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.condition_expr",
-                    "Condition expression is required and cannot be empty",
-                    SeverityLevelEnum.Error
-                )
-            )
-        
-        # Check if loop_expr is provided (required - marked with * in UI)
-        if not hasattr(props, 'loop_expr') or not props.loop_expr or (isinstance(props.loop_expr, str) and len(props.loop_expr.strip()) == 0):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.loop_expr",
-                    "Loop expression is required and cannot be empty",
-                    SeverityLevelEnum.Error
-                )
-            )
-        
-        # Check if column_name is provided (required - marked with * in UI)
-        if not hasattr(props, 'column_name') or not props.column_name or (isinstance(props.column_name, str) and len(props.column_name.strip()) == 0):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.column_name",
-                    "Column name is required and cannot be empty",
-                    SeverityLevelEnum.Error
-                )
-            )
-        
-        # Check if max_rows is provided (required)
-        if not hasattr(props, 'max_rows') or not props.max_rows or (isinstance(props.max_rows, str) and len(props.max_rows.strip()) == 0):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.max_rows",
-                    "Max rows is required and cannot be empty",
-                    SeverityLevelEnum.Error
-                )
-            )
-        else:
-            # Validate that max_rows is a valid positive integer
-            try:
-                max_rows_int = int(props.max_rows)
-                if max_rows_int <= 0:
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.max_rows",
-                            "Max rows must be a positive integer greater than 0",
-                            SeverityLevelEnum.Error
-                        )
-                    )
-            except (ValueError, TypeError):
-                diagnostics.append(
-                    Diagnostic(
-                        "component.properties.max_rows",
-                        "Max rows must be a valid integer",
-                        SeverityLevelEnum.Error
-                    )
-                )
-        
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
@@ -235,12 +163,12 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            init_expr=p.get('init_expr') or None,  # Use None if empty string
-            condition_expr=p.get('condition_expr') or None,  # Use None if empty string
-            loop_expr=p.get('loop_expr') or None,  # Use None if empty string
-            column_name=p.get('column_name') or None,  # Use None if empty string
-            max_rows=p.get('max_rows') or None,  # Use None if empty string
-            force_mode=p.get('force_mode') or 'recursive'  # Default to 'recursive'
+            init_expr=p.get('init_expr'),  # Use None if empty string
+            condition_expr=p.get('condition_expr'),  # Use None if empty string
+            loop_expr=p.get('loop_expr'),  # Use None if empty string
+            column_name=p.get('column_name'),  # Use None if empty string
+            max_rows=p.get('max_rows'),  # Use None if empty string
+            force_mode=p.get('force_mode')  # Default to 'recursive'
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -250,12 +178,12 @@ class GenerateRows(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", str(properties.relation_name)),
-                MacroParameter("init_expr", str(properties.init_expr) if properties.init_expr else ''),
-                MacroParameter("condition_expr", str(properties.condition_expr) if properties.condition_expr else ''),
-                MacroParameter("loop_expr", str(properties.loop_expr) if properties.loop_expr else ''),
-                MacroParameter("column_name", str(properties.column_name) if properties.column_name else ''),
-                MacroParameter("max_rows", str(properties.max_rows) if properties.max_rows else ''),
-                MacroParameter("force_mode", str(properties.force_mode) if properties.force_mode else '')
+                MacroParameter("init_expr", str(properties.init_expr)),
+                MacroParameter("condition_expr", str(properties.condition_expr)),
+                MacroParameter("loop_expr", str(properties.loop_expr)),
+                MacroParameter("column_name", str(properties.column_name)),
+                MacroParameter("max_rows", str(properties.max_rows)),
+                MacroParameter("force_mode", str(properties.force_mode))
             ],
         )
 
