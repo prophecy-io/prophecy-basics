@@ -819,7 +819,7 @@ class Regex(MacroSpec):
                             extracted = when(
                                 col(selected_column).rlike(regex_pattern),
                                 extracted
-                            ).otherwise(val)
+                            ).otherwise(lit(""))
                         
                         result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
                 else:
@@ -831,16 +831,17 @@ class Regex(MacroSpec):
                     
                     if extra_handling_lower == "saveallremainingtext":
                         # For columns 1 to (no_of_columns - 1), extract normally
+                        val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns):
                             col_val = when(
                                 array_size == 0,
                                 None
                             ).when(
                                 array_size < i,
-                                val
+                                val_for_empty
                             ).when(
                                 extracted_array[i - 1] == "",
-                                val
+                                val_for_empty
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
@@ -851,7 +852,7 @@ class Regex(MacroSpec):
                             None
                         ).when(
                             array_size < no_of_columns,
-                            val
+                            val_for_empty
                         ).when(
                             array_size > no_of_columns,
                             # Concatenate remaining matches
@@ -870,35 +871,37 @@ class Regex(MacroSpec):
                     
                     elif extra_handling_lower == "dropextrawitherror":
                         # Check for extra matches and raise error if found
+                        val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns + 1):
-                            col_val = F.when(
+                            col_val = when(
                                 array_size > no_of_columns,
-                                F.lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
+                                lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
                             ).when(
                                 array_size == 0,
                                 None
                             ).when(
                                 array_size < i,
-                                val
+                                val_for_empty
                             ).when(
                                 extracted_array[i - 1] == "",
-                                val
+                                val_for_empty
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
                     
                     else:
                         # dropExtraWithoutWarning: drop extra matches silently
+                        val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns + 1):
                             col_val = when(
                                 array_size == 0,
                                 None
                             ).when(
                                 array_size < i,
-                                val
+                                val_for_empty
                             ).when(
                                 extracted_array[i - 1] == "",
-                                val
+                                val_for_empty
                             ).otherwise(extracted_array[i - 1])
                             
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
