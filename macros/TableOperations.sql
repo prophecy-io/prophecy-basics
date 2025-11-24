@@ -17,7 +17,7 @@
     updateCondition='',
     runDDL=''    
 ) -%}
-    {{ return(adapter.dispatch('TableOperations', 'JPMC_Custom_Gems')(
+    {{ return(adapter.dispatch('TableOperations', 'prophecy_basics')(
         catalog,
         database,
         tableName,

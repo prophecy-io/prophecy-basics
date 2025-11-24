@@ -10,7 +10,7 @@ class StringColName:
 
 class TableOperations(MacroSpec):
     name: str = "TableOperations"
-    projectName: str = "JPMC_Custom_Gems"
+    projectName: str = "prophecy_basics"
     category: str = "Custom"
     minNumOfInputPorts: int = 0
     maxNumOfInputPorts: int = 0
