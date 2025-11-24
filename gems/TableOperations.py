@@ -4,11 +4,9 @@ from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
-
 @dataclass(frozen=True)
 class StringColName:
     colName: str
-
 
 class TableOperations(MacroSpec):
     name: str = "TableOperations"
@@ -61,26 +59,30 @@ class TableOperations(MacroSpec):
 
     def dialog(self) -> Dialog:
         # Operation selector
-        operation_selector = ColumnsLayout(gap=("1rem")).addColumn(
-            SelectBox("Action")
-            .addOption("Register table in catalog", "registerTableInCatalog")
-            .addOption("Vacuum table", "vacuumTable")
-            .addOption("Optimise table", "optimiseTable")
-            .addOption("Restore table", "restoreTable")
-            .addOption("Update table", "updateTable")
-            .addOption("Delete from table", "deleteFromTable")
-            .addOption("Drop table", "dropTable")
-            .addOption("FSCK Repair table", "fsckRepairTable")
-            .addOption("Run DDL", "runDDL")
-            .bindProperty("action")
+        operation_selector = (
+            ColumnsLayout(gap=("1rem"))
+            .addColumn(
+                SelectBox("Action")
+                .addOption("Register table in catalog", "registerTableInCatalog")
+                .addOption("Vacuum table", "vacuumTable")
+                .addOption("Optimise table", "optimiseTable")
+                .addOption("Restore table", "restoreTable")
+                .addOption("Update table", "updateTable")
+                .addOption("Delete from table", "deleteFromTable")
+                .addOption("Drop table", "dropTable")
+                .addOption("FSCK Repair table", "fsckRepairTable")
+                .addOption("Run DDL", "runDDL")
+                .bindProperty("action")
+            )
         )
 
         # FSCK repair UI
-        fsck_repair_ui = StackLayout(
-            gap="1rem", height="100%", direction="vertical"
-        ).addElement(
-            NativeText(
-                "Removes the file entries from the transaction log of a Delta table that can no longer be found in the underlying file system. This can happen when these files have been manually deleted."
+        fsck_repair_ui = (
+            StackLayout(gap="1rem", height="100%", direction="vertical")
+            .addElement(
+                NativeText(
+                    "Removes the file entries from the transaction log of a Delta table that can no longer be found in the underlying file system. This can happen when these files have been manually deleted."
+                )
             )
         )
 
@@ -111,20 +113,21 @@ class TableOperations(MacroSpec):
                     + " data by column. If colocation is not specified, bin-packing optimization is performed by default. "
                 )
             )
-            .addElement(
+            .addElement(                
                 StackLayout()
-                .addElement(
-                    Checkbox("Use where clause").bindProperty("useOptimiseWhere")
-                )
-                .addElement(Checkbox("Use ZOrder").bindProperty("useOptimiseZOrder"))
+                    .addElement(
+                        Checkbox("Use where clause").bindProperty("useOptimiseWhere")
+                    )
+                    .addElement(
+                        Checkbox("Use ZOrder").bindProperty("useOptimiseZOrder")
+                    )
             )
             .addElement(
                 Condition()
-                .ifEqual(
+                    .ifEqual(
                     PropExpr("component.properties.useOptimiseWhere"),
                     BooleanExpr(True),
-                )
-                .then(
+                ).then(
                     StackLayout()
                     .addElement(
                         AlertBox(
@@ -132,8 +135,8 @@ class TableOperations(MacroSpec):
                             _children=[
                                 Markdown(
                                     "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                                    '* **Example**: where date >= "2025-06-25" (Put it as value) \n\n'
-                                    '* **Example**: where date >= "2025-06-25" (Put it as custom code)'
+                                    "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
+                                    "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
                                 )
                             ],
                         )
@@ -148,29 +151,28 @@ class TableOperations(MacroSpec):
                         .withUnsupportedExpressionBuilderTypes(
                             [ExpressionBuilderType.INCREMENTAL_EXPRESSION]
                         )
-                    )
+                    )                        
                 )
             )
             .addElement(
                 Condition()
-                .ifEqual(
+                    .ifEqual(
                     PropExpr("component.properties.useOptimiseZOrder"),
                     BooleanExpr(True),
-                )
-                .then(
-                    BasicTable(
-                        "ZOrder Columns",
-                        height=("200px"),
-                        columns=[
-                            Column(
-                                "ZOrder Columns",
-                                "colName",
-                                (TextBox("").bindPlaceholder("col_name")),
-                            )
-                        ],
-                        targetColumnKey="colName",
-                    ).bindProperty("optimiseZOrderColumns")
-                )
+                ).then(
+                        BasicTable(
+                            "ZOrder Columns",
+                            height=("200px"),
+                            columns=[
+                                Column(
+                                    "ZOrder Columns",
+                                    "colName",
+                                    (TextBox("").bindPlaceholder("col_name")),
+                                )
+                            ],
+                            targetColumnKey="colName",
+                        ).bindProperty("optimiseZOrderColumns")                   
+                )                
             )
         )
 
@@ -191,8 +193,8 @@ class TableOperations(MacroSpec):
                     _children=[
                         Markdown(
                             "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                            '* **Example**: where date >= "2025-06-25" (Put it as value) \n\n'
-                            '* **Example**: where date >= "2025-06-25" (Put it as custom code)'
+                            "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
+                            "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
                         )
                     ],
                 )
@@ -200,7 +202,9 @@ class TableOperations(MacroSpec):
             .addElement(
                 ExpressionBox(language="sql")
                 .bindProperty("deleteCondition")
-                .bindPlaceholder("Write sql expression eg: where date >= '2024-01-01'")
+                .bindPlaceholder(
+                    "Write sql expression eg: where date >= '2024-01-01'"
+                )
                 .withGroupBuilder(GroupBuilderType.EXPRESSION)
                 .withUnsupportedExpressionBuilderTypes(
                     [ExpressionBuilderType.INCREMENTAL_EXPRESSION]
@@ -209,10 +213,13 @@ class TableOperations(MacroSpec):
         )
 
         # Drop table UI
-        drop_table_ui = StackLayout(
-            gap="1rem", height="100%", direction="vertical"
-        ).addElement(
-            NativeText("This will drop the table from catalog and remove the files.")
+        drop_table_ui = (
+            StackLayout(gap="1rem", height="100%", direction="vertical")
+            .addElement(
+                NativeText(
+                    "This will drop the table from catalog and remove the files."
+                )
+            )
         )
 
         # Restore table UI
@@ -244,15 +251,17 @@ class TableOperations(MacroSpec):
                 .bindPlaceholder("column1 = value1, column2 = value2")
                 .bindProperty("updateSetClause")
             )
-            .addElement(NativeText("WHERE Clause"))
+            .addElement(
+                NativeText("WHERE Clause")
+            )
             .addElement(
                 AlertBox(
                     variant="success",
                     _children=[
                         Markdown(
                             "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                            '* **Example**: where date >= "2025-06-25" (Put it as value) \n\n'
-                            '* **Example**: where date >= "2025-06-25" (Put it as custom code)'
+                            "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
+                            "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
                         )
                     ],
                 )
@@ -260,7 +269,9 @@ class TableOperations(MacroSpec):
             .addElement(
                 ExpressionBox(language="sql")
                 .bindProperty("updateCondition")
-                .bindPlaceholder("Write sql expression eg: where date >= '2024-01-01'")
+                .bindPlaceholder(
+                    "Write sql expression eg: where date >= '2024-01-01'"
+                )
                 .withGroupBuilder(GroupBuilderType.EXPRESSION)
                 .withUnsupportedExpressionBuilderTypes(
                     [ExpressionBuilderType.INCREMENTAL_EXPRESSION]
@@ -269,33 +280,38 @@ class TableOperations(MacroSpec):
         )
 
         # Register table UI
-        register_table_ui = StackLayout(
-            gap="1rem", height="100%", direction="vertical"
-        ).addElement(
-            NativeText(
-                "This will register the data at mentioned file path as a table in catalog."
+        register_table_ui = (
+            StackLayout(gap="1rem", height="100%", direction="vertical")
+            .addElement(
+                NativeText(
+                    "This will register the data at mentioned file path as a table in catalog."
+                )
             )
         )
 
         # Run DDL UI
-        run_ddl_ui = StackLayout(
-            gap="1rem", height="100%", direction="vertical"
-        ).addElement(
-            TextArea(
-                "",
-                6,
-                placeholder="use {table_name} as a placeholder for the name of the table or mention the complete table name."
-                + "\n\n"
-                + "Example 1: alter table {table_name} ADD COLUMNS (col1 STRING COMMENT 'New column for notes',col2 TIMESTAMP)"
-                + "\n"
-                + "Example 2: alter table test_catalog.test_schema.test_table ADD COLUMNS (col1 STRING COMMENT 'New column for notes',col2 TIMESTAMP)",
-            ).bindProperty("runDDL")
+        run_ddl_ui = (
+            StackLayout(gap="1rem", height="100%", direction="vertical")
+            .addElement(
+                TextArea(
+                    "",
+                    6,
+                    placeholder="use {table_name} as a placeholder for the name of the table or mention the complete table name."
+                    + "\n\n"
+                    + "Example 1: alter table {table_name} ADD COLUMNS (col1 STRING COMMENT 'New column for notes',col2 TIMESTAMP)"
+                    + "\n"
+                    + "Example 2: alter table test_catalog.test_schema.test_table ADD COLUMNS (col1 STRING COMMENT 'New column for notes',col2 TIMESTAMP)"
+                ).bindProperty("runDDL")
+            )
         )
 
         # Build the dialog
         dialog = Dialog("delta_operations_dialog").addElement(
             ColumnsLayout(gap="1rem", height="100%")
-            .addColumn(Ports(allowInputAddOrDelete=True), "content")
+            .addColumn(
+                Ports(allowInputAddOrDelete=True),
+                "content"
+            )
             .addColumn(
                 StackLayout(height="100%")
                 .addElement(
@@ -309,93 +325,55 @@ class TableOperations(MacroSpec):
                             )
                             .then(
                                 TextBox(
-                                    "File location",
-                                    placeholder="dbfs:/FileStore/delta/tableName",
+                                    "File location", placeholder="dbfs:/FileStore/delta/tableName"
                                 ).bindProperty("path")
                             )
                         )
+                        .addElement(Checkbox("Use File Path").bindProperty("useExternalFilePath"))
                         .addElement(
-                            Checkbox("Use File Path").bindProperty(
-                                "useExternalFilePath"
-                            )
-                        )
-                        .addElement(
-                            CatalogTableDB("")
-                            .bindProperty("database")
-                            .bindTableProperty("tableName")
-                            .bindCatalogProperty("catalog")
-                            .bindIsCatalogEnabledProperty("isCatalogEnabled")
+                            CatalogTableDB("").bindProperty("database").bindTableProperty("tableName").bindCatalogProperty(
+                                "catalog").bindIsCatalogEnabledProperty("isCatalogEnabled")
                         )
                     )
                 )
                 .addElement(
-                    StepContainer().addElement(Step().addElement(operation_selector))
+                    StepContainer().addElement(
+                        Step().addElement(operation_selector)
+                    )
                 )
                 .addElement(
                     StepContainer().addElement(
                         Step().addElement(
                             Condition()
-                            .ifEqual(
-                                PropExpr("component.properties.action"),
-                                StringExpr("registerTableInCatalog"),
-                            )
+                            .ifEqual(PropExpr("component.properties.action"), StringExpr("registerTableInCatalog"))
                             .then(register_table_ui)
                             .otherwise(
                                 Condition()
-                                .ifEqual(
-                                    PropExpr("component.properties.action"),
-                                    StringExpr("vacuumTable"),
-                                )
+                                .ifEqual(PropExpr("component.properties.action"), StringExpr("vacuumTable"))
                                 .then(vacuum_table_ui)
                                 .otherwise(
                                     Condition()
-                                    .ifEqual(
-                                        PropExpr("component.properties.action"),
-                                        StringExpr("optimiseTable"),
-                                    )
+                                    .ifEqual(PropExpr("component.properties.action"), StringExpr("optimiseTable"))
                                     .then(optimize_table_ui)
                                     .otherwise(
                                         Condition()
-                                        .ifEqual(
-                                            PropExpr("component.properties.action"),
-                                            StringExpr("restoreTable"),
-                                        )
+                                        .ifEqual(PropExpr("component.properties.action"), StringExpr("restoreTable"))
                                         .then(restore_table_ui)
                                         .otherwise(
                                             Condition()
-                                            .ifEqual(
-                                                PropExpr("component.properties.action"),
-                                                StringExpr("updateTable"),
-                                            )
+                                            .ifEqual(PropExpr("component.properties.action"), StringExpr("updateTable"))
                                             .then(update_table_ui)
                                             .otherwise(
                                                 Condition()
-                                                .ifEqual(
-                                                    PropExpr(
-                                                        "component.properties.action"
-                                                    ),
-                                                    StringExpr("deleteFromTable"),
-                                                )
+                                                .ifEqual(PropExpr("component.properties.action"), StringExpr("deleteFromTable"))
                                                 .then(delete_table_ui)
                                                 .otherwise(
                                                     Condition()
-                                                    .ifEqual(
-                                                        PropExpr(
-                                                            "component.properties.action"
-                                                        ),
-                                                        StringExpr("dropTable"),
-                                                    )
+                                                    .ifEqual(PropExpr("component.properties.action"), StringExpr("dropTable"))
                                                     .then(drop_table_ui)
                                                     .otherwise(
                                                         Condition()
-                                                        .ifEqual(
-                                                            PropExpr(
-                                                                "component.properties.action"
-                                                            ),
-                                                            StringExpr(
-                                                                "fsckRepairTable"
-                                                            ),
-                                                        )
+                                                        .ifEqual(PropExpr("component.properties.action"), StringExpr("fsckRepairTable"))
                                                         .then(fsck_repair_ui)
                                                         .otherwise(run_ddl_ui)
                                                     )
@@ -413,262 +391,152 @@ class TableOperations(MacroSpec):
         return dialog
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
+
         diagnostics = []
 
-        if isBlank(component.properties.database) and isBlank(
-            component.properties.path
-        ):
+        if isBlank(component.properties.database) and isBlank(component.properties.path):
             diagnostics.append(
-                Diagnostic(
-                    "properties.database",
-                    "Both file path and database & table cannot be empty ",
-                    SeverityLevelEnum.Error,
-                )
-            )
+                Diagnostic("properties.database", "Both file path and database & table cannot be empty ",
+                           SeverityLevelEnum.Error))
 
-        if component.properties.action in [
-            "registerTableInCatalog",
-            "optimiseTable",
-            "fsckRepairTable",
-        ]:
-            if component.properties.isCatalogEnabled and (
-                len(component.properties.catalog) == 0
-            ):
+        if component.properties.action in ["registerTableInCatalog", "optimiseTable", "fsckRepairTable"]:
+            if component.properties.isCatalogEnabled and (len(component.properties.catalog) == 0):
                 diagnostics.append(
-                    Diagnostic(
-                        "properties.catalog",
-                        "Catalog Name cannot be empty",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic("properties.catalog", "Catalog Name cannot be empty", SeverityLevelEnum.Error))
 
             if len(component.properties.database) == 0:
                 diagnostics.append(
-                    Diagnostic(
-                        "properties.database",
-                        "Database Name cannot be empty",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic("properties.database", "Database Name cannot be empty", SeverityLevelEnum.Error))
 
             if len(component.properties.tableName) == 0:
                 diagnostics.append(
-                    Diagnostic(
-                        "properties.tableName",
-                        "Table Name cannot be empty",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic("properties.tableName", "Table Name cannot be empty", SeverityLevelEnum.Error))
 
-        if component.properties.useExternalFilePath and isBlank(
-            component.properties.path
-        ):
+        if component.properties.useExternalFilePath and isBlank(component.properties.path):
             if component.properties.action == "registerTableInCatalog":
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.useExternalFilePath",
-                        "File path cannot be empty",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"properties.useExternalFilePath", "File path cannot be empty", SeverityLevelEnum.Error))
 
         if component.properties.action == "deleteFromTable":
             diagnostics.append(
-                Diagnostic(
-                    f"properties.deleteCondition",
-                    "Delete condition cannot be empty",
-                    SeverityLevelEnum.Error,
-                )
-            )
+                Diagnostic(f"properties.deleteCondition", "Delete condition cannot be empty", SeverityLevelEnum.Error))
+
 
         if component.properties.useOptimiseWhere:
             if isBlank(component.properties.optimiseWhere):
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.optimiseWhere",
-                        "Where condition cannot be blank",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"properties.optimiseWhere", "Where condition cannot be blank", SeverityLevelEnum.Error))
 
         if component.properties.action == "vacuumTable":
             if isBlank(component.properties.vaccumRetainNumHours):
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.vaccumRetainNumHours",
-                        "Retention hours cannot be blank",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"properties.vaccumRetainNumHours", "Retention hours cannot be blank", SeverityLevelEnum.Error))
 
-            if int(component.properties.vaccumRetainNumHours) < 168:
+            if int(component.properties.vaccumRetainNumHours) < 168 :
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.vaccumRetainNumHours",
-                        "Retention hours should be equal to or greater than 168",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"properties.vaccumRetainNumHours", "Retention hours should be equal to or greater than 168", SeverityLevelEnum.Error))
 
         if component.properties.useOptimiseZOrder:
             if len(component.properties.optimiseZOrderColumns) == 0:
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.optimiseZOrderColumns",
-                        "Please provide at least one column to ZOrder by",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"properties.optimiseZOrderColumns", "Please provide at least one column to ZOrder by",
+                               SeverityLevelEnum.Error))
 
         if component.properties.action == "updateTable":
             if len(component.properties.updateCondition) == 0:
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.updateCondition",
-                        "Update without where clause will update all rows",
-                        SeverityLevelEnum.Warning,
-                    )
-                )
+                    Diagnostic(f"properties.updateCondition", "Update without where clause will update all rows",
+                               SeverityLevelEnum.Warning))
 
         if component.properties.action == "restoreTable":
-            if component.properties.restoreVia == "restoreViaTimestamp" and isBlank(
-                component.properties.restoreValue
-            ):
+            if component.properties.restoreVia == "restoreViaTimestamp" and isBlank(component.properties.restoreValue):
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.restoreValue",
-                        "Restore value cannot be blank",
-                        SeverityLevelEnum.Error,
-                    )
-                )
-            if (
-                component.properties.restoreVia == "restoreViaTimestamp"
-                and not isBlank(component.properties.restoreValue)
-            ):
+                    Diagnostic(f"properties.restoreValue", "Restore value cannot be blank", SeverityLevelEnum.Error))
+            if component.properties.restoreVia == "restoreViaTimestamp" and not isBlank(component.properties.restoreValue):
                 # Validate timestamp format YYYY-MM-DD HH:MM:SS
                 from datetime import datetime
-
                 try:
-                    datetime.strptime(
-                        component.properties.restoreValue.strip(), "%Y-%m-%d %H:%M:%S"
-                    )
+                    datetime.strptime(component.properties.restoreValue.strip(), "%Y-%m-%d %H:%M:%S")
                 except ValueError:
                     diagnostics.append(
-                        Diagnostic(
-                            f"properties.restoreValue",
-                            "Restore value must be in format YYYY-MM-DD HH:MM:SS (e.g., 2025-11-23 00:00:00)",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
-            if component.properties.restoreVia == "restoreViaVersion" and isBlank(
-                component.properties.restoreValue
-            ):
+                        Diagnostic(f"properties.restoreValue", "Restore value must be in format YYYY-MM-DD HH:MM:SS (e.g., 2025-11-23 00:00:00)", SeverityLevelEnum.Error))
+            if component.properties.restoreVia == "restoreViaVersion" and isBlank(component.properties.restoreValue):
                 diagnostics.append(
-                    Diagnostic(
-                        f"properties.restoreValue",
-                        "Restore value cannot be blank",
-                        SeverityLevelEnum.Error,
-                    )
-                )
-            if component.properties.restoreVia == "restoreViaVersion" and not isBlank(
-                component.properties.restoreValue
-            ):
+                    Diagnostic(f"properties.restoreValue", "Restore value cannot be blank", SeverityLevelEnum.Error))
+            if component.properties.restoreVia == "restoreViaVersion" and not isBlank(component.properties.restoreValue):
                 # Validate version is a positive integer
                 try:
                     version = int(component.properties.restoreValue.strip())
                     if version <= 0:
                         diagnostics.append(
-                            Diagnostic(
-                                f"properties.restoreValue",
-                                "Restore version must be greater than 0",
-                                SeverityLevelEnum.Error,
-                            )
-                        )
+                            Diagnostic(f"properties.restoreValue", "Restore version must be greater than 0", SeverityLevelEnum.Error))
                 except ValueError:
                     diagnostics.append(
-                        Diagnostic(
-                            f"properties.restoreValue",
-                            "Restore version must be a valid integer",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
+                        Diagnostic(f"properties.restoreValue", "Restore version must be a valid integer", SeverityLevelEnum.Error))
+
 
         if component.properties.action == "runDDL":
             if isBlank(component.properties.runDDL):
                 diagnostics.append(
-                    Diagnostic(
-                        f"component.properties.runDDL",
-                        "Please provide a ddl query to run",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+                    Diagnostic(f"component.properties.runDDL", "Please provide a ddl query to run",
+                               SeverityLevelEnum.Error))
         return diagnostics
 
-    def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
-    ) -> Component:
+    def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
         return newState
 
     def apply(self, props: TableOperationsProperties) -> str:
-        # Generate the actual macro call given the component's state
+        # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Helper function to escape quotes properly
-        def escape_quotes(value):
-            if value and len(str(value)) > 2:
-                value_str = str(value)
-                first_char = value_str[0]
-                last_char = value_str[-1]
-
-                # Only process if first and last characters are single quotes
-                if first_char == "'" and last_char == "'":
-                    middle = value_str[1:-1].replace("'", "''")
-                    return first_char + middle + last_char
-
-            return str(value) if value is not None else ""
+        # Helper function to safely convert values to strings and escape quotes
+        def safe_str_escape(value):
+            if value is None:
+                return ""
+            return str(value).replace("'", "\\'")
 
         # Extract column names from optimiseZOrderColumns
-        zorder_columns = (
-            ",".join([col.colName for col in props.optimiseZOrderColumns])
-            if props.optimiseZOrderColumns
-            else ""
-        )
-
+        zorder_columns = ",".join([col.colName for col in props.optimiseZOrderColumns]) if props.optimiseZOrderColumns else ""
+        
         arguments = [
-            f"'{escape_quotes(props.catalog)}'",
-            f"'{escape_quotes(props.database)}'",
-            f"'{escape_quotes(props.tableName)}'",
-            f"'{escape_quotes(props.action)}'",
-            f"'{escape_quotes(props.path)}'",
+            f"'{safe_str_escape(props.catalog)}'",            
+            f"'{safe_str_escape(props.database)}'",
+            f"'{safe_str_escape(props.tableName)}'",
+            f"'{safe_str_escape(props.action)}'",
+            f"'{safe_str_escape(props.path)}'",
             f"{str(props.useExternalFilePath).lower()}",
-            f"'{escape_quotes(props.vaccumRetainNumHours)}'",
+            f"'{safe_str_escape(props.vaccumRetainNumHours)}'",
             f"{str(props.useOptimiseWhere).lower()}",
-            f"'{escape_quotes(props.optimiseWhere)}'",
+            f"'{safe_str_escape(props.optimiseWhere)}'",
             f"{str(props.useOptimiseZOrder).lower()}",
             f"'{zorder_columns}'",
-            f"'{escape_quotes(props.restoreVia)}'",
-            f"'{escape_quotes(props.restoreValue)}'",
-            f"'{escape_quotes(props.deleteCondition)}'",
-            f"'{escape_quotes(props.updateSetClause)}'",
-            f"'{escape_quotes(props.updateCondition)}'",
-            f"'{escape_quotes(props.runDDL)}'",
+            f"'{safe_str_escape(props.restoreVia)}'",
+            f"'{safe_str_escape(props.restoreValue)}'",
+            f"'{safe_str_escape(props.deleteCondition)}'",
+            f"'{safe_str_escape(props.updateSetClause)}'",
+            f"'{safe_str_escape(props.updateCondition)}'",
+            f"'{safe_str_escape(props.runDDL)}'"
         ]
 
         params = ", ".join(arguments)
-        return f"{{{{ {resolved_macro_name}({params}) }}}}"
+        return f'{{{{ {resolved_macro_name}({params}) }}}}'
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
-        # Load the component's state given default macro property representation
+        # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return TableOperations.TableOperationsProperties(
-            table_name=parametersMap.get("table_name")
+            table_name=parametersMap.get('table_name')
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
-        # Convert component's state to default macro property representation
+        # convert component's state to default macro property representation
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
-            parameters=[MacroParameter("table_name", properties.table_name)],
+            parameters=[
+                MacroParameter("table_name", properties.table_name)
+            ],
         )
+    # def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+    #     return in0

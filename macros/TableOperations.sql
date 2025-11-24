@@ -15,7 +15,7 @@
     deleteCondition='true',
     updateSetClause='',
     updateCondition='',
-    runDDL=''
+    runDDL=''    
 ) -%}
     {{ return(adapter.dispatch('TableOperations', 'JPMC_Custom_Gems')(
         catalog,
@@ -61,27 +61,27 @@
     {%- set sql_command = '' -%}
     {%- set target_table = "`" ~ catalog ~ "`.`" ~ database ~ "`.`" ~ tableName ~ "`" -%}
 
-    {# If using external file path, use delta.`path` syntax for most operations #}
+    {#- If using external file path, use delta.`path` syntax for most operations -#}
     {%- if useExternalFilePath and path != '' -%}
         {%- set target_table = "delta.`" ~ path ~ "`" -%}
     {%- endif -%}
 
-    {# Register Table in Catalog #}
+    {#- Register Table in Catalog -#}
     {%- if action == 'registerTableInCatalog' -%}
         {%- if useExternalFilePath and path != '' -%}
-            {# For path-based registration, create managed table by copying data #}
+            {#- For path-based registration, create managed table by copying data -#}
             {%- set sql_command -%}
                 CREATE TABLE {{ table_name }} AS
                 SELECT * FROM delta.`{{ path }}`
             {%- endset -%}
         {%- else -%}
-            {# For external cloud storage, use LOCATION syntax #}
+            {#- For external cloud storage, use LOCATION syntax -#}
             {%- set sql_command -%}
                 CREATE TABLE {{ table_name }} USING DELTA LOCATION '{{ path }}'
             {%- endset -%}
         {%- endif -%}
 
-    {# Vacuum Table #}
+    {#- Vacuum Table -#}
     {%- elif action == 'vacuumTable' -%}
         {%- if vacuumRetainNumHours != '' -%}
             {%- set sql_command -%}
@@ -93,7 +93,7 @@
             {%- endset -%}
         {%- endif -%}
 
-    {# Optimize Table #}
+    {#- Optimize Table -#}
     {%- elif action == 'optimiseTable' -%}
         {%- set optimize_clause = 'OPTIMIZE ' ~ target_table -%}
         
@@ -108,7 +108,7 @@
         
         {%- set sql_command = optimize_clause -%}
 
-    {# Restore Table #}
+    {#- Restore Table -#}
     {%- elif action == 'restoreTable' -%}
         {%- if restoreVia == 'restoreViaVersion' -%}
             {%- set sql_command -%}
@@ -120,13 +120,13 @@
             {%- endset -%}
         {%- endif -%}
 
-    {# Delete from Table #}
+    {#- Delete from Table -#}
     {%- elif action == 'deleteFromTable' -%}
         {%- set sql_command -%}
             DELETE FROM {{ target_table }} WHERE {{ deleteCondition }}
         {%- endset -%}
 
-    {# Update Table #}
+    {#- Update Table -#}
     {%- elif action == 'updateTable' -%}
         {%- set update_cmd = 'UPDATE ' ~ target_table ~ ' SET ' -%}
         {%- set update_cmd = update_cmd ~ updateSetClause -%}
@@ -137,10 +137,10 @@
         
         {%- set sql_command = update_cmd -%}
 
-    {# Drop Table #}
+    {#- Drop Table -#}
     {%- elif action == 'dropTable' -%}
         {%- if useExternalFilePath and path != '' -%}
-            {# For path-based tables, we cannot drop from catalog, log warning #}
+            {#- For path-based tables, we cannot drop from catalog, log warning -#}
             {{ log("Warning: DROP TABLE for path-based tables only works if table is registered in catalog. Use table_name instead.", info=true) }}
             {%- set sql_command -%}
                 DROP TABLE IF EXISTS {{ table_name }}
@@ -151,18 +151,18 @@
             {%- endset -%}
         {%- endif -%}
 
-    {# FSCK Repair Table #}
+    {#- FSCK Repair Table -#}
     {%- elif action == 'fsckRepairTable' -%}
         {%- set sql_command -%}
             FSCK REPAIR TABLE {{ target_table }}
         {%- endset -%}
 
-    {# Run Custom DDL (modifies table) #}
+    {#- Run Custom DDL (modifies table) -#}
     {%- elif action == 'runDDL' -%}
-        {%- set sql_command = runDDL | replace('{table_name}', target_table) -%}
+        {%- set sql_command = runDDL | replace('{table_name}', table_name) -%}
     {%- endif -%}
 
-    {# Return the SQL command to be executed by dbt #}
+    {#- Return the SQL command to be executed by dbt -#}
     {%- if sql_command != '' -%}
         {{ log("Table Operation - Action: " ~ action ~ " on Table: " ~ target_table, info=true) }}
         {{ log("SQL Command: " ~ sql_command, info=true) }}
