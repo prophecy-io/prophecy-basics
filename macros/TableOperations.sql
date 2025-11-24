@@ -71,13 +71,13 @@
         {%- if useExternalFilePath and path != '' -%}
             {#- For path-based registration, create managed table by copying data -#}
             {%- set sql_command -%}
-                CREATE TABLE {{ table_name }} AS
+                CREATE TABLE {{ target_table }} AS
                 SELECT * FROM delta.`{{ path }}`
             {%- endset -%}
         {%- else -%}
             {#- For external cloud storage, use LOCATION syntax -#}
             {%- set sql_command -%}
-                CREATE TABLE {{ table_name }} USING DELTA LOCATION '{{ path }}'
+                CREATE TABLE {{ target_table }} USING DELTA LOCATION '{{ path }}'
             {%- endset -%}
         {%- endif -%}
 
@@ -116,7 +116,7 @@
             {%- endset -%}
         {%- elif restoreVia == 'restoreViaTimestamp' -%}
             {%- set sql_command -%}
-                RESTORE TABLE {{ target_table }} TO TIMESTAMP AS OF {{ restoreValue }}
+                RESTORE TABLE {{ target_table }} TO TIMESTAMP AS OF '{{ restoreValue }}'
             {%- endset -%}
         {%- endif -%}
 
@@ -143,7 +143,7 @@
             {#- For path-based tables, we cannot drop from catalog, log warning -#}
             {{ log("Warning: DROP TABLE for path-based tables only works if table is registered in catalog. Use table_name instead.", info=true) }}
             {%- set sql_command -%}
-                DROP TABLE IF EXISTS {{ table_name }}
+                DROP TABLE IF EXISTS {{ target_table }}
             {%- endset -%}
         {%- else -%}
             {%- set sql_command -%}
@@ -159,7 +159,7 @@
 
     {#- Run Custom DDL (modifies table) -#}
     {%- elif action == 'runDDL' -%}
-        {%- set sql_command = runDDL | replace('{table_name}', table_name) -%}
+        {%- set sql_command = runDDL | replace('{table_name}', target_table) -%}
     {%- endif -%}
 
     {#- Return the SQL command to be executed by dbt -#}

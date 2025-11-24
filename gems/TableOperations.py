@@ -238,7 +238,7 @@ class TableOperations(MacroSpec):
                 .bindProperty("restoreVia")
             )
             .addElement(
-                TextBox("Value").bindPlaceholder("").bindProperty("restoreValue")
+                TextBox("Value").bindPlaceholder("Timestamp format YYYY-MM-DD HH:MM:SS (e.g., 2025-11-23 00:00:00) or Version number").bindProperty("restoreValue")
             )
         )
 
@@ -418,9 +418,9 @@ class TableOperations(MacroSpec):
                     Diagnostic(f"properties.useExternalFilePath", "File path cannot be empty", SeverityLevelEnum.Error))
 
         if component.properties.action == "deleteFromTable":
-            diagnostics.append(
-                Diagnostic(f"properties.deleteCondition", "Delete condition cannot be empty", SeverityLevelEnum.Error))
-
+            if isBlank(component.properties.deleteCondition):
+                diagnostics.append(
+                    Diagnostic(f"properties.deleteCondition", "Delete condition cannot be empty", SeverityLevelEnum.Error))
 
         if component.properties.useOptimiseWhere:
             if isBlank(component.properties.optimiseWhere):
