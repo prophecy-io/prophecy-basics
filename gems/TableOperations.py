@@ -538,5 +538,5 @@ class TableOperations(MacroSpec):
                 MacroParameter("table_name", properties.table_name)
             ],
         )
-    # def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-    #     return in0
+    def applyPython(self, spark: SparkSession) -> DataFrame:
+        return spark.sql("select 1")
