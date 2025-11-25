@@ -61,25 +61,11 @@
     {%- set sql_command = '' -%}
     {%- set target_table = "`" ~ catalog ~ "`.`" ~ database ~ "`.`" ~ tableName ~ "`" -%}
 
-    {#- If using external file path, use delta.`path` syntax for most operations -#}
-    {%- if useExternalFilePath and path != '' -%}
-        {%- set target_table = "delta.`" ~ path ~ "`" -%}
-    {%- endif -%}
-
     {#- Register Table in Catalog -#}
     {%- if action == 'registerTableInCatalog' -%}
-        {%- if useExternalFilePath and path != '' -%}
-            {#- For path-based registration, create managed table by copying data -#}
-            {%- set sql_command -%}
-                CREATE TABLE {{ target_table }} AS
-                SELECT * FROM delta.`{{ path }}`
-            {%- endset -%}
-        {%- else -%}
-            {#- For external cloud storage, use LOCATION syntax -#}
-            {%- set sql_command -%}
-                CREATE TABLE {{ target_table }} USING DELTA LOCATION '{{ path }}'
-            {%- endset -%}
-        {%- endif -%}
+        {%- set sql_command -%}
+            CREATE TABLE {{ target_table }} USING DELTA LOCATION '{{ path }}'
+        {%- endset -%}
 
     {#- Vacuum Table -#}
     {%- elif action == 'vacuumTable' -%}
@@ -139,17 +125,9 @@
 
     {#- Drop Table -#}
     {%- elif action == 'dropTable' -%}
-        {%- if useExternalFilePath and path != '' -%}
-            {#- For path-based tables, we cannot drop from catalog, log warning -#}
-            {{ log("Warning: DROP TABLE for path-based tables only works if table is registered in catalog. Use table_name instead.", info=true) }}
-            {%- set sql_command -%}
-                DROP TABLE IF EXISTS {{ target_table }}
-            {%- endset -%}
-        {%- else -%}
-            {%- set sql_command -%}
-                DROP TABLE {{ target_table }}
-            {%- endset -%}
-        {%- endif -%}
+        {%- set sql_command -%}
+            DROP TABLE {{ target_table }}
+        {%- endset -%}    
 
     {#- FSCK Repair Table -#}
     {%- elif action == 'fsckRepairTable' -%}

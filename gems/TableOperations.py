@@ -136,8 +136,8 @@ class TableOperations(MacroSpec):
                             _children=[
                                 Markdown(
                                     "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                                    "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
-                                    "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
+                                    "* **Example**: date >= \"2025-06-25\" (Put it as value) \n\n"
+                                    "* **Example**: date >= \"2025-06-25\" (Put it as custom code)"
                                 )
                             ],
                         )
@@ -146,7 +146,7 @@ class TableOperations(MacroSpec):
                         ExpressionBox(language="sql")
                         .bindProperty("optimiseWhere")
                         .bindPlaceholder(
-                            "Write sql expression eg: where date >= '2024-01-01'"
+                            "Write sql expression eg: date >= '2024-01-01'"
                         )
                         .withGroupBuilder(GroupBuilderType.EXPRESSION)
                         .withUnsupportedExpressionBuilderTypes(
@@ -194,8 +194,8 @@ class TableOperations(MacroSpec):
                     _children=[
                         Markdown(
                             "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                            "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
-                            "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
+                            "* **Example**: date >= \"2025-06-25\" (Put it as value) \n\n"
+                            "* **Example**: date >= \"2025-06-25\" (Put it as custom code)"
                         )
                     ],
                 )
@@ -204,7 +204,7 @@ class TableOperations(MacroSpec):
                 ExpressionBox(language="sql")
                 .bindProperty("deleteCondition")
                 .bindPlaceholder(
-                    "Write sql expression eg: where date >= '2024-01-01'"
+                    "Write sql expression eg: date >= '2024-01-01'"
                 )
                 .withGroupBuilder(GroupBuilderType.EXPRESSION)
                 .withUnsupportedExpressionBuilderTypes(
@@ -261,8 +261,8 @@ class TableOperations(MacroSpec):
                     _children=[
                         Markdown(
                             "**In Select Expression, you can choose value, custom code etc. to create the expression** \n\n"
-                            "* **Example**: where date >= \"2025-06-25\" (Put it as value) \n\n"
-                            "* **Example**: where date >= \"2025-06-25\" (Put it as custom code)"
+                            "* **Example**: date >= \"2025-06-25\" (Put it as value) \n\n"
+                            "* **Example**: date >= \"2025-06-25\" (Put it as custom code)"
                         )
                     ],
                 )
@@ -271,7 +271,7 @@ class TableOperations(MacroSpec):
                 ExpressionBox(language="sql")
                 .bindProperty("updateCondition")
                 .bindPlaceholder(
-                    "Write sql expression eg: where date >= '2024-01-01'"
+                    "Write sql expression eg: date >= '2024-01-01'"
                 )
                 .withGroupBuilder(GroupBuilderType.EXPRESSION)
                 .withUnsupportedExpressionBuilderTypes(
@@ -540,4 +540,93 @@ class TableOperations(MacroSpec):
             ],
         )
     def applyPython(self, spark: SparkSession) -> DataFrame:
-        return spark.sql("select 1")
+        return_str: str = ""
+        if not ("SColumnExpression" in locals()):
+            try:
+                from delta.tables import DeltaTable
+                table_name = f"`{self.props.catalog}`.`{self.props.database}`.`{self.props.tableName}`" if self.props.isCatalogEnabled else f"`{self.props.database}`.`{self.props.tableName}`"
+
+                if self.props.useExternalFilePath:
+                    deltaTable = DeltaTable.forPath(
+                        spark, self.props.path
+                    )  # path-based tables
+                else:
+                    deltaTable = DeltaTable.forName(
+                        spark, table_name
+                    )  # Catalog based tables
+
+                # Register Table In Catalog
+                if self.props.action == "registerTableInCatalog":
+                    spark.sql(
+                        "CREATE TABLE "
+                        + table_name
+                        + " USING DELTA LOCATION '"
+                        + self.props.path
+                        + "'"
+                    )
+
+                elif self.props.action == "vacuumTable":
+                    if isBlank(self.props.vaccumRetainNumHours):
+                        deltaTable.vacuum()
+                    else:
+                        deltaTable.vacuum(
+                            retentionHours=float(self.props.vaccumRetainNumHours)
+                        )
+
+                elif self.props.action == "optimiseTable":
+                    zorderstr = ",".join(
+                        [x.colName for x in self.props.optimiseZOrderColumns]
+                    )
+                    if (
+                            not self.props.useOptimiseWhere
+                            and not self.props.useOptimiseZOrder
+                    ):
+                        spark.sql(f"OPTIMIZE " + table_name)
+                    elif not self.props.useOptimiseZOrder:
+                        spark.sql(f"OPTIMIZE " + table_name + f" WHERE {self.props.optimiseWhere}")
+                    elif not self.props.useOptimiseWhere:
+                        spark.sql(f"OPTIMIZE " + table_name + f" ZORDER BY {zorderstr}")
+                    else:
+                        spark.sql(f"OPTIMIZE " + table_name + f" WHERE {self.props.optimiseWhere} ZORDER BY {zorderstr}")
+                elif self.props.action == "restoreTable":
+                    if self.props.restoreVia == "restoreViaVersion":
+                        deltaTable.restoreToVersion(int(self.props.restoreValue))
+                    elif self.props.restoreVia == "restoreViaTimestamp":
+                        deltaTable.restoreToTimestamp(self.props.restoreValue)
+
+                elif self.props.action == "deleteFromTable":
+                    spark.sql(
+                        "DELETE FROM " + table_name + " WHERE " + self.props.deleteCondition
+                    )
+
+                elif self.props.action == "dropTable":
+                    spark.sql(
+                        "DROP TABLE " + table_name
+                    )
+                elif self.props.action == "fsckRepairTable":
+                    if not isBlank(self.props.database) and not isBlank(
+                            self.props.tableName
+                    ):
+                        spark.sql(
+                            "FSCK REPAIR TABLE " + table_name
+                        )                          
+
+                elif self.props.action == 'updateTable':
+                    update_cmd = f"UPDATE {table_name} SET {self.props.updateSetClause}"
+                    
+                    if self.props.updateCondition.strip() != '':
+                        update_cmd += f" WHERE {self.props.updateCondition}"
+                    
+                    spark.sql(update_cmd)
+                    
+                elif self.props.action == "runDDL":
+                    spark.sql(self.props.runDDL.replace('{table_name}',table_name).strip())
+                
+                return_str:str = f"select '{self.props.action}' as action, '{table_name}' as table_name, 'Success' as status, current_timestamp() as executed_at"
+            except Exception as ex:
+                raise ex
+        
+        if return_str != "":
+            return spark.sql(return_str)
+        else:
+            return spark.sql(f"select '{self.props.action}' as action, '`{self.props.catalog}`.`{self.props.database}`.`{self.props.tableName}`' as table_name, 'Schema Analysis Failed' as status, current_timestamp() as executed_at")
