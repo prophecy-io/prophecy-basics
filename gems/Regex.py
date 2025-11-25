@@ -4,6 +4,11 @@ from dataclasses import dataclass, field
 import json
 import re
 
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+from pyspark.sql.window import Window
+
 from collections import defaultdict
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -77,270 +82,270 @@ class Regex(MacroSpec):
                     )
                     .addElement(
                         StepContainer()
+                        .addElement(
+                            Step()
                             .addElement(
-                                Step()
-                                    .addElement(
-                                        StackLayout(height="100%")
-                                            .addElement(TitleElement("Regex"))
-                                            .addElement(
-                                                TextBox("").bindPlaceholder("Regex Expression").bindProperty("regexExpression")
+                                StackLayout(height="100%")
+                                .addElement(TitleElement("Regex"))
+                                .addElement(
+                                    TextBox("").bindPlaceholder("Regex Expression").bindProperty("regexExpression")
+                                )
+                                .addElement(
+                                    Checkbox("Case Insensitive Matching").bindProperty("caseInsensitive")
+                                )
+                                .addElement(
+                                    AlertBox(
+                                        variant="success",
+                                        _children=[
+                                            Markdown(
+                                                "**Common Regex Pattern Examples:**"
+                                                "\n"
+                                                "- **Email extraction:**"
+                                                "\n"
+                                                "**Pattern:** `([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`"
+                                                "\n"
+                                                "Example: Extract user and domain from john.doe@company.com"
+                                                "\n"
+                                                "- **Phone number parsing:**"
+                                                "\n"
+                                                "**Pattern:** `(\d{3})-(\d{3})-(\d{4})`"
+                                                "\n"
+                                                "Example: Parse (555)-123-4567 into area code, exchange, number"
+                                                "\n"
+                                                "- **Date extraction (MM/DD/YYYY):**"
+                                                "\n"
+                                                "**Pattern:** `(\d{1,2})/(\d{1,2})/(\d{4})`"
+                                                "\n"
+                                                "Example: Extract 12/25/2023 into month, day, year"
+                                                "\n"
+                                                "- **Word tokenization:**"
+                                                "\n"
+                                                "**Pattern:** `([^\s]+)`"
+                                                "\n"
+                                                "Example: Split \"Hello World Example\" into individual words"
+                                                "\n"
+                                                "- **Comma-separated values:**"
+                                                "\n"
+                                                "**Pattern:** `([^,]+)`"
+                                                "\n"
+                                                "Example: Split \"Value1,Value2,Value3\" into separate values"
+                                                "\n"
+                                                "- **Extract numbers only:**"
+                                                "\n"
+                                                "**Pattern:** `(\d+)`"
+                                                "\n"
+                                                "Example: Extract 123 from \"Price: $123.45\""
+                                                "\n"
+                                                "- **URL components:**"
+                                                "\n"
+                                                "**Pattern:** `https?://([^/]+)(/.*)?`"
+                                                "\n"
+                                                "Example: Extract domain and path from URLs"
+                                                "\n"
+                                                "- **Remove special characters:**"
+                                                "\n"
+                                                "**Pattern:** `[^a-zA-Z0-9\s]`"
+                                                "\n"
+                                                "Example: Remove punctuation, keep letters, numbers, spaces"
+                                                "\n"
+                                                "- **Match uppercase words:**"
+                                                "\n"
+                                                "**Pattern:** `\b[A-Z]{2,}\b`"
+                                                "\n"
+                                                "Example: Find acronyms like \"USA\", \"API\", \"SQL\""
+                                                "\n"
+                                                "- **Extract text between quotes:**"
+                                                "\n"
+                                                "**Pattern:** `([^\"]*)`"
+                                                "\n"
+                                                "Example: Extract content from \"quoted text\""
                                             )
-                                            .addElement(
-                                                Checkbox("Case Insensitive Matching").bindProperty("caseInsensitive")
-                                            )
-                                            .addElement(
-                                                AlertBox(
-                                                    variant="success",
-                                                    _children=[
-                                                        Markdown(
-                                                            "**Common Regex Pattern Examples:**"
-                                                            "\n"
-                                                            "- **Email extraction:**"
-                                                            "\n"
-                                                            "**Pattern:** `([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`"
-                                                            "\n"
-                                                            "Example: Extract user and domain from john.doe@company.com"
-                                                            "\n"
-                                                            "- **Phone number parsing:**"
-                                                            "\n"
-                                                            "**Pattern:** `(\d{3})-(\d{3})-(\d{4})`"
-                                                            "\n"
-                                                            "Example: Parse (555)-123-4567 into area code, exchange, number"
-                                                            "\n"
-                                                            "- **Date extraction (MM/DD/YYYY):**"
-                                                            "\n"
-                                                            "**Pattern:** `(\d{1,2})/(\d{1,2})/(\d{4})`"
-                                                            "\n"
-                                                            "Example: Extract 12/25/2023 into month, day, year"
-                                                            "\n"
-                                                            "- **Word tokenization:**"
-                                                            "\n"
-                                                            "**Pattern:** `([^\s]+)`"
-                                                            "\n"
-                                                            "Example: Split \"Hello World Example\" into individual words"
-                                                            "\n"
-                                                            "- **Comma-separated values:**"
-                                                            "\n"
-                                                            "**Pattern:** `([^,]+)`"
-                                                            "\n"
-                                                            "Example: Split \"Value1,Value2,Value3\" into separate values"
-                                                            "\n"
-                                                            "- **Extract numbers only:**"
-                                                            "\n"
-                                                            "**Pattern:** `(\d+)`"
-                                                            "\n"
-                                                            "Example: Extract 123 from \"Price: $123.45\""
-                                                            "\n"
-                                                            "- **URL components:**"
-                                                            "\n"
-                                                            "**Pattern:** `https?://([^/]+)(/.*)?`"
-                                                            "\n"
-                                                            "Example: Extract domain and path from URLs"
-                                                            "\n"
-                                                            "- **Remove special characters:**"
-                                                            "\n"
-                                                            "**Pattern:** `[^a-zA-Z0-9\s]`"
-                                                            "\n"
-                                                            "Example: Remove punctuation, keep letters, numbers, spaces"
-                                                            "\n"
-                                                            "- **Match uppercase words:**"
-                                                            "\n"
-                                                            "**Pattern:** `\b[A-Z]{2,}\b`"
-                                                            "\n"
-                                                            "Example: Find acronyms like \"USA\", \"API\", \"SQL\""
-                                                            "\n"
-                                                            "- **Extract text between quotes:**"
-                                                            "\n"
-                                                            "**Pattern:** `([^\"]*)`"
-                                                            "\n"
-                                                            "Example: Extract content from \"quoted text\""
-                                                        )
-                                                    ]
-                                                )
-                                            )
+                                        ]
                                     )
+                                )
                             )
-                            .addElement(
-                                RadioGroup("Output strategy")
-                                .addOption(
-                                    "Replace",
-                                    "replace",
-                                    description=("Replace matched text with replacement text")
-                                )
-                                .addOption(
-                                    "Tokenize",
-                                    "tokenize",
-                                    description=("Split the incoming data using a regular expression")
-                                )
-                                .addOption(
-                                    "Parse",
-                                    "parse",
-                                    description=("Separate the value into new columns based on regex groups defined.")
-                                )
-                                .addOption(
-                                    "Match",
-                                    "match",
-                                    description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
-                                )
-                                .setOptionType("button")
-                                .setVariant("medium")
-                                .setButtonStyle("solid")
-                                .bindProperty("outputMethod")
+                        )
+                        .addElement(
+                            RadioGroup("Output strategy")
+                            .addOption(
+                                "Replace",
+                                "replace",
+                                description=("Replace matched text with replacement text")
                             )
+                            .addOption(
+                                "Tokenize",
+                                "tokenize",
+                                description=("Split the incoming data using a regular expression")
+                            )
+                            .addOption(
+                                "Parse",
+                                "parse",
+                                description=("Separate the value into new columns based on regex groups defined.")
+                            )
+                            .addOption(
+                                "Match",
+                                "match",
+                                description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
+                            )
+                            .setOptionType("button")
+                            .setVariant("medium")
+                            .setButtonStyle("solid")
+                            .bindProperty("outputMethod")
+                        )
                     )
                     .addElement(
                         StepContainer()
-                            .addElement(
-                                # Replace Method Configuration
+                        .addElement(
+                            # Replace Method Configuration
+                            Condition()
+                            .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("replace"))
+                            .then(
+                                Step()
+                                .addElement(
+                                    StackLayout(height="100%")
+                                    .addElement(TitleElement("Replace Configuration"))
+                                    .addElement(
+                                        TextBox("Replacement Text")
+                                        .bindPlaceholder("Enter replacement expression")
+                                        .bindProperty("replacementText")
+                                    )
+                                    .addElement(
+                                        Checkbox("Copy Unmatched Text to Output")
+                                        .bindProperty("copyUnmatchedText")
+                                    )
+                                )
+                            ).otherwise(
+                                # Tokenize Method Configuration
                                 Condition()
-                                .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("replace"))
+                                .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("tokenize"))
                                 .then(
                                     Step()
+                                    .addElement(
+                                        StackLayout(height="100%")
+                                        .addElement(TitleElement("Tokenize Configuration"))
                                         .addElement(
-                                            StackLayout(height="100%")
-                                                .addElement(TitleElement("Replace Configuration"))
-                                                .addElement(
-                                                    TextBox("Replacement Text")
-                                                    .bindPlaceholder("Enter replacement expression")
-                                                    .bindProperty("replacementText")
-                                                )
-                                                .addElement(
-                                                    Checkbox("Copy Unmatched Text to Output")
-                                                    .bindProperty("copyUnmatchedText")
-                                                )
+                                            RadioGroup("Select Split Strategy")
+                                            .addOption("Split to columns", "splitColumns")
+                                            .addOption("Split to rows", "splitRows")
+                                            .bindProperty("tokenizeOutputMethod")
+                                        ).addElement(
+                                            Checkbox("Allow Blank Tokens").bindProperty("allowBlankTokens")
                                         )
+                                        .addElement(
+                                            TextBox("Output Root Name")
+                                            .bindPlaceholder("Enter Generated Column Suffix")
+                                            .bindProperty("outputRootName")
+                                        )
+                                        .addElement(
+                                            Condition()
+                                            .ifEqual(PropExpr("component.properties.tokenizeOutputMethod"), StringExpr("splitColumns"))
+                                            .then(
+                                                StackLayout(height="100%")
+                                                .addElement(
+                                                    ColumnsLayout(gap="1rem", height="100%")
+                                                    .addColumn(
+                                                        NumberBox("Number of columns", placeholder=1, requiredMin=1)
+                                                        .bindProperty("noOfColumns")
+                                                    )
+                                                    .addColumn(
+                                                        SelectBox(titleVar="For Extra Columns")
+                                                        .addOption("Drop Extra without Warning", "dropExtraWithoutWarning")
+                                                        .addOption("Drop Extra with Error", "dropExtraWithError")
+                                                        .addOption("Save all remaining text into last generated column", "saveAllRemainingText")
+                                                        .bindProperty("extraColumnsHandling")
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
                                 ).otherwise(
-                                    # Tokenize Method Configuration
+                                    # Parse Method Configuration
                                     Condition()
-                                    .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("tokenize"))
+                                    .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("parse"))
                                     .then(
                                         Step()
+                                        .addElement(
+                                            StackLayout(height="100%")
+                                            .addElement(TitleElement("Parse Configuration"))
                                             .addElement(
                                                 StackLayout(height="100%")
-                                                    .addElement(TitleElement("Tokenize Configuration"))
-                                                    .addElement(
-                                                        RadioGroup("Select Split Strategy")
-                                                        .addOption("Split to columns", "splitColumns")
-                                                        .addOption("Split to rows", "splitRows")
-                                                        .bindProperty("tokenizeOutputMethod")
-                                                    ).addElement(
-                                                        Checkbox("Allow Blank Tokens").bindProperty("allowBlankTokens")
+                                                .addElement(
+                                                    AlertBox(
+                                                        variant="info",
+                                                        _children=[
+                                                            Markdown("Configure the output columns for parsed groups. Each capture group in your regex will create a new column.")
+                                                        ]
                                                     )
+                                                )
+                                                .addElement(
+                                                    StepContainer()
                                                     .addElement(
-                                                        TextBox("Output Root Name")
-                                                        .bindPlaceholder("Enter Generated Column Suffix")
-                                                        .bindProperty("outputRootName")
-                                                    )
-                                                    .addElement(
-                                                        Condition()
-                                                        .ifEqual(PropExpr("component.properties.tokenizeOutputMethod"), StringExpr("splitColumns"))
-                                                        .then(
-                                                            StackLayout(height="100%")
-                                                            .addElement(
-                                                                ColumnsLayout(gap="1rem", height="100%")
-                                                                .addColumn(
-                                                                    NumberBox("Number of columns", placeholder=1, requiredMin=1)
-                                                                    .bindProperty("noOfColumns")
+                                                        Step().addElement(
+                                                            BasicTable("Parse Columns Table", height="200px", columns=[
+                                                                Column(
+                                                                    "New Column Name",
+                                                                    "columnName",
+                                                                    TextBox("")
+                                                                    .bindPlaceholder("Column Name")
+                                                                ),
+                                                                Column(
+                                                                    "Select Data Type",
+                                                                    "dataType",
+                                                                    SelectBox("")
+                                                                    .addOption("String", "string")
+                                                                    .addOption("Integer", "int")
+                                                                    .addOption("Double", "double")
+                                                                    .addOption("Boolean", "bool")
+                                                                    .addOption("Date", "date")
+                                                                    .addOption("DateTime", "datetime"),
+                                                                    width="20%"
+                                                                ),
+                                                                Column(
+                                                                    "Regex Expression",
+                                                                    "rgxExpression",
+                                                                    TextBox("", disabledView=True)
+                                                                    .bindPlaceholder("Auto-generated from regex groups"),
+                                                                    width="35%"
                                                                 )
-                                                                .addColumn(
-                                                                    SelectBox(titleVar="For Extra Columns")
-                                                                    .addOption("Drop Extra without Warning", "dropExtraWithoutWarning")
-                                                                    .addOption("Drop Extra with Error", "dropExtraWithError")
-                                                                    .addOption("Save all remaining text into last generated column", "saveAllRemainingText")
-                                                                    .bindProperty("extraColumnsHandling")
-                                                                )
-                                                            )
+                                                            ])
+                                                            .bindProperty("parseColumns")
                                                         )
                                                     )
+                                                )
                                             )
+                                        )
                                     ).otherwise(
-                                        # Parse Method Configuration
+                                        # Match Method Configuration
                                         Condition()
-                                        .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("parse"))
+                                        .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("match"))
                                         .then(
                                             Step()
+                                            .addElement(
+                                                StackLayout(height="100%")
+                                                .addElement(TitleElement("Match Configuration"))
                                                 .addElement(
-                                                    StackLayout(height="100%")
-                                                        .addElement(TitleElement("Parse Configuration"))
-                                                        .addElement(
-                                                            StackLayout(height="100%")
-                                                            .addElement(
-                                                                AlertBox(
-                                                                    variant="info",
-                                                                    _children=[
-                                                                        Markdown("Configure the output columns for parsed groups. Each capture group in your regex will create a new column.")
-                                                                    ]
-                                                                )
-                                                            )
-                                                            .addElement(
-                                                                StepContainer()
-                                                                    .addElement(
-                                                                        Step().addElement(
-                                                                            BasicTable("Parse Columns Table", height="200px", columns=[
-                                                                                Column(
-                                                                                    "New Column Name",
-                                                                                    "columnName",
-                                                                                    TextBox("")
-                                                                                        .bindPlaceholder("Column Name")
-                                                                                ),
-                                                                                Column(
-                                                                                    "Select Data Type",
-                                                                                    "dataType",
-                                                                                    SelectBox("")
-                                                                                        .addOption("String", "string")
-                                                                                        .addOption("Integer", "int")
-                                                                                        .addOption("Double", "double")
-                                                                                        .addOption("Boolean", "bool")
-                                                                                        .addOption("Date", "date")
-                                                                                        .addOption("DateTime", "datetime"),
-                                                                                    width="20%"
-                                                                                ),
-                                                                                Column(
-                                                                                    "Regex Expression",
-                                                                                    "rgxExpression",
-                                                                                    TextBox("", disabledView=True)
-                                                                                        .bindPlaceholder("Auto-generated from regex groups"),
-                                                                                    width="35%"
-                                                                                )
-                                                                            ])
-                                                                            .bindProperty("parseColumns")
-                                                                        )
-                                                                    )
-                                                            )
-                                                        )
+                                                    TextBox("Column name for match status")
+                                                    .bindPlaceholder("Enter name for match result column")
+                                                    .bindProperty("matchColumnName")
                                                 )
-                                        ).otherwise(
-                                            # Match Method Configuration
-                                            Condition()
-                                            .ifEqual(PropExpr("component.properties.outputMethod"), StringExpr("match"))
-                                            .then(
-                                                Step()
-                                                    .addElement(
-                                                        StackLayout(height="100%")
-                                                            .addElement(TitleElement("Match Configuration"))
-                                                            .addElement(
-                                                                TextBox("Column name for match status")
-                                                                .bindPlaceholder("Enter name for match result column")
-                                                                .bindProperty("matchColumnName")
-                                                            )
-                                                            .addElement(
-                                                                Checkbox("Error if not Matched")
-                                                                .bindProperty("errorIfNotMatched")
-                                                            )
-                                                            .addElement(
-                                                                AlertBox(
-                                                                    variant="info",
-                                                                    _children=[
-                                                                        Markdown("This will add a new column containing 1 if the regex matched, 0 if it did not match.")
-                                                                    ]
-                                                                )
-                                                            )
+                                                .addElement(
+                                                    Checkbox("Error if not Matched")
+                                                    .bindProperty("errorIfNotMatched")
+                                                )
+                                                .addElement(
+                                                    AlertBox(
+                                                        variant="info",
+                                                        _children=[
+                                                            Markdown("This will add a new column containing 1 if the regex matched, 0 if it did not match.")
+                                                        ]
                                                     )
+                                                )
                                             )
                                         )
                                     )
                                 )
                             )
+                        )
                     )
                 )
             )
@@ -382,7 +387,7 @@ class Regex(MacroSpec):
 
         # Validate that columnName exists in input schema
         if (hasattr(props, 'selectedColumnName') and props.selectedColumnName and
-            hasattr(props, 'schema') and props.schema):
+                hasattr(props, 'schema') and props.schema):
             if props.selectedColumnName not in props.schema:
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
@@ -402,7 +407,7 @@ class Regex(MacroSpec):
                 if i > 0 and pattern[i-1] == '\\':
                     i += 1
                     continue
-                
+
                 # Check if it's a non-capturing group (?:...) or other special groups (?=...), (?!...), etc.
                 if i + 1 < len(pattern) and pattern[i+1] == '?':
                     # Find the end of this non-capturing group and skip it
@@ -551,22 +556,22 @@ class Regex(MacroSpec):
         # single quotes for SQL string literals. The safe_str() function will handle this.
         parse_columns_list = [
             {
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in props.parseColumns
-            ]
+                "columnName": fld.columnName,
+                "dataType": fld.dataType,
+                "rgxExpression": fld.rgxExpression
+            }
+            for fld in props.parseColumns
+        ]
 
         def safe_str(val):
             """
             Safely convert a value to a SQL string literal, handling None and empty strings.
-            
+
             For regex expressions: This escapes single quotes for the SQL string literal parameter.
-            The macro will then receive the unescaped value and escape it again via 
+            The macro will then receive the unescaped value and escape it again via
             escape_regex_pattern() for use in the actual SQL query. This two-stage escaping
             is correct and necessary.
-            
+
             Note: Backslashes in regex expressions are NOT escaped here - they are preserved
             as part of the regex pattern and will be handled by escape_regex_pattern() in the macro.
             """
@@ -625,30 +630,30 @@ class Regex(MacroSpec):
             regexExpression=parametersMap.get('regexExpression').lstrip("'").rstrip("'"),
             outputMethod=parametersMap.get('outputMethod').lstrip("'").rstrip("'"),
             caseInsensitive=parametersMap.get("caseInsensitive").lower()
-            == "true",
+                            == "true",
             allowBlankTokens=parametersMap.get("allowBlankTokens").lower()
-            == "true",
+                             == "true",
             replacementText=parametersMap.get('replacementText').lstrip("'").rstrip("'"),
             copyUnmatchedText=parametersMap.get("copyUnmatchedText").lower()
-            == "true",
+                              == "true",
             tokenizeOutputMethod=parametersMap.get('tokenizeOutputMethod').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get('noOfColumns')),
             extraColumnsHandling=parametersMap.get('extraColumnsHandling').lstrip("'").rstrip("'"),
             outputRootName=parametersMap.get('outputRootName').lstrip("'").rstrip("'"),
             matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
             errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
-            == "true",
+                              == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
         parseColumnsJsonList = json.dumps([{
-                    "columnName": fld.columnName,
-                    "dataType": fld.dataType,
-                    "rgxExpression": fld.rgxExpression
-                }
-                for fld in properties.parseColumns
-            ])
+            "columnName": fld.columnName,
+            "dataType": fld.dataType,
+            "rgxExpression": fld.rgxExpression
+        }
+            for fld in properties.parseColumns
+        ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -684,3 +689,200 @@ class Regex(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        selected_column = self.props.selectedColumnName
+        regex_expression = self.props.regexExpression
+        output_method = self.props.outputMethod
+        case_insensitive = self.props.caseInsensitive
+        replacement_text = self.props.replacementText
+        copy_unmatched_text = self.props.copyUnmatchedText
+        tokenize_output_method = self.props.tokenizeOutputMethod
+        no_of_columns = self.props.noOfColumns
+        allow_blank_tokens = self.props.allowBlankTokens
+        output_root_name = self.props.outputRootName
+        parse_columns = self.props.parseColumns
+        match_column_name = self.props.matchColumnName
+        error_if_not_matched = self.props.errorIfNotMatched
+        extra_columns_handling = self.props.extraColumnsHandling
+
+        regex_pattern = regex_expression
+        if case_insensitive:
+            regex_pattern = f"(?i){regex_expression}"
+
+        result_df = in0
+        val_if_not_found = None if allow_blank_tokens else lit("")
+
+        if output_method == "replace":
+            replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
+            if copy_unmatched_text:
+                replaced_col = when(
+                    col(selected_column).rlike(regex_pattern),
+                    replaced_col
+                ).otherwise(col(selected_column))
+
+            result_df = result_df.withColumn(
+                f"{selected_column}_replaced",
+                replaced_col
+            )
+
+        elif output_method == "parse":
+            if parse_columns and len(parse_columns) > 0:
+                idx = 0
+                for parse_col in parse_columns:
+                    idx += 1
+                    col_name = parse_col.columnName
+                    col_type = parse_col.dataType
+
+                    extracted = regexp_extract(col(selected_column), regex_pattern, idx)
+
+                    if col_type.lower() == "int" or col_type.lower() == "integer":
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
+                    elif col_type.lower() == "bigint":
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(LongType())
+                    elif col_type.lower() == "double" or col_type.lower() == "float":
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(DoubleType())
+                    elif col_type.lower() == "bool" or col_type.lower() == "boolean":
+                        extracted = when(extracted != "", extracted).otherwise(None).cast(BooleanType())
+                    elif col_type.lower() == "date":
+                        extracted = when(extracted != "", to_date(extracted)).otherwise(None)
+                    elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
+                        extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
+                    else:
+                        val_if_not_found = lit("") if allow_blank_tokens else None
+                        extracted = when(
+                            (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
+                            (extracted == ""),
+                            val_if_not_found
+                        ).otherwise(extracted)
+
+                    result_df = result_df.withColumn(col_name, extracted)
+
+        elif output_method == "tokenize":
+            if tokenize_output_method == "splitColumns":
+                has_capture_groups = '(' in regex_expression
+
+                if has_capture_groups:
+                    for i in range(1, no_of_columns + 1):
+                        extracted = regexp_extract(col(selected_column), regex_pattern, i)
+                        if not allow_blank_tokens:
+                            extracted = when(
+                                (col(selected_column).rlike(regex_pattern)) & (extracted != ""),
+                                extracted
+                            ).otherwise(None)
+                        else:
+                            extracted = when(
+                                col(selected_column).rlike(regex_pattern),
+                                extracted
+                            ).otherwise(lit(""))
+
+                        result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
+                else:
+                    extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
+                    array_size = size(extracted_array)
+
+                    extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
+
+                    if extra_handling_lower == "saveallremainingtext":
+                        val_for_empty = lit("") if allow_blank_tokens else None
+                        for i in range(1, no_of_columns):
+                            col_val = when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                val_for_empty
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                val_for_empty
+                            ).otherwise(extracted_array[i - 1])
+
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+
+                        last_col_val = when(
+                            array_size == 0,
+                            None
+                        ).when(
+                            array_size < no_of_columns,
+                            val_for_empty
+                        ).when(
+                            array_size > no_of_columns,
+                            concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
+                        ).when(
+                            array_size == no_of_columns,
+                            when(
+                                extracted_array[no_of_columns - 1] == "",
+                                val_if_not_found
+                            ).otherwise(extracted_array[no_of_columns - 1])
+                        ).otherwise(None)
+
+                        result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
+
+                    elif extra_handling_lower == "dropextrawitherror":
+                        val_for_empty = lit("") if allow_blank_tokens else None
+                        for i in range(1, no_of_columns + 1):
+                            col_val = when(
+                                array_size > no_of_columns,
+                                lit(f"ERROR: Found {array_size} regex matches, but only {no_of_columns} columns expected")
+                            ).when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                val_for_empty
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                val_for_empty
+                            ).otherwise(extracted_array[i - 1])
+
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+
+                    else:
+                        val_for_empty = lit("") if allow_blank_tokens else None
+                        for i in range(1, no_of_columns + 1):
+                            col_val = when(
+                                array_size == 0,
+                                None
+                            ).when(
+                                array_size < i,
+                                val_for_empty
+                            ).when(
+                                extracted_array[i - 1] == "",
+                                val_for_empty
+                            ).otherwise(extracted_array[i - 1])
+
+                            result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
+
+            elif tokenize_output_method == "splitRows":
+                all_columns = [col(c) for c in result_df.columns]
+                extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
+                result_df = result_df.withColumn("token_value_new", extracted_array)
+
+                result_df = result_df.select(
+                    *all_columns,
+                    explode(col("token_value_new")).alias("token_value_new")
+                )
+
+                result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
+                if not allow_blank_tokens:
+                    result_df = result_df.filter(
+                        (col(output_root_name) != "") &
+                        (col(output_root_name).isNotNull())
+                    )
+
+        elif output_method == "match":
+            match_col = when(
+                col(selected_column).isNull(),
+                0
+            ).when(
+                col(selected_column).rlike(regex_pattern),
+                1
+            ).otherwise(0)
+
+            result_df = result_df.withColumn(match_column_name, match_col)
+
+            if error_if_not_matched:
+                result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
+
+        return result_df
+

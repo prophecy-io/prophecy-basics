@@ -86,16 +86,16 @@ class DataCleansing(MacroSpec):
         options = ColumnsLayout(gap="1rem", height="100%").addColumn(
             StackLayout(height="100%")
             .addElement(
-                Checkbox("Leading and trailing whitespaces").bindProperty(
+                Checkbox("Leading and trailing whitespace").bindProperty(
                     "trimWhiteSpace"
                 )
             )
             .addElement(
-                Checkbox("Tabs, line breaks and duplicate whitespaces").bindProperty(
+                Checkbox("Tabs, line breaks and duplicate whitespace").bindProperty(
                     "removeTabsLineBreaksAndDuplicateWhitespace"
                 )
             )
-            .addElement(Checkbox("All whitespaces").bindProperty("allWhiteSpace"))
+            .addElement(Checkbox("All whitespace").bindProperty("allWhiteSpace"))
             .addElement(Checkbox("Letters").bindProperty("cleanLetters"))
             .addElement(Checkbox("Numbers").bindProperty("cleanNumbers"))
             .addElement(Checkbox("Punctuations").bindProperty("cleanPunctuations"))
@@ -117,7 +117,7 @@ class DataCleansing(MacroSpec):
             .addElement(
                 ColumnsLayout(gap="1rem", height="100%")
                 .addColumn(
-                    Checkbox("Trim whitespaces").bindProperty("trimWhiteSpace"), "1fr"
+                    Checkbox("Trim whitespace").bindProperty("trimWhiteSpace"), "1fr"
                 )
                 .addColumn(
                     Checkbox(
@@ -126,7 +126,7 @@ class DataCleansing(MacroSpec):
                     "2fr",
                 )
                 .addColumn(
-                    Checkbox("Remove all whitespaces").bindProperty("allWhiteSpace"),
+                    Checkbox("Remove all whitespace").bindProperty("allWhiteSpace"),
                     "1fr",
                 )
             )
@@ -136,7 +136,7 @@ class DataCleansing(MacroSpec):
                     Checkbox("Remove letters").bindProperty("cleanLetters"), "1fr"
                 )
                 .addColumn(
-                    Checkbox("Remove punctuations").bindProperty("cleanPunctuations"),
+                    Checkbox("Remove punctuation").bindProperty("cleanPunctuations"),
                     "2fr",
                 )
                 .addColumn(
