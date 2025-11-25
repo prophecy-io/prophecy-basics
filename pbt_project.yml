@@ -245,6 +245,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/GenerateRows.py
     createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/TableOperations:
+    name: TableOperations
+    macroType: expression
+    description: null
+    author: adak.debashis@prophecy.io
+    files:
+      - macros/TableOperations.sql
+      - .prophecy/ide/macros/TableOperations.json
+      - macros/macros.yml
+      - gems/TableOperations.py
+    createdAt: '2025-10-13 04:59:45'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
