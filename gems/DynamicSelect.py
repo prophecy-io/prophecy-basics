@@ -3,6 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import expr, lit
 
 
 class DynamicSelect(MacroSpec):
@@ -19,9 +21,7 @@ class DynamicSelect(MacroSpec):
 
     @dataclass(frozen=True)
     class DynamicSelectProperties(MacroProperties):
-        # properties for the component with default values
         selectUsing: str = "SELECT_FIELD_TYPES"
-        # DATA TYPES
         boolTypeChecked: bool = False
         strTypeChecked: bool = False
         intTypeChecked: bool = False
@@ -38,7 +38,6 @@ class DynamicSelect(MacroSpec):
         schema: str = ""
         relation_name: List[str] = field(default_factory=list)
         targetTypes: str = ""
-        # custom expression
         customExpression: str = ""
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -146,19 +145,19 @@ class DynamicSelect(MacroSpec):
         # Validate the component's state
         diagnostics = super(DynamicSelect, self).validate(context, component)
         if component.properties.selectUsing == "SELECT_FIELD_TYPES" and not (
-            component.properties.boolTypeChecked
-            or component.properties.strTypeChecked
-            or component.properties.intTypeChecked
-            or component.properties.shortTypeChecked
-            or component.properties.byteTypeChecked
-            or component.properties.longTypeChecked
-            or component.properties.floatTypeChecked
-            or component.properties.doubleTypeChecked
-            or component.properties.decimalTypeChecked
-            or component.properties.binaryTypeChecked
-            or component.properties.dateTypeChecked
-            or component.properties.timestampTypeChecked
-            or component.properties.structTypeChecked
+                component.properties.boolTypeChecked
+                or component.properties.strTypeChecked
+                or component.properties.intTypeChecked
+                or component.properties.shortTypeChecked
+                or component.properties.byteTypeChecked
+                or component.properties.longTypeChecked
+                or component.properties.floatTypeChecked
+                or component.properties.doubleTypeChecked
+                or component.properties.decimalTypeChecked
+                or component.properties.binaryTypeChecked
+                or component.properties.dateTypeChecked
+                or component.properties.timestampTypeChecked
+                or component.properties.structTypeChecked
         ):
             diagnostics.append(
                 Diagnostic(
@@ -181,7 +180,7 @@ class DynamicSelect(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         target_types = []
@@ -238,7 +237,7 @@ class DynamicSelect(MacroSpec):
             props.targetTypes,
             "'" + props.selectUsing + "'",
             '"' + props.customExpression + '"',
-        ]
+            ]
         params = ",".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
@@ -326,3 +325,56 @@ class DynamicSelect(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+
+        if self.props.selectUsing == "SELECT_FIELD_TYPES":
+            dtypes_dict = dict(in0.dtypes)
+            strTypeChecked      = self.props.strTypeChecked
+            intTypeChecked      = self.props.intTypeChecked
+            boolTypeChecked     = self.props.boolTypeChecked
+            shortTypeChecked    = self.props.shortTypeChecked
+            byteTypeChecked     = self.props.byteTypeChecked
+            longTypeChecked     = self.props.longTypeChecked
+            floatTypeChecked    = self.props.floatTypeChecked
+            doubleTypeChecked   = self.props.doubleTypeChecked
+            decimalTypeChecked  = self.props.decimalTypeChecked
+            binaryTypeChecked   = self.props.binaryTypeChecked
+            dateTypeChecked     = self.props.dateTypeChecked
+            timestampTypeChecked= self.props.timestampTypeChecked
+            structTypeChecked   = self.props.structTypeChecked
+
+            type_mapping: SubstituteDisabled = [
+                (strTypeChecked,       "string",    False),
+                (intTypeChecked,       "int",       False),
+                (boolTypeChecked,      "boolean",   False),
+                (shortTypeChecked,     "smallint",  False),
+                (byteTypeChecked,      "byte",      False),
+                (longTypeChecked,      "bigint",    False),
+                (floatTypeChecked,     "float",     False),
+                (doubleTypeChecked,    "double",    False),
+                (decimalTypeChecked,   "decimal",   True),   # substring
+                (binaryTypeChecked,    "binary",    False),
+                (dateTypeChecked,      "date",      False),
+                (timestampTypeChecked, "timestamp", False),
+                (structTypeChecked,    "struct",    True)    # substring
+            ]
+
+            enabled = [(dtype, partial) for flag, dtype, partial in type_mapping if flag]
+
+            desired_cols = [
+                col_name
+                for col_name, col_dtype in dtypes_dict.items()
+                for dtype, partial in enabled
+                if (dtype in col_dtype if partial else col_dtype == dtype)
+            ]
+
+            res = in0.select(*desired_cols)
+
+        else:
+            columns_df: SubstituteDisabled = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
+
+            column_output_df: SubstituteDisabled = columns_df.withColumn("value", expr(self.props.customExpression)).filter(col("value") == lit(True))
+            desired_cols: SubstituteDisabled = [ x[0] for x in column_output_df.collect()]
+            res = in0.select(*desired_cols)
+        return res
