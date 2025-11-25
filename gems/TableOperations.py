@@ -526,17 +526,62 @@ class TableOperations(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+        
+        # Convert optimiseZOrderColumns from comma-separated string to List[StringColName]
+        zorder_cols_str = parametersMap.get("optimiseZOrderColumns", "").lstrip("'").rstrip("'").strip()
+        optimiseZOrderColumns = []
+        if zorder_cols_str:
+            optimiseZOrderColumns = [
+                StringColName(colName=col.strip()) 
+                for col in zorder_cols_str.split(",") if col.strip()
+            ]
+        
         return TableOperations.TableOperationsProperties(
-            table_name=parametersMap.get('table_name')
+            catalog=parametersMap.get("catalog", "").lstrip("'").rstrip("'"),
+            database=parametersMap.get("database", "").lstrip("'").rstrip("'"),
+            tableName=parametersMap.get("tableName", "").lstrip("'").rstrip("'"),
+            action=parametersMap.get("action", "").lstrip("'").rstrip("'"),
+            path=parametersMap.get("path", "").lstrip("'").rstrip("'"),
+            useExternalFilePath=parametersMap.get("useExternalFilePath", "false").lower() == "true",
+            vaccumRetainNumHours=parametersMap.get("vaccumRetainNumHours", "").lstrip("'").rstrip("'"),
+            useOptimiseWhere=parametersMap.get("useOptimiseWhere", "false").lower() == "true",
+            optimiseWhere=parametersMap.get("optimiseWhere", "").lstrip("'").rstrip("'"),
+            useOptimiseZOrder=parametersMap.get("useOptimiseZOrder", "false").lower() == "true",
+            optimiseZOrderColumns=optimiseZOrderColumns,
+            restoreVia=parametersMap.get("restoreVia", "").lstrip("'").rstrip("'"),
+            restoreValue=parametersMap.get("restoreValue", "").lstrip("'").rstrip("'"),
+            deleteCondition=parametersMap.get("deleteCondition", "").lstrip("'").rstrip("'"),
+            updateSetClause=parametersMap.get("updateSetClause", "").lstrip("'").rstrip("'"),
+            updateCondition=parametersMap.get("updateCondition", "").lstrip("'").rstrip("'"),
+            runDDL=parametersMap.get("runDDL", "").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        # Convert optimiseZOrderColumns from List[StringColName] to comma-separated string
+        zorder_columns = ",".join([col.colName for col in properties.optimiseZOrderColumns]) if properties.optimiseZOrderColumns else ""
+        
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("table_name", properties.table_name)
+                MacroParameter("catalog", str(properties.catalog)),
+                MacroParameter("database", str(properties.database)),
+                MacroParameter("tableName", str(properties.tableName)),
+                MacroParameter("action", str(properties.action)),
+                MacroParameter("path", str(properties.path)),
+                MacroParameter("useExternalFilePath", str(properties.useExternalFilePath).lower()),
+                MacroParameter("vaccumRetainNumHours", str(properties.vaccumRetainNumHours)),
+                MacroParameter("useOptimiseWhere", str(properties.useOptimiseWhere).lower()),
+                MacroParameter("optimiseWhere", str(properties.optimiseWhere)),
+                MacroParameter("useOptimiseZOrder", str(properties.useOptimiseZOrder).lower()),
+                MacroParameter("optimiseZOrderColumns", zorder_columns),
+                MacroParameter("restoreVia", str(properties.restoreVia)),
+                MacroParameter("restoreValue", str(properties.restoreValue)),
+                MacroParameter("deleteCondition", str(properties.deleteCondition)),
+                MacroParameter("updateSetClause", str(properties.updateSetClause)),
+                MacroParameter("updateCondition", str(properties.updateCondition)),
+                MacroParameter("runDDL", str(properties.runDDL)),
             ],
         )
     def applyPython(self, spark: SparkSession) -> DataFrame:
