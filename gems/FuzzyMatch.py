@@ -8,10 +8,8 @@ from prophecy.cb.ui.uispec import *
 import json
 
 
-@dataclass(frozen=True)
-class AddMatchField:
-    columnName: str = ""
-    matchFunction: str = "custom"
+class MatchField(ABC):
+    pass
 
 
 class FuzzyMatch(MacroSpec):
@@ -27,6 +25,11 @@ class FuzzyMatch(MacroSpec):
     ]
 
     @dataclass(frozen=True)
+    class AddMatchField(MatchField):
+        columnName: str = ""
+        matchFunction: str = "custom"
+
+    @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
         # properties for the component with default values
         mode: str = ""
@@ -35,7 +38,7 @@ class FuzzyMatch(MacroSpec):
         matchThresholdPercentage: int = 80
         activeTab: str = "configuration"
         includeSimilarityScore: bool = False
-        matchFields: List[AddMatchField] = field(default_factory=list)
+        matchFields: List[MatchField] = field(default_factory=list)
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -59,7 +62,7 @@ class FuzzyMatch(MacroSpec):
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
-        _matchFields.append(AddMatchField())
+        _matchFields.append(self.AddMatchField())
         return state.bindProperties(
             dataclasses.replace(state.properties, matchFields=_matchFields)
         )
