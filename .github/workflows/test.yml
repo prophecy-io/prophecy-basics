@@ -50,8 +50,8 @@ jobs:
           has_tests() {
             local dir="prophecy_tests/$1"
             if [ -d "$dir" ]; then
-              # Check for both Python tests and SQL tests
-              find "$dir" -name "test_*.py" -o -name "test_*.sql" | grep -q . && echo "true" || echo "false"
+              # Check for both Python tests and SQL tests (including subdirectories)
+              find "$dir" -type f \( -name "test_*.py" -o -name "test_*.sql" \) | grep -q . && echo "true" || echo "false"
             else
               echo "false"
             fi
@@ -65,11 +65,10 @@ jobs:
             echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
           elif [ "$TEST_TYPE" = "auto" ]; then
             # For auto mode (push/PR), detect which test directories have actual tests
-            # For now, default to pyspark which has tests
             echo "pyspark=$(has_tests pyspark)" >> $GITHUB_OUTPUT
-            echo "snowflake_sql=false" >> $GITHUB_OUTPUT
-            echo "databricks_sql=false" >> $GITHUB_OUTPUT
-            echo "duckdb_sql=false" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$(has_tests snowflake_sql)" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$(has_tests databricks_sql)" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
           else
             # Run specific test type
             echo "pyspark=$( [ '$TEST_TYPE' = 'pyspark' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
