@@ -1,14 +1,37 @@
 # DuckDB SQL Tests
 
-This directory contains dbt unit tests for DuckDB SQL macros and functionality.
+This directory contains configuration, setup, and SQL test files for DuckDB macros.
+
+## 📁 Directory Structure
+
+```
+prophecy_tests/duckdb_sql/     # Configuration & test files
+├── profiles.yml               # DuckDB connection profile
+├── requirements.txt           # dbt dependencies
+├── venv/                      # Virtual environment
+├── CountRecords/              # Tests for CountRecords macro
+│   ├── test_count_records.sql
+│   ├── test_count_non_null_records.sql
+│   └── test_count_distinct_records.sql
+└── README.md
+```
+
+## ⚠️ Important: Local Testing Requirements
+
+**SQL test files MUST be moved to `tests/` directory before running `dbt test`** because:
+- `dbt test` only discovers test files in the `tests/` folder (configured in `dbt_project.yml`)
+- The project's `dbt_project.yml` cannot be modified to add `prophecy_tests/` as a test path
+- The `tests/` folder cannot be committed to git
+
+**Before testing locally, you must manually move test files to `tests/duckdb_sql/`**
 
 ## Test Approach
 
-These tests use **dbt unit tests** with DuckDB in-memory database to validate SQL macros, rather than pytest. The tests are defined in the main dbt project using dbt's unit testing framework.
+These tests **call macros directly** from the `macros/` directory using dbt, without creating any models.
+
+Example: Testing `macros/CountRecords.sql` directly with test data.
 
 ## Setup
-
-The test runner automatically sets up the environment, but for manual setup:
 
 ```bash
 cd prophecy_tests/duckdb_sql
@@ -23,60 +46,66 @@ pip install -r requirements.txt
 
 ## Configuration
 
-### profiles.yml
+The `profiles.yml` configures DuckDB with in-memory database for fast, local testing without any external dependencies.
 
-The `profiles.yml` file configures DuckDB with in-memory database:
+## Running Tests Locally
 
-```yaml
-type: duckdb
-path: ':memory:'  # In-memory database for fast tests
-```
-
-This allows tests to run quickly without any external dependencies.
-
-## Running Tests
-
-### Using Test Runner (Recommended)
-
-```bash
-cd prophecy_tests
-python run_tests.py duckdb_sql
-```
-
-### Manual dbt Commands
+**⚠️ IMPORTANT**: Before running tests, you must manually move SQL files to the `tests/` directory:
 
 ```bash
 # From project root
-dbt test --select test_type:unit
+
+# Step 1: Copy all test folders to tests/ directory (required for dbt test)
+mkdir -p tests/duckdb_sql
+cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/
+
+# Step 2: Navigate to test directory
+cd prophecy_tests/duckdb_sql
+
+# Step 3: Setup environment (first time only)
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Step 4: Run tests
+dbt test --project-dir ../.. --profiles-dir .
 ```
 
-## Writing Unit Tests
-
-dbt unit tests are defined in YAML files. Example:
-
-```yaml
-# models/schema.yml
-unit_tests:
-  - name: test_duckdb_macro
-    model: my_model
-    given:
-      - input: ref('source_table')
-        rows:
-          - {id: 1, name: 'alice'}
-    expect:
-      rows:
-        - {id: 1, name: 'ALICE'}
+**Complete one-liner from project root:**
+```bash
+mkdir -p tests/duckdb_sql && cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/ && cd prophecy_tests/duckdb_sql && source venv/bin/activate && dbt test --project-dir ../.. --profiles-dir .
 ```
 
-See [dbt unit testing docs](https://docs.getdbt.com/docs/build/unit-tests) for more details.
+## Writing New Tests
 
-## Advantages of DuckDB for Testing
+1. **Create SQL test files in `prophecy_tests/duckdb_sql/<MacroName>/`**
+2. **Tests directly invoke macros** like:
 
-- 🚀 **Fast**: In-memory database for quick test execution
-- 💾 **Lightweight**: No external database required
-- 🔧 **Easy Setup**: Works out of the box
-- 📊 **Full SQL Support**: Comprehensive SQL dialect support
+```sql
+-- Example: prophecy_tests/duckdb_sql/CountRecords/test_count_records.sql
+WITH test_data AS (
+    SELECT 1 AS id, 'Alice' AS name
+),
+expected_result AS (
+    SELECT 1 AS total_records
+),
+actual_result AS (
+    SELECT {{ prophecy_basics.CountRecords('test_data', [], 'count_total_records') }} AS total_records
+)
+SELECT * FROM actual_result
+WHERE total_records != (SELECT total_records FROM expected_result)
+```
+
+3. **No models needed** - just call macros with inline test data
+4. **Tests pass if they return 0 rows** (no discrepancies found)
+5. **Before running**: Copy files to `tests/duckdb_sql/<MacroName>/` (see Running Tests above)
+
+## Advantages
+
+- 🚀 **Fast**: In-memory database
+- 💾 **Lightweight**: No external database needed
+- 🔧 **Easy**: Works out of the box
+- 📊 **Full SQL Support**: Comprehensive SQL dialect
 
 ## Status
-⚠️ **Coming Soon** - Tests not yet implemented
-
+✅ **Active** - CountRecords macro tests implemented and passing (3/3 tests)
