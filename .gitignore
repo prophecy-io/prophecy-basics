@@ -1,5 +1,6 @@
 .vscode/
 .venv/
+venv/
 logs/
 dbt_packages/
 target/
@@ -15,3 +16,4 @@ profiles.yml
 .user.yml
 
 __pycache__/
+.DS_Store

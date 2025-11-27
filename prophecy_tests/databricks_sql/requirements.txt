@@ -1,0 +1,8 @@
+# Databricks SQL test dependencies
+# dbt with Spark/Databricks adapter
+dbt-core==1.10.11
+dbt-spark[session]==1.9.3
+
+# Optional: Testing utilities
+pytest==7.4.3
+pytest-html==4.1.1

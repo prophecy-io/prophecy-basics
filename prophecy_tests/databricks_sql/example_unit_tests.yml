@@ -1,0 +1,57 @@
+# Example dbt unit tests for Databricks SQL
+# 
+# Place this file in your models directory or tests directory
+# and adapt it to test your actual macros and models.
+#
+# Run with: dbt test --select test_type:unit
+
+unit_tests:
+  # Example 1: Test a simple transformation macro
+  - name: test_databricks_data_cleansing
+    model: test_model
+    description: "Test data cleansing macro with Databricks SQL"
+    given:
+      - input: ref('input_data')
+        format: dict
+        rows:
+          - {id: 1, name: '  Alice  ', value: null}
+          - {id: 2, name: 'Bob', value: 100}
+    expect:
+      format: dict
+      rows:
+        - {id: 1, name: 'Alice', value: 0}
+        - {id: 2, name: 'Bob', value: 100}
+
+  # Example 2: Test JSON parsing macro
+  - name: test_databricks_json_parse
+    model: test_json_model
+    description: "Test JSON parsing with Databricks SQL"
+    given:
+      - input: ref('json_data')
+        format: dict
+        rows:
+          - {id: 1, json_col: '{"name": "Alice", "age": 30}'}
+          - {id: 2, json_col: '{"name": "Bob", "age": 25}'}
+    expect:
+      format: dict
+      rows:
+        - {id: 1, name: 'Alice', age: 30}
+        - {id: 2, name: 'Bob', age: 25}
+
+  # Example 3: Test aggregation
+  - name: test_databricks_aggregation
+    model: test_agg_model
+    description: "Test aggregation logic"
+    given:
+      - input: ref('sales_data')
+        format: dict
+        rows:
+          - {date: '2024-01-01', product: 'A', amount: 100}
+          - {date: '2024-01-01', product: 'A', amount: 50}
+          - {date: '2024-01-02', product: 'B', amount: 200}
+    expect:
+      format: dict
+      rows:
+        - {date: '2024-01-01', product: 'A', total_amount: 150}
+        - {date: '2024-01-02', product: 'B', total_amount: 200}
+

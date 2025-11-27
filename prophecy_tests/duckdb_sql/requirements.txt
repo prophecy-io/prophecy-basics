@@ -1,0 +1,8 @@
+# DuckDB SQL test dependencies
+# dbt with DuckDB adapter
+dbt-core==1.10.11
+dbt-duckdb==1.10.0
+
+# Optional: Testing utilities
+pytest==7.4.3
+pytest-html==4.1.1

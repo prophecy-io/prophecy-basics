@@ -1,0 +1,335 @@
+name: Prophecy Basics Test Suite
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'deb/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'pyspark'
+        type: choice
+        options:
+          - pyspark
+          - snowflake_sql
+          - databricks_sql
+          - duckdb_sql
+          - all
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Job to determine which test suites to run
+  determine-tests:
+    name: Determine Test Suites
+    runs-on: ubuntu-latest
+    outputs:
+      pyspark: ${{ steps.set-matrix.outputs.pyspark }}
+      snowflake_sql: ${{ steps.set-matrix.outputs.snowflake_sql }}
+      databricks_sql: ${{ steps.set-matrix.outputs.databricks_sql }}
+      duckdb_sql: ${{ steps.set-matrix.outputs.duckdb_sql }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Determine test matrix
+        id: set-matrix
+        run: |
+          # Determine which tests to run based on input or changes
+          TEST_TYPE="${{ github.event.inputs.test_type || 'auto' }}"
+          
+          # Function to check if test directory has test files
+          has_tests() {
+            local dir="prophecy_tests/$1"
+            if [ -d "$dir" ]; then
+              find "$dir" -name "test_*.py" -type f | grep -q . && echo "true" || echo "false"
+            else
+              echo "false"
+            fi
+          }
+          
+          # Auto-detect based on changed files or run based on input
+          if [ "$TEST_TYPE" = "all" ]; then
+            echo "pyspark=$(has_tests pyspark)" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$(has_tests snowflake_sql)" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$(has_tests databricks_sql)" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
+          elif [ "$TEST_TYPE" = "auto" ]; then
+            # For auto mode (push/PR), detect which test directories have actual tests
+            # For now, default to pyspark which has tests
+            echo "pyspark=$(has_tests pyspark)" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=false" >> $GITHUB_OUTPUT
+            echo "databricks_sql=false" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=false" >> $GITHUB_OUTPUT
+          else
+            # Run specific test type
+            echo "pyspark=$( [ '$TEST_TYPE' = 'pyspark' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$( [ '$TEST_TYPE' = 'snowflake_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$( [ '$TEST_TYPE' = 'databricks_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$( [ '$TEST_TYPE' = 'duckdb_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+          fi
+
+  # PySpark Tests (Databricks)
+  test-pyspark:
+    name: 🔥 PySpark Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.pyspark == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Set up Java (required for PySpark)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      
+      - name: Cache PySpark dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pyspark-${{ hashFiles('prophecy_tests/pyspark/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pyspark-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/pyspark/requirements.txt
+      
+      - name: Add gems to PYTHONPATH
+        run: |
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/gems:$PYTHONPATH" >> $GITHUB_ENV
+      
+      - name: Run PySpark tests
+        run: |
+          cd prophecy_tests/pyspark
+          pytest -v \
+            --tb=short \
+            --junit-xml=../../test-results/pyspark-results.xml \
+            --cov=. \
+            --cov-report=xml:../../coverage/pyspark-coverage.xml \
+            --cov-report=html:../../coverage/pyspark-html \
+            --html=../../test-results/pyspark-report.html \
+            --self-contained-html
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyspark-test-results
+          path: |
+            test-results/pyspark-*.xml
+            test-results/pyspark-*.html
+      
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyspark-coverage
+          path: |
+            coverage/pyspark-*.xml
+            coverage/pyspark-html/
+      
+      - name: Publish test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: test-results/pyspark-results.xml
+
+  # Snowflake SQL Tests - COMMENTED OUT (No tests yet)
+  # test-snowflake-sql:
+  #   name: ❄️ Snowflake SQL Tests
+  #   runs-on: ubuntu-latest
+  #   needs: determine-tests
+  #   if: needs.determine-tests.outputs.snowflake_sql == 'true'
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #     
+  #     - name: Set up Python ${{ env.PYTHON_VERSION }}
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
+  #         cache: 'pip'
+  #     
+  #     - name: Install dbt dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r prophecy_tests/snowflake_sql/requirements.txt
+  #     
+  #     - name: Setup dbt profiles
+  #       run: |
+  #         cp prophecy_tests/snowflake_sql/profiles.yml profiles.yml
+  #         echo "Using Snowflake profiles.yml"
+  #     
+  #     - name: Run dbt unit tests
+  #       run: |
+  #         dbt test --select test_type:unit
+  #       env:
+  #         SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  #         SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  #         SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  #         SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+  #         SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+  #         SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+  #     
+  #     - name: Upload test results
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: snowflake-test-results
+  #         path: |
+  #           target/run_results.json
+  #           logs/*.log
+
+  # Databricks SQL Tests - COMMENTED OUT (No tests yet)
+  # test-databricks-sql:
+  #   name: 🧱 Databricks SQL Tests
+  #   runs-on: ubuntu-latest
+  #   needs: determine-tests
+  #   if: needs.determine-tests.outputs.databricks_sql == 'true'
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #     
+  #     - name: Set up Python ${{ env.PYTHON_VERSION }}
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
+  #         cache: 'pip'
+  #     
+  #     - name: Set up Java (required for Spark session)
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         distribution: 'temurin'
+  #         java-version: '11'
+  #     
+  #     - name: Install dbt dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r prophecy_tests/databricks_sql/requirements.txt
+  #     
+  #     - name: Setup dbt profiles
+  #       run: |
+  #         cp prophecy_tests/databricks_sql/profiles.yml profiles.yml
+  #         echo "Using Databricks Spark session profiles.yml"
+  #     
+  #     - name: Run dbt unit tests
+  #       run: |
+  #         dbt test --select test_type:unit
+  #     
+  #     - name: Upload test results
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: databricks-test-results
+  #         path: |
+  #           target/run_results.json
+  #           logs/*.log
+
+  # DuckDB SQL Tests - COMMENTED OUT (No tests yet)
+  # test-duckdb-sql:
+  #   name: 🦆 DuckDB SQL Tests
+  #   runs-on: ubuntu-latest
+  #   needs: determine-tests
+  #   if: needs.determine-tests.outputs.duckdb_sql == 'true'
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #     
+  #     - name: Set up Python ${{ env.PYTHON_VERSION }}
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
+  #         cache: 'pip'
+  #     
+  #     - name: Install dbt dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r prophecy_tests/duckdb_sql/requirements.txt
+  #     
+  #     - name: Setup dbt profiles
+  #       run: |
+  #         cp prophecy_tests/duckdb_sql/profiles.yml profiles.yml
+  #         echo "Using DuckDB in-memory profiles.yml"
+  #     
+  #     - name: Run dbt unit tests
+  #       run: |
+  #         dbt test --select test_type:unit
+  #     
+  #     - name: Upload test results
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: duckdb-test-results
+  #         path: |
+  #           target/run_results.json
+  #           logs/*.log
+
+  # Final summary job
+  test-summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    # Only depends on active test jobs (SQL jobs commented out for now)
+    needs: [determine-tests, test-pyspark]
+    if: always()
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results
+      
+      - name: Display test summary
+        run: |
+          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.test-pyspark.result }}" != "skipped" ]; then
+            echo "| 🔥 PySpark | ${{ needs.test-pyspark.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # SQL test jobs are commented out - uncomment when tests are ready
+          # if [ "${{ needs.test-snowflake-sql.result }}" != "skipped" ]; then
+          #   echo "| ❄️ Snowflake SQL | ${{ needs.test-snowflake-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          # fi
+          # 
+          # if [ "${{ needs.test-databricks-sql.result }}" != "skipped" ]; then
+          #   echo "| 🧱 Databricks SQL | ${{ needs.test-databricks-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          # fi
+          # 
+          # if [ "${{ needs.test-duckdb-sql.result }}" != "skipped" ]; then
+          #   echo "| 🦆 DuckDB SQL | ${{ needs.test-duckdb-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          # fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Trigger: ${{ github.event_name }}*" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event.inputs.test_type }}" != "" ]; then
+            echo "*Test Type: ${{ github.event.inputs.test_type }}*" >> $GITHUB_STEP_SUMMARY
+          fi
+

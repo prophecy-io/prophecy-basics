@@ -1,0 +1,56 @@
+# Example dbt unit tests for Snowflake SQL
+# 
+# Place this file in your models directory or tests directory
+# and adapt it to test your actual macros and models.
+#
+# Run with: dbt test --select test_type:unit
+
+unit_tests:
+  # Example 1: Test string transformation
+  - name: test_snowflake_string_transform
+    model: test_model
+    description: "Test string transformation with Snowflake SQL"
+    given:
+      - input: ref('input_data')
+        format: dict
+        rows:
+          - {id: 1, text: 'hello world'}
+          - {id: 2, text: 'test data'}
+    expect:
+      format: dict
+      rows:
+        - {id: 1, text: 'HELLO WORLD'}
+        - {id: 2, text: 'TEST DATA'}
+
+  # Example 2: Test date functions
+  - name: test_snowflake_date_operations
+    model: test_date_model
+    description: "Test date operations with Snowflake"
+    given:
+      - input: ref('date_data')
+        format: dict
+        rows:
+          - {id: 1, date_col: '2024-01-15'}
+          - {id: 2, date_col: '2024-02-20'}
+    expect:
+      format: dict
+      rows:
+        - {id: 1, month: 1, year: 2024}
+        - {id: 2, month: 2, year: 2024}
+
+  # Example 3: Test NULL handling
+  - name: test_snowflake_null_handling
+    model: test_null_model
+    description: "Test NULL value handling"
+    given:
+      - input: ref('nullable_data')
+        format: dict
+        rows:
+          - {id: 1, value: null}
+          - {id: 2, value: 'data'}
+    expect:
+      format: dict
+      rows:
+        - {id: 1, value: 'DEFAULT'}
+        - {id: 2, value: 'data'}
+
