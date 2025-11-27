@@ -124,9 +124,6 @@ jobs:
           pytest -v \
             --tb=short \
             --junit-xml=../../test-results/pyspark-results.xml \
-            --cov=. \
-            --cov-report=xml:../../coverage/pyspark-coverage.xml \
-            --cov-report=html:../../coverage/pyspark-html \
             --html=../../test-results/pyspark-report.html \
             --self-contained-html
       
@@ -138,15 +135,6 @@ jobs:
           path: |
             test-results/pyspark-*.xml
             test-results/pyspark-*.html
-      
-      - name: Upload coverage reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pyspark-coverage
-          path: |
-            coverage/pyspark-*.xml
-            coverage/pyspark-html/
       
       - name: Publish test summary
         if: always()
