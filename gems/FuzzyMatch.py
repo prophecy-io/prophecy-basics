@@ -308,6 +308,15 @@ class FuzzyMatch(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+        matchFields = []
+        matchFieldsJson = json.loads(parametersMap.get("matchFields").replace("'", '"'))
+        for fld in matchFieldsJson:
+            matchFields.append(
+                self.AddMatchField(
+                    columnName=fld.get("columnName"),
+                    matchFunction=fld.get("matchFunction")
+                )
+            )
         return FuzzyMatch.FuzzyMatchProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
@@ -318,9 +327,7 @@ class FuzzyMatch(MacroSpec):
             ),
             includeSimilarityScore=parametersMap.get("includeSimilarityScore").lower()
             == "true",
-            matchFields=json.loads(
-                parametersMap.get("matchFields").replace("'", '"')
-            ),
+            matchFields=matchFields,
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
