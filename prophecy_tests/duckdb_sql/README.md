@@ -46,7 +46,11 @@ pip install -r requirements.txt
 
 ## Configuration
 
-The `profiles.yml` configures DuckDB with in-memory database for fast, local testing without any external dependencies.
+### Local Testing
+The `profiles.yml` in this directory configures DuckDB with an in-memory database for fast, local testing without any external dependencies.
+
+### CI/CD
+In GitHub Actions, the profile is created dynamically in `~/.dbt/profiles.yml` - no physical file needed in the repo!
 
 ## Running Tests Locally
 

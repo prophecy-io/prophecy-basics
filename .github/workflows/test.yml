@@ -262,10 +262,25 @@ jobs:
           # Copy only test directories (exclude venv to avoid dbt package conflicts)
           find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
       
+      - name: Create DuckDB profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          prophecy-default:
+            target: dev
+            outputs:
+              dev:
+                type: duckdb
+                path: ':memory:'
+                threads: 1
+          EOF
+          echo "Created profiles.yml:"
+          cat ~/.dbt/profiles.yml
+      
       - name: Run DuckDB tests
         run: |
           cd prophecy_tests/duckdb_sql
-          dbt test --project-dir ../.. --profiles-dir .
+          dbt test --project-dir ../..
       
       - name: Upload test results
         if: always()
