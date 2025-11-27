@@ -43,9 +43,9 @@ WHERE total_records != (SELECT total_records FROM expected_result)
 **⚠️ IMPORTANT**: Before running tests locally, copy all test folders to `tests/` directory:
 
 ```bash
-# From project root
+# From project root (excludes venv to avoid conflicts)
 mkdir -p tests/duckdb_sql
-cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/
+find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
 
 # Then run tests
 cd prophecy_tests/duckdb_sql

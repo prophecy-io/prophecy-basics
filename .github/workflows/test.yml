@@ -259,7 +259,8 @@ jobs:
       - name: Move test files to tests/ directory
         run: |
           mkdir -p tests/duckdb_sql
-          cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/
+          # Copy only test directories (exclude venv to avoid dbt package conflicts)
+          find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
       
       - name: Run DuckDB tests
         run: |

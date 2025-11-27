@@ -56,8 +56,9 @@ The `profiles.yml` configures DuckDB with in-memory database for fast, local tes
 # From project root
 
 # Step 1: Copy all test folders to tests/ directory (required for dbt test)
+# Note: Excludes venv to avoid conflicts with dbt packages
 mkdir -p tests/duckdb_sql
-cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/
+find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
 
 # Step 2: Navigate to test directory
 cd prophecy_tests/duckdb_sql
@@ -73,7 +74,7 @@ dbt test --project-dir ../.. --profiles-dir .
 
 **Complete one-liner from project root:**
 ```bash
-mkdir -p tests/duckdb_sql && cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/ && cd prophecy_tests/duckdb_sql && source venv/bin/activate && dbt test --project-dir ../.. --profiles-dir .
+mkdir -p tests/duckdb_sql && find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \; && cd prophecy_tests/duckdb_sql && source venv/bin/activate && dbt test --project-dir ../.. --profiles-dir .
 ```
 
 ## Writing New Tests
