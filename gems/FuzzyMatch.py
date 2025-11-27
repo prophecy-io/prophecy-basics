@@ -325,6 +325,12 @@ class FuzzyMatch(MacroSpec):
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        matchFieldsJsonList = json.dumps([{
+            "columnName": fld.columnName,
+            "matchFunction": fld.matchFunction
+        }
+            for fld in properties.matchFields
+        ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -341,7 +347,7 @@ class FuzzyMatch(MacroSpec):
                     str(properties.includeSimilarityScore).lower(),
                 ),
                 MacroParameter(
-                    "matchFields", json.dumps(properties.matchFields)
+                    "matchFields", matchFieldsJsonList
                 ),
             ],
         )
