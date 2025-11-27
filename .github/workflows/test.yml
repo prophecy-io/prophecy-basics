@@ -50,7 +50,8 @@ jobs:
           has_tests() {
             local dir="prophecy_tests/$1"
             if [ -d "$dir" ]; then
-              find "$dir" -name "test_*.py" -type f | grep -q . && echo "true" || echo "false"
+              # Check for both Python tests and SQL tests
+              find "$dir" -name "test_*.py" -o -name "test_*.sql" | grep -q . && echo "true" || echo "false"
             else
               echo "false"
             fi
@@ -234,52 +235,53 @@ jobs:
   #           target/run_results.json
   #           logs/*.log
 
-  # DuckDB SQL Tests - COMMENTED OUT (No tests yet)
-  # test-duckdb-sql:
-  #   name: 🦆 DuckDB SQL Tests
-  #   runs-on: ubuntu-latest
-  #   needs: determine-tests
-  #   if: needs.determine-tests.outputs.duckdb_sql == 'true'
-  #   
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #     
-  #     - name: Set up Python ${{ env.PYTHON_VERSION }}
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: ${{ env.PYTHON_VERSION }}
-  #         cache: 'pip'
-  #     
-  #     - name: Install dbt dependencies
-  #       run: |
-  #         python -m pip install --upgrade pip
-  #         pip install -r prophecy_tests/duckdb_sql/requirements.txt
-  #     
-  #     - name: Setup dbt profiles
-  #       run: |
-  #         cp prophecy_tests/duckdb_sql/profiles.yml profiles.yml
-  #         echo "Using DuckDB in-memory profiles.yml"
-  #     
-  #     - name: Run dbt unit tests
-  #       run: |
-  #         dbt test --select test_type:unit
-  #     
-  #     - name: Upload test results
-  #       if: always()
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: duckdb-test-results
-  #         path: |
-  #           target/run_results.json
-  #           logs/*.log
+  # DuckDB SQL Tests
+  test-duckdb-sql:
+    name: 🦆 DuckDB SQL Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.duckdb_sql == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dbt dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/duckdb_sql/requirements.txt
+      
+      - name: Move test files to tests/ directory
+        run: |
+          mkdir -p tests/duckdb_sql
+          cp -r prophecy_tests/duckdb_sql/*/ tests/duckdb_sql/
+      
+      - name: Run DuckDB tests
+        run: |
+          cd prophecy_tests/duckdb_sql
+          dbt test --project-dir ../.. --profiles-dir .
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-test-results
+          path: |
+            target/run_results.json
+            logs/*.log
 
   # Final summary job
   test-summary:
     name: 📊 Test Summary
     runs-on: ubuntu-latest
-    # Only depends on active test jobs (SQL jobs commented out for now)
-    needs: [determine-tests, test-pyspark]
+    # Depends on active test jobs
+    needs: [determine-tests, test-pyspark, test-duckdb-sql]
     if: always()
     
     steps:
@@ -299,17 +301,17 @@ jobs:
             echo "| 🔥 PySpark | ${{ needs.test-pyspark.result }} |" >> $GITHUB_STEP_SUMMARY
           fi
           
-          # SQL test jobs are commented out - uncomment when tests are ready
+          if [ "${{ needs.test-duckdb-sql.result }}" != "skipped" ]; then
+            echo "| 🦆 DuckDB SQL | ${{ needs.test-duckdb-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Snowflake and Databricks SQL tests - commented out (no tests yet)
           # if [ "${{ needs.test-snowflake-sql.result }}" != "skipped" ]; then
           #   echo "| ❄️ Snowflake SQL | ${{ needs.test-snowflake-sql.result }} |" >> $GITHUB_STEP_SUMMARY
           # fi
           # 
           # if [ "${{ needs.test-databricks-sql.result }}" != "skipped" ]; then
           #   echo "| 🧱 Databricks SQL | ${{ needs.test-databricks-sql.result }} |" >> $GITHUB_STEP_SUMMARY
-          # fi
-          # 
-          # if [ "${{ needs.test-duckdb-sql.result }}" != "skipped" ]; then
-          #   echo "| 🦆 DuckDB SQL | ${{ needs.test-duckdb-sql.result }} |" >> $GITHUB_STEP_SUMMARY
           # fi
           
           echo "" >> $GITHUB_STEP_SUMMARY

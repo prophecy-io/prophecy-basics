@@ -43,7 +43,6 @@ This framework supports two types of testing:
 - Tests Python gem implementations directly
 - Uses unittest.mock for Prophecy framework mocking
 - Runs with pytest test runner
-- Coverage reporting available
 
 ### 2. **dbt unit tests** (SQL Platform Tests)
 - Tests SQL macros using dbt's unit testing framework
@@ -64,9 +63,6 @@ python run_tests.py pyspark
 # Run all tests
 python run_tests.py all
 
-# Run with coverage
-python run_tests.py pyspark --coverage
-
 # Run with verbose output and HTML report
 python run_tests.py pyspark --verbose --html
 ```
@@ -84,7 +80,7 @@ chmod +x run_tests.sh
 ./run_tests.sh all
 
 # Run with options
-./run_tests.sh pyspark --coverage --verbose --html
+./run_tests.sh pyspark --verbose --html
 ```
 
 #### Option 3: Direct pytest (Manual)
@@ -113,7 +109,6 @@ Both `run_tests.py` and `run_tests.sh` support the following options:
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--coverage` | `-c` | Enable coverage reporting |
 | `--verbose` | `-v` | Enable verbose output |
 | `--parallel` | `-p` | Enable parallel test execution |
 | `--html` | `-h` | Generate HTML test report |
@@ -155,7 +150,6 @@ The project includes a comprehensive GitHub Actions workflow that automatically 
 - ✅ Parameterized test execution
 - ✅ Parallel test jobs for different platforms
 - ✅ Automatic test result uploads
-- ✅ Coverage reporting
 - ✅ HTML test reports
 - ✅ Test summary in GitHub UI
 - ✅ Job-level emojis for visual hierarchy (🔥 PySpark, ❄️ Snowflake, 🧱 Databricks, 🦆 DuckDB)
@@ -165,26 +159,8 @@ The project includes a comprehensive GitHub Actions workflow that automatically 
 After each CI run, the following artifacts are available:
 - Test result XML files (JUnit format)
 - HTML test reports
-- Coverage reports (XML and HTML)
 
 These can be downloaded from the workflow run page.
-
-## 📊 Coverage Reports
-
-### Local Coverage
-
-```bash
-# Generate coverage report
-python run_tests.py pyspark --coverage
-
-# View HTML coverage report
-open coverage/pyspark-html/index.html  # macOS
-xdg-open coverage/pyspark-html/index.html  # Linux
-```
-
-### CI Coverage
-
-Coverage reports are automatically generated in CI and uploaded as artifacts.
 
 ## 🧪 Writing New Tests
 

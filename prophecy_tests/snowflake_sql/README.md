@@ -1,14 +1,14 @@
 # Snowflake SQL Tests
 
-This directory contains dbt unit tests for Snowflake SQL macros and functionality.
+This directory contains tests for Snowflake SQL macros.
 
 ## Test Approach
 
-These tests use **dbt unit tests** to validate SQL macros, rather than pytest. The tests are defined in the main dbt project using dbt's unit testing framework.
+These tests will **call macros directly** from the `macros/` directory using dbt, without creating any models.
+
+Example: Testing `macros/CountRecords.sql` directly with test data.
 
 ## Setup
-
-The test runner automatically sets up the environment, but for manual setup:
 
 ```bash
 cd prophecy_tests/snowflake_sql
@@ -23,9 +23,7 @@ pip install -r requirements.txt
 
 ## Configuration
 
-### profiles.yml
-
-The `profiles.yml` file configures the Snowflake connection. It uses environment variables for credentials:
+The `profiles.yml` uses environment variables for Snowflake credentials:
 
 - `SNOWFLAKE_ACCOUNT`
 - `SNOWFLAKE_USER`
@@ -38,40 +36,23 @@ Set these in your environment or CI/CD secrets.
 
 ## Running Tests
 
-### Using Test Runner (Recommended)
-
-```bash
-cd prophecy_tests
-python run_tests.py snowflake_sql
-```
-
-### Manual dbt Commands
+When tests are implemented, run with:
 
 ```bash
 # From project root
-dbt test --select test_type:unit
+dbt test
 ```
 
-## Writing Unit Tests
+## Writing Tests
 
-dbt unit tests are defined in YAML files. Example:
+Tests will directly invoke macros like:
 
-```yaml
-# models/schema.yml
-unit_tests:
-  - name: test_my_macro
-    model: my_model
-    given:
-      - input: ref('source_table')
-        rows:
-          - {id: 1, name: 'test'}
-    expect:
-      rows:
-        - {id: 1, name: 'TEST'}
+```sql
+-- Example: Testing CountRecords macro
+SELECT {{ CountRecords(ref('test_data')) }}
 ```
 
-See [dbt unit testing docs](https://docs.getdbt.com/docs/build/unit-tests) for more details.
+No models need to be created - just call the macros with test data.
 
 ## Status
 ⚠️ **Coming Soon** - Tests not yet implemented
-
