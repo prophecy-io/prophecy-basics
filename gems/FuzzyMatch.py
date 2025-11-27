@@ -8,10 +8,8 @@ from prophecy.cb.ui.uispec import *
 import json
 
 
-@dataclass(frozen=True)
-class AddMatchField:
-    columnName: str = ""
-    matchFunction: str = "custom"
+class MatchField(ABC):
+    pass
 
 
 class FuzzyMatch(MacroSpec):
@@ -27,6 +25,11 @@ class FuzzyMatch(MacroSpec):
     ]
 
     @dataclass(frozen=True)
+    class AddMatchField(MatchField):
+        columnName: str = ""
+        matchFunction: str = "custom"
+
+    @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
         # properties for the component with default values
         mode: str = ""
@@ -35,7 +38,7 @@ class FuzzyMatch(MacroSpec):
         matchThresholdPercentage: int = 80
         activeTab: str = "configuration"
         includeSimilarityScore: bool = False
-        matchFields: List[AddMatchField] = field(default_factory=list)
+        matchFields: List[MatchField] = field(default_factory=list)
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -59,7 +62,7 @@ class FuzzyMatch(MacroSpec):
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
-        _matchFields.append(AddMatchField())
+        _matchFields.append(self.AddMatchField())
         return state.bindProperties(
             dataclasses.replace(state.properties, matchFields=_matchFields)
         )
@@ -119,7 +122,7 @@ class FuzzyMatch(MacroSpec):
             .addOption("Address", "address")
             .addOption("Name", "name")
             .addOption("Phone", "phone")
-            .bindProperty("record.matchFunction")
+            .bindProperty("record.AddMatchField.matchFunction")
         )
 
         matchFields = (
@@ -136,7 +139,7 @@ class FuzzyMatch(MacroSpec):
                         .addColumn(
                             SchemaColumnsDropdown("Field Name")
                             .bindSchema("component.ports.inputs[0].schema")
-                            .bindProperty("record.columnName"),
+                            .bindProperty("record.AddMatchField.columnName"),
                             "0.5fr",
                         )
                         .addColumn(matchFunction, "0.5fr")
@@ -305,6 +308,15 @@ class FuzzyMatch(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+        matchFields = []
+        matchFieldsJson = json.loads(parametersMap.get("matchFields").replace("'", '"'))
+        for fld in matchFieldsJson:
+            matchFields.append(
+                self.AddMatchField(
+                    columnName=fld.get("columnName"),
+                    matchFunction=fld.get("matchFunction")
+                )
+            )
         return FuzzyMatch.FuzzyMatchProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
@@ -315,13 +327,17 @@ class FuzzyMatch(MacroSpec):
             ),
             includeSimilarityScore=parametersMap.get("includeSimilarityScore").lower()
             == "true",
-            matchFields=json.loads(
-                parametersMap.get("matchFields").replace("'", '"')
-            ),
+            matchFields=matchFields,
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        matchFieldsJsonList = json.dumps([{
+            "columnName": fld.columnName,
+            "matchFunction": fld.matchFunction
+        }
+            for fld in properties.matchFields
+        ])
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -338,7 +354,7 @@ class FuzzyMatch(MacroSpec):
                     str(properties.includeSimilarityScore).lower(),
                 ),
                 MacroParameter(
-                    "matchFields", json.dumps(properties.matchFields)
+                    "matchFields", matchFieldsJsonList
                 ),
             ],
         )
