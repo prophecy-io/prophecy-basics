@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass
+import dataclasses
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -229,10 +229,11 @@ class JSONParse(MacroSpec):
     ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return replace(
-            newState,
-            properties=replace(newState.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            newState.properties,
+            relation_name=relation_name
         )
+        return newState.bindProperties(newProperties)
 
     def apply(self, props: JSONParseProperties) -> str:
         # You can now access self.relation_name here
@@ -278,10 +279,11 @@ class JSONParse(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return replace(
-            component,
-            properties=replace(component.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            component.properties,
+            relation_name=relation_name
         )
+        return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         if self.props.parsingMethod == "parseFromSchema":
