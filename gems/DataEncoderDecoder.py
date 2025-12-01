@@ -467,7 +467,7 @@ class DataEncoderDecoder(MacroSpec):
         schema_columns = []
         schema_js = json.loads(component.properties.schema)
         for js in schema_js:
-            schema_columns.append(js["name"].lower())
+            schema_columns.append(js["name"])
 
         doing_aes_encryption = None
         if enc_dec_method in ("aes_decrypt", "try_aes_decrypt"):
