@@ -1,5 +1,6 @@
 import json
 import re
+import dataclasses
 
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -283,10 +284,11 @@ class TextToColumns(MacroSpec):
     ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return replace(
-            newState,
-            properties=replace(newState.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            newState.properties,
+            relation_name=relation_name
         )
+        return newState.bindProperties(newProperties)
 
     def apply(self, props: TextToColumnsProperties) -> str:
         # You can now access self.relation_name here
@@ -345,10 +347,11 @@ class TextToColumns(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return replace(
-            component,
-            properties=replace(component.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            component.properties,
+            relation_name=relation_name
         )
+        return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         col_name = self.props.columnNames
