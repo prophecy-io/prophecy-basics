@@ -279,10 +279,11 @@ class FuzzyMatch(MacroSpec):
     ) -> Component:
         # Handle changes in the component's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return replace(
-            newState,
-            properties=replace(newState.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            newState.properties,
+            relation_name=relation_name
         )
+        return newState.bindProperties(newProperties)
 
     def apply(self, props: FuzzyMatchProperties) -> str:
         # generate the actual macro call given the component's state
@@ -361,7 +362,8 @@ class FuzzyMatch(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return replace(
-            component,
-            properties=replace(component.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            component.properties,
+            relation_name=relation_name
         )
+        return component.bindProperties(newProperties)
