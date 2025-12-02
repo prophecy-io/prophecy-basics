@@ -3,9 +3,13 @@ import json
 from collections import defaultdict
 
 from prophecy.cb.sql.Component import *
+from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 import json
+
+from pyspark.sql import *
+from pyspark.sql.functions import *
 
 
 class MatchField(ABC):
@@ -367,3 +371,113 @@ class FuzzyMatch(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        if not (self.props.matchFields and (self.props.mode == "PURGE" or self.props.mode == "MERGE")):
+            return in0
+
+        selects: SubstituteDisabled = []
+        for field in self.props.matchFields:
+            key = field.matchFunction
+            col_name = field.columnName
+
+            if key in ("custom", "name", "address"):
+                column_value = upper(regexp_replace(col(col_name).cast("string"), r"[^\w\s]", ""))
+            else:
+                column_value = col(col_name).cast("string")
+
+            if key == "custom":
+                func_name = "LEVENSHTEIN"
+            elif key == "name":
+                func_name = "LEVENSHTEIN"
+            elif key == "phone":
+                func_name = "EQUALS"
+            elif key == "address":
+                func_name = "LEVENSHTEIN"
+            elif key == "exact":
+                func_name = "EXACT"
+            elif key == "equals":
+                func_name = "EQUALS"
+            else:
+                func_name = "LEVENSHTEIN"
+
+            base_cols = [
+                col(self.props.recordIdCol).cast("string").alias("record_id"),
+                upper(lit(col_name)).alias("column_name"),
+                column_value.alias("column_value"),
+                lit(func_name).alias("function_name")
+            ]
+
+            if self.props.mode == "MERGE":
+                base_cols.insert(1, col(self.props.sourceIdCol).cast("string").alias("source_id"))
+
+            selects.append(in0.select(*base_cols))
+
+        match_function: SubstituteDisabled = selects[0]
+        for x in selects[1:]:
+            match_function = match_function.unionByName(x, allowMissingColumns=True)
+
+        df0: SubstituteDisabled = match_function.alias("df0")
+        df1: SubstituteDisabled = match_function.alias("df1")
+
+        join_cond: SubstituteDisabled = (
+                (col("df0.function_name") == col("df1.function_name")) &
+                (col("df0.column_name") == col("df1.column_name")) &
+                (col("df0.record_id") != col("df1.record_id"))
+        )
+
+        if self.props.mode == "MERGE":
+            join_cond = join_cond & (col("df0.source_id") != col("df1.source_id"))
+
+        cross_joined: SubstituteDisabled = df0.join(df1, join_cond).select(
+            col("df0.record_id").alias("record_id1"),
+            col("df1.record_id").alias("record_id2"),
+            *( [col("df0.source_id").alias("source_id1"), col("df1.source_id").alias("source_id2")] if self.props.mode == "MERGE" else [] ),
+            col("df0.column_value").alias("column_value_1"),
+            col("df1.column_value").alias("column_value_2"),
+            col("df0.column_name").alias("column_name"),
+            col("df0.function_name").alias("function_name")
+        )
+
+        similarity: SubstituteDisabled = when(col("function_name") == "LEVENSHTEIN",
+                                              (1 - (levenshtein(col("column_value_1"), col("column_value_2")) /
+                                                    greatest(length(col("column_value_1")), length(col("column_value_2"))))) * 100
+                                              ).when(
+            (col("function_name") == "EXACT") &
+            (col("column_value_1") == reverse(col("column_value_2"))) &
+            (col("column_value_2") == reverse(col("column_value_1"))),
+            100.0
+        ).when(
+            (col("function_name") == "EXACT") &
+            ((col("column_value_1") != reverse(col("column_value_2"))) |
+             (col("column_value_2") == reverse(col("column_value_1")))),
+            0.0
+        ).when(
+            (col("function_name") == "EQUALS") & (col("column_value_1") == col("column_value_2")),
+            100.0
+        ).when(
+            (col("function_name") == "EQUALS") & (col("column_value_1") != col("column_value_2")),
+            0.0
+        ).otherwise(
+            (1 - (levenshtein(col("column_value_1"), col("column_value_2")) /
+                  greatest(length(col("column_value_1")), length(col("column_value_2"))))) * 100
+        )
+
+        imposed = cross_joined.withColumn("similarity_score", similarity)
+
+        replaced : SubstituteDisabled = imposed.select(
+            when(col("record_id1").cast("long") >= col("record_id2").cast("long"), col("record_id1")).otherwise(col("record_id2")).alias("record_id1"),
+            when(col("record_id1").cast("long") >= col("record_id2").cast("long"), col("record_id2")).otherwise(col("record_id1")).alias("record_id2"),
+            col("column_name"),
+            col("function_name"),
+            col("similarity_score")
+        )
+
+        final_output = replaced.groupBy("record_id1", "record_id2").agg(round(avg("similarity_score"), 2).alias("similarity_score"))
+
+        threshold: SubstituteDisabled = float(self.props.matchThresholdPercentage or 0)
+
+        if self.props.includeSimilarityScore:
+            return final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2", "similarity_score")
+        else:
+            return final_output.filter(col("similarity_score") >= threshold).select("record_id1", "record_id2")
