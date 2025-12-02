@@ -286,16 +286,16 @@ class GenerateRows(MacroSpec):
         # Create payload struct if input columns exist (matching SQL macro: struct(alias.*) as payload)
         # If no columns, use spark.range(1) as base (matching SQL macro {% else %} branch)
         if in0.columns:
-            payload_struct = F.struct(*[F.col(c) for c in in0.columns]).alias("payload")
+            payload_struct = struct(*[col(c) for c in in0.columns]).alias("payload")
             base = in0.select(payload_struct)
         else:
-            payload_struct = F.struct().alias("payload")
+            payload_struct = struct().alias("payload")
             base = spark.range(1).select(payload_struct)
 
         # Base case: one row per input record with initial value (matching SQL macro base case)
         base_with_init = base.select(
-            F.col("payload"),
-            F.expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
+            col("payload"),
+            expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
         )
 
         # Generate values using sequence and transform

@@ -119,22 +119,8 @@
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions #}
-    {% set is_timestamp = " " in init_expr %}
-    {% set is_date = ("-" in init_expr) and not is_timestamp %}
-    {% set init_strip = init_expr.strip() %}
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-    {% if is_timestamp %}
-        {% set init_select = "timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {# Use init_expr directly - no date/timestamp conversion #}
+    {% set init_select = init_expr %}
 
     {# Normalize condition expression quotes #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -147,6 +133,11 @@
     {% set condition_expr_sql = condition_expr_sql | replace(column_name, internal_col) %}
     {# Replace payload. with nothing since columns are flattened in expanded CTE (used in final WHERE) #}
     {% set condition_expr_sql = condition_expr_sql | replace('payload.', '') %}
+
+    {# Replace column_name in loop_expr for recursive step #}
+    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
+    {# Build recursion_condition: same condition but referencing previous iteration #}
+    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
 
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
     {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
