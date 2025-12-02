@@ -50,21 +50,37 @@ class JSONParse(MacroSpec):
 
     def dialog(self) -> Dialog:
         methodRadioGroup = (
-            RadioGroup("Parsing method")
-            .addOption(
-                "Parse from sample record",
-                "parseFromSampleRecord",
-                description=("Provide a sample record to parse the schema from"),
+            Condition()
+            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("ProphecyManaged"))
+            .then(
+                RadioGroup("Parsing method")
+                .addOption(
+                    "Parse from schema",
+                    "parseFromSchema",
+                    description="Provide sample schema in SQL struct format to parse the data with",
+                )
+                .setOptionType("button")
+                .setVariant("medium")
+                .setButtonStyle("solid")
+                .bindProperty("parsingMethod")
             )
-            .addOption(
-                "Parse from schema",
-                "parseFromSchema",
-                description="Provide sample schema in SQL struct format to parse the data with",
+            .otherwise(
+                RadioGroup("Parsing method")
+                .addOption(
+                    "Parse from sample record",
+                    "parseFromSampleRecord",
+                    description=("Provide a sample record to parse the schema from"),
+                )
+                .addOption(
+                    "Parse from schema",
+                    "parseFromSchema",
+                    description="Provide sample schema in SQL struct format to parse the data with",
+                )
+                .setOptionType("button")
+                .setVariant("medium")
+                .setButtonStyle("solid")
+                .bindProperty("parsingMethod")
             )
-            .setOptionType("button")
-            .setVariant("medium")
-            .setButtonStyle("solid")
-            .bindProperty("parsingMethod")
         )
 
         sampleRecordTextJSON = (
@@ -89,6 +105,67 @@ class JSONParse(MacroSpec):
 }"""
             )
         )
+
+        sampleSchemaText = (
+            Condition()
+            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("ProphecyManaged"))
+            .then(
+                        TextArea("Schema struct to parse the column", 20)
+                        .bindProperty("sampleSchema")
+                        .bindPlaceholder(
+                    """
+STRUCT(
+    id INTEGER,
+    name VARCHAR,
+    user STRUCT(
+        profile STRUCT(
+            email VARCHAR,
+            phone VARCHAR
+        ),
+        settings STRUCT(
+            theme VARCHAR,
+            notifications BOOLEAN
+        )
+    ),
+    addresses STRUCT(
+        type VARCHAR,
+        city VARCHAR,
+        zip VARCHAR
+    )[],
+    tags VARCHAR[],
+    metadata STRUCT(
+        created_at DATE,
+        last_login DATE
+    )
+)                    
+                    """
+                        )
+
+            )
+            .otherwise(
+                        TextArea("Schema struct to parse the column", 20)
+                        .bindProperty("sampleSchema")
+                        .bindPlaceholder(
+"""STRUCT<
+  root: STRUCT<
+    person: STRUCT<
+      id: INT,
+      name: STRUCT<
+        first: STRING,
+        last: STRING
+      >,
+      address: STRUCT<
+        street: STRING,
+        city: STRING,
+        zip: INT
+      >
+    >
+  >
+>"""
+                        )
+            )
+        )
+
         return Dialog("ColumnParser").addElement(
             ColumnsLayout(gap="1rem", height="100%")
             .addColumn(Ports(), "content")
@@ -123,26 +200,7 @@ class JSONParse(MacroSpec):
                         StringExpr("parseFromSchema"),
                     )
                     .then(
-                        TextArea("Schema struct to parse the column", 20)
-                        .bindProperty("sampleSchema")
-                        .bindPlaceholder(
-                            """STRUCT<
-  root: STRUCT<
-    person: STRUCT<
-      id: INT,
-      name: STRUCT<
-        first: STRING,
-        last: STRING
-      >,
-      address: STRUCT<
-        street: STRING,
-        city: STRING,
-        zip: INT
-      >
-    >
-  >
->"""
-                        )
+                        sampleSchemaText
                     )
                 ),
                 "1fr",
