@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="prophecy_basics",
-    version="1.0.4.dev6",
+    version="1.0.4.dev7",
     packages=["prophecy_basics"],
     package_dir={"prophecy_basics": "."},
     description="",
