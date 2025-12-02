@@ -17,7 +17,7 @@ class JSONParse(MacroSpec):
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.ProphecyManaged
     ]
 
     @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class JSONParse(MacroSpec):
         # properties for the component with default values
         columnName: str = ""
         relation_name: List[str] = field(default_factory=list)
-        parsingMethod: str = "parseFromSampleRecord"
+        parsingMethod: str = "parseFromSchema"
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
@@ -105,6 +105,7 @@ class JSONParse(MacroSpec):
 }"""
             )
         )
+        
 
         sampleSchemaText = (
             Condition()
