@@ -42,24 +42,8 @@
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions (kept from your original macro) #}
-    {% set is_timestamp = " " in init_expr %}
-    {% set is_date = ("-" in init_expr) and not is_timestamp %}
-    {% set init_strip = init_expr.strip() %}
-
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-
-    {% if is_timestamp %}
-        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "to_date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {# Use init_expr directly - no date/timestamp conversion #}
+    {% set init_select = init_expr %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
