@@ -385,6 +385,16 @@ class Regex(MacroSpec):
             diagnostics.append(
                 Diagnostic("component.properties.regexExpression", "Regex Expression is required and cannot be empty", SeverityLevelEnum.Error))
 
+        # Validate regex pattern
+        if len(props.regexExpression.strip()) > 0:
+            import re
+            try:
+                re.compile(props.regexExpression)
+            except re.error as e:
+                diagnostics.append(
+                    Diagnostic("component.properties.regexExpression", "Invalid regular expression", SeverityLevelEnum.Error))
+
+
         # Validate that columnName exists in input schema
         if (hasattr(props, 'selectedColumnName') and props.selectedColumnName and
                 hasattr(props, 'schema') and props.schema):
