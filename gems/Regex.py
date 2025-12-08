@@ -851,7 +851,6 @@ class Regex(MacroSpec):
                                 col(selected_column).rlike(regex_pattern),
                                 extracted
                             ).otherwise(lit(""))
-<<<<<<< HEAD
                         
                         result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
                 else:
@@ -863,7 +862,6 @@ class Regex(MacroSpec):
                     
                     if extra_handling_lower == "saveallremainingtext":
                         # For columns 1 to (no_of_columns - 1), extract normally
->>>>>>> cebf957c6b01bf83a7e1bb3c55b1bd88929d2649
                         val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns):
                             col_val = when(
