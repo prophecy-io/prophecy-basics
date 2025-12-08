@@ -361,13 +361,18 @@ STRUCT(
             if not self.props.sampleRecord or self.props.sampleRecord == "":
                 res = in0
             else:
+                import re
+                # Replace newlines and normalize whitespace
                 sample_str = self.props.sampleRecord.replace("\n", " ").strip()
-                sample_str_escaped = sample_str.replace("'", "\\'")
+                sample_str = re.sub(r'\s+', ' ', sample_str)
+                # Escape backslashes first, then double quotes
+                sample_str_escaped = sample_str.replace("\\", "\\\\").replace('"', '\\"')
+                
                 quoted_col = f"`{self.props.columnName}`"
                 alias_col = f"`{self.props.columnName}_parsed`"
                 res = in0.selectExpr(
                     "*",
-                    f"from_json({quoted_col}, schema_of_json('{sample_str_escaped}')) as {alias_col}"
+                    f"from_json({quoted_col}, schema_of_json(\"{sample_str_escaped}\")) as {alias_col}"
                 )
         else:
             res = in0
