@@ -1,10 +1,11 @@
 import dataclasses
 import json
-from dataclasses import dataclass, field
-from typing import List
 
+from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import DataFrame, Window, SparkSession
+from pyspark.sql.functions import lpad, expr, row_number, lit, col
 
 
 @dataclass(frozen=True)
@@ -301,7 +302,7 @@ class RecordID(MacroSpec):
     # State change handler
     # -------------------------------------------------------------------------
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         relation_name = self.get_relation_names(newState, context)
         newProperties = dataclasses.replace(
@@ -309,8 +310,8 @@ class RecordID(MacroSpec):
         )
 
         if (
-            oldState.properties.method == "incremental_id"
-            and newState.properties.method == "uuid"
+                oldState.properties.method == "incremental_id"
+                and newState.properties.method == "uuid"
         ):
             return newState.bindProperties(
                 dataclasses.replace(newProperties, generationMethod="tableLevel")
@@ -323,17 +324,16 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     def apply(self, props: RecordIDProperties) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         order_rules: List[dict] = [
-            {"expr": expr, "sort": r.sortType}
+            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
             for r in props.orders
             for expr in [(r.expression.expression or "").strip()]
             if expr
         ]
 
         arguments = [
-            f"'{table_name}'",
+            str(props.relation_name),
             f"'{props.method}'",
             f"'{props.incremental_id_column_name}'",
             f"'{props.incremental_id_type}'",
@@ -354,20 +354,22 @@ class RecordID(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
         return RecordID.RecordIDProperties(
-            relation_name=parametersMap.get("relation_name"),
-            method=parametersMap.get("method"),
-            incremental_id_column_name=parametersMap.get("incremental_id_column_name"),
-            incremental_id_type=parametersMap.get("incremental_id_type"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            method=parametersMap.get('method').lstrip("'").rstrip("'"),
+            incremental_id_column_name=parametersMap.get('incremental_id_column_name').lstrip("'").rstrip("'"),
+            incremental_id_type=parametersMap.get('incremental_id_type').lstrip("'").rstrip("'"),
             incremental_id_size=float(parametersMap.get("incremental_id_size")),
             incremental_id_starting_val=float(
                 parametersMap.get("incremental_id_starting_val")
             ),
-            generationMethod=parametersMap.get("generationMethod"),
-            position=parametersMap.get("position"),
+            generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
+            position=parametersMap.get('position').lstrip("'").rstrip("'"),
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
             ),
-            orders=parametersMap.get("orders"),
+            orders=json.loads(
+                parametersMap.get("orders").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -375,7 +377,7 @@ class RecordID(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("method", properties.method),
                 MacroParameter(
                     "incremental_id_column_name", properties.incremental_id_column_name
@@ -393,7 +395,9 @@ class RecordID(MacroSpec):
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
-                MacroParameter("orders", str(properties.orders)),
+                MacroParameter(
+                    "orders", json.dumps(properties.orders)
+                ),
             ],
         )
 
@@ -406,3 +410,46 @@ class RecordID(MacroSpec):
             component.properties, relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        method = self.props.method
+        record_id_column_name = self.props.incremental_id_column_name
+        incremental_id_type = self.props.incremental_id_type
+        incremental_id_size = int(self.props.incremental_id_size)
+        incremental_id_starting_val = int(self.props.incremental_id_starting_val)
+        generationMethod = self.props.generationMethod
+        position = self.props.position
+        groupByColumnNames = self.props.groupByColumnNames
+        order_rules = self.props.orders
+
+        if method == "uuid":
+            id_col = expr("uuid()").alias(record_id_column_name)
+        elif method == "incremental_id":
+            orderRules = map(lambda x:
+                             expr(x.expression.expression).asc() if (
+                                     x.sortType == "asc") else expr(x.expression.expression).asc_nulls_last()
+                             if (x.sortType == "asc_nulls_last") else expr(x.expression.expression).desc_nulls_first() if (
+                                     x.sortType == "desc_nulls_first") else expr(x.expression.expression).desc(),
+                             order_rules) if len(order_rules) > 0 else [lit(1)]
+
+            if generationMethod == "groupLevel" and len(groupByColumnNames) > 0:
+                partition_cols = [col(c) for c in groupByColumnNames]
+                window_spec = Window.partitionBy(*partition_cols).orderBy(*orderRules)
+            else:
+                window_spec = Window.orderBy(*orderRules)
+            rn = row_number().over(window_spec) + (incremental_id_starting_val - 1)
+            if incremental_id_type == "string":
+                id_col = lpad(rn.cast("string"), incremental_id_size, "0").alias(record_id_column_name)
+            else:
+                id_col = rn.alias(record_id_column_name)
+        else:
+            id_col = expr("uuid()").alias(record_id_column_name)
+
+        existing_cols = in0.columns
+        if position == "first_column":
+            select_exprs = [id_col] + [col(c) for c in existing_cols]
+        else:
+            select_exprs = [col(c) for c in existing_cols] + [id_col]
+
+        result_df = in0.select(*select_exprs)
+        return result_df

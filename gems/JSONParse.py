@@ -1,8 +1,11 @@
-from dataclasses import dataclass
+import json
+import dataclasses
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
 
 
 class JSONParse(MacroSpec):
@@ -226,22 +229,22 @@ class JSONParse(MacroSpec):
     ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return replace(
-            newState,
-            properties=replace(newState.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            newState.properties,
+            relation_name=relation_name
         )
+        return newState.bindProperties(newProperties)
 
     def apply(self, props: JSONParseProperties) -> str:
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         sampleRecord: str = props.sampleRecord if props.sampleRecord is not None else ""
         sampleSchema: str = props.sampleSchema if props.sampleSchema is not None else ""
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.columnName + "'",
             "'" + props.parsingMethod + "'",
             "'" + sampleRecord + "'",
@@ -254,11 +257,11 @@ class JSONParse(MacroSpec):
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return JSONParse.JSONParseProperties(
-            relation_name=parametersMap.get("relation_name"),
-            columnName=parametersMap.get("columnName"),
-            parsingMethod=parametersMap.get("parsingMethod"),
-            sampleRecord=parametersMap.get("sampleRecord"),
-            sampleSchema=parametersMap.get("sampleSchema"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            columnName=parametersMap.get('columnName').lstrip("'").rstrip("'"),
+            parsingMethod=parametersMap.get('parsingMethod').lstrip("'").rstrip("'"),
+            sampleRecord=parametersMap.get('sampleRecord').lstrip("'").rstrip("'"),
+            sampleSchema=parametersMap.get('sampleSchema').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -266,7 +269,7 @@ class JSONParse(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("columnName", properties.columnName),
                 MacroParameter("parsingMethod", properties.parsingMethod),
                 MacroParameter("sampleRecord", properties.sampleRecord),
@@ -276,7 +279,43 @@ class JSONParse(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return replace(
-            component,
-            properties=replace(component.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            component.properties,
+            relation_name=relation_name
         )
+        return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        if self.props.parsingMethod == "parseFromSchema":
+            if not self.props.sampleSchema or self.props.sampleSchema == "":
+                res = in0
+            else:
+                schema_str = self.props.sampleSchema.replace("\n", " ").strip()
+                quoted_col = f"`{self.props.columnName}`"
+                alias_col = f"`{self.props.columnName}_parsed`"
+                res = in0.selectExpr(
+                    "*",
+                    f"from_json({quoted_col}, '{schema_str}') as {alias_col}"
+                )
+
+        elif self.props.parsingMethod == "parseFromSampleRecord":
+            if not self.props.sampleRecord or self.props.sampleRecord == "":
+                res = in0
+            else:
+                import re
+                # Replace newlines and normalize whitespace
+                sample_str = self.props.sampleRecord.replace("\n", " ").strip()
+                sample_str = re.sub(r'\s+', ' ', sample_str)
+                # Escape backslashes first, then double quotes
+                sample_str_escaped = sample_str.replace("\\", "\\\\").replace('"', '\\"')
+                
+                quoted_col = f"`{self.props.columnName}`"
+                alias_col = f"`{self.props.columnName}_parsed`"
+                res = in0.selectExpr(
+                    "*",
+                    f"from_json({quoted_col}, schema_of_json(\"{sample_str_escaped}\")) as {alias_col}"
+                )
+        else:
+            res = in0
+
+        return res

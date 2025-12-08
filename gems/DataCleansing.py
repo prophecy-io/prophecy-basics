@@ -4,6 +4,9 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
 
 
 class DataCleansing(MacroSpec):
@@ -83,16 +86,16 @@ class DataCleansing(MacroSpec):
         options = ColumnsLayout(gap="1rem", height="100%").addColumn(
             StackLayout(height="100%")
             .addElement(
-                Checkbox("Leading and trailing whitespaces").bindProperty(
+                Checkbox("Leading and trailing whitespace").bindProperty(
                     "trimWhiteSpace"
                 )
             )
             .addElement(
-                Checkbox("Tabs, line breaks and duplicate whitespaces").bindProperty(
+                Checkbox("Tabs, line breaks and duplicate whitespace").bindProperty(
                     "removeTabsLineBreaksAndDuplicateWhitespace"
                 )
             )
-            .addElement(Checkbox("All whitespaces").bindProperty("allWhiteSpace"))
+            .addElement(Checkbox("All whitespace").bindProperty("allWhiteSpace"))
             .addElement(Checkbox("Letters").bindProperty("cleanLetters"))
             .addElement(Checkbox("Numbers").bindProperty("cleanNumbers"))
             .addElement(Checkbox("Punctuations").bindProperty("cleanPunctuations"))
@@ -114,7 +117,7 @@ class DataCleansing(MacroSpec):
             .addElement(
                 ColumnsLayout(gap="1rem", height="100%")
                 .addColumn(
-                    Checkbox("Trim whitespaces").bindProperty("trimWhiteSpace"), "1fr"
+                    Checkbox("Trim whitespace").bindProperty("trimWhiteSpace"), "1fr"
                 )
                 .addColumn(
                     Checkbox(
@@ -123,7 +126,7 @@ class DataCleansing(MacroSpec):
                     "2fr",
                 )
                 .addColumn(
-                    Checkbox("Remove all whitespaces").bindProperty("allWhiteSpace"),
+                    Checkbox("Remove all whitespace").bindProperty("allWhiteSpace"),
                     "1fr",
                 )
             )
@@ -133,7 +136,7 @@ class DataCleansing(MacroSpec):
                     Checkbox("Remove letters").bindProperty("cleanLetters"), "1fr"
                 )
                 .addColumn(
-                    Checkbox("Remove punctuations").bindProperty("cleanPunctuations"),
+                    Checkbox("Remove punctuation").bindProperty("cleanPunctuations"),
                     "2fr",
                 )
                 .addColumn(
@@ -331,13 +334,11 @@ class DataCleansing(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: DataCleansingProperties) -> str:
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             props.schema,
             "'" + props.modifyCase + "'",
             str(props.columnNames),
@@ -367,9 +368,9 @@ class DataCleansing(MacroSpec):
         print("parametersMapisHere")
         print(parametersMap)
         return DataCleansing.DataCleansingProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
-            modifyCase=parametersMap.get("modifyCase"),
+            modifyCase=parametersMap.get('modifyCase').lstrip("'").rstrip("'"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
             replaceNullTextFields=parametersMap.get("replaceNullTextFields").lower()
             == "true",
@@ -395,7 +396,7 @@ class DataCleansing(MacroSpec):
             replaceNullDateWith=parametersMap.get("replaceNullDateWith")[1:-1],
             replaceNullTimeFields=parametersMap.get("replaceNullTimeFields").lower()
             == "true",
-            replaceNullTimeWith=parametersMap.get("replaceNullTimeWith"),
+            replaceNullTimeWith=parametersMap.get('replaceNullTimeWith').lstrip("'").rstrip("'")
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -404,7 +405,7 @@ class DataCleansing(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("modifyCase", properties.modifyCase),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
@@ -463,3 +464,96 @@ class DataCleansing(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        remove_row_null_all_cols = self.props.removeRowNullAllCols
+        cleansing_columns = self.props.columnNames
+        replace_null_text_fields = self.props.replaceNullTextFields
+        replace_null_text_with = self.props.replaceNullTextWith
+        replace_null_numeric_fields = self.props.replaceNullForNumericFields
+        replace_null_numeric_with = self.props.replaceNullNumericWith
+        trim_whitespace = self.props.trimWhiteSpace
+        remove_tabs_linebreaks = self.props.removeTabsLineBreaksAndDuplicateWhitespace
+        all_whitespace = self.props.allWhiteSpace
+        clean_letters = self.props.cleanLetters
+        clean_punctuations = self.props.cleanPunctuations
+        clean_numbers = self.props.cleanNumbers
+        modify_case = self.props.modifyCase
+        replace_null_date_fields = self.props.replaceNullDateFields
+        replace_null_date_with = self.props.replaceNullDateWith
+        replace_null_time_fields = self.props.replaceNullTimeFields
+        replace_null_time_with = self.props.replaceNullTimeWith
+
+        if remove_row_null_all_cols:
+            result_df = in0.na.drop(how="all")
+        else:
+            result_df = in0
+
+        all_expressions = []
+        
+        for col_name in result_df.columns:
+            if col_name in cleansing_columns:
+                col_type = result_df.schema[col_name].dataType
+                if isinstance(col_type, StringType):
+                    col_expr = col(col_name)
+                    if replace_null_text_fields:
+                        col_expr = coalesce(col_expr, lit(replace_null_text_with))
+
+                    if trim_whitespace:
+                        col_expr = trim(col_expr)
+
+                    if remove_tabs_linebreaks:
+                        col_expr = regexp_replace(col_expr, r'\s+', ' ')
+
+                    if all_whitespace:
+                        col_expr = regexp_replace(col_expr, r'\s+', '')
+
+                    if clean_letters:
+                        col_expr = regexp_replace(col_expr, r'[A-Za-z]', '')
+
+                    if clean_punctuations:
+                        col_expr = regexp_replace(col_expr, r'[^\w\s]', '')
+
+                    if clean_numbers:
+                        col_expr = regexp_replace(col_expr, r'\d+', '')
+
+                    if modify_case == "makeLowercase":
+                        col_expr = lower(col_expr)
+                    elif modify_case == "makeUppercase":
+                        col_expr = upper(col_expr)
+                    elif modify_case == "makeTitlecase":
+                        col_expr = initcap(col_expr)
+
+                    all_expressions.append(col_expr.alias(col_name))
+
+                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, DecimalType)):
+                    col_expr = col(col_name)
+
+                    if replace_null_numeric_fields:
+                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with))
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                    
+                elif isinstance(col_type, DateType):
+                    col_expr = col(col_name)
+
+                    if replace_null_date_fields:
+                        col_expr = coalesce(col_expr, to_date(lit(replace_null_date_with))).cast(DateType())
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                    
+                elif isinstance(col_type, TimestampType):
+                    col_expr = col(col_name)
+
+                    if replace_null_time_fields:
+                        col_expr = coalesce(col_expr, to_timestamp(lit(replace_null_time_with))).cast(TimestampType())
+                    
+                    all_expressions.append(col_expr.alias(col_name))
+                else:
+                    all_expressions.append(col(col_name))
+            else:
+                all_expressions.append(col(col_name))
+        
+        result_df = result_df.select(*all_expressions)
+
+        return result_df

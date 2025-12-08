@@ -29,7 +29,8 @@
 
     {% set alias = "src" %}
     {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
-    {% set unquoted_col = column_name | trim %}
+    {# Use provided helper to unquote the provided column name #}
+    {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
     {# Use expressions directly and replace column_name with internal_col #}
@@ -39,7 +40,6 @@
     {# Build recursion_condition: same condition but referencing previous iteration #}
     {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
     {% set output_col_alias = column_name %}
-
     {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record

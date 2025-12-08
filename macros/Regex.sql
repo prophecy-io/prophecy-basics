@@ -75,8 +75,11 @@
 {%- endif -%}
 
 {%- set output_method_lower = outputMethod | lower -%}
-{%- set escaped_regex = regexExpression | replace("\\", "\\\\") | replace("'", "''") -%}
+{# Use helper macro for proper SQL string escaping #}
+{%- set escaped_regex = prophecy_basics.escape_regex_pattern(regexExpression, escape_backslashes=true) -%}
 {%- set regex_pattern = ('(?i)' if caseInsensitive else '') ~ escaped_regex -%}
+{# For replacement text, escape SQL string literals #}
+{%- set escaped_replacement = prophecy_basics.escape_sql_string(replacementText, escape_backslashes=true) -%}
 {%- set source_table = relation_list | join(', ') -%}
 {%- set extra_handling_lower = extraColumnsHandling | lower -%}
 {%- set quoted_selected = prophecy_basics.quote_identifier(selectedColumnName) -%}
@@ -87,11 +90,11 @@
         {% if copyUnmatchedText %}
         case
             when {{ quoted_selected }} rlike '{{ regex_pattern }}' then
-                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}')
+                regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
             else {{ quoted_selected }}
         end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ replacementText | replace("'", "''") }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
         {% endif %}
     from {{ source_table }}
 
@@ -302,6 +305,7 @@
 {%- endif -%}
 
 {% endmacro %}
+<<<<<<< HEAD
 {% macro bigquery__Regex(
     relation_name,
     parseColumns,

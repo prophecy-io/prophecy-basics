@@ -1,9 +1,12 @@
+import json
 import re
-from dataclasses import dataclass
+import dataclasses
 
-from prophecy.cb.sql.Component import *
+from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
 
 
 class TextToColumns(MacroSpec):
@@ -277,27 +280,25 @@ class TextToColumns(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the newState's state and return the new state
         relation_name = self.get_relation_names(newState, context)
-        return replace(
-            newState,
-            properties=replace(newState.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            newState.properties,
+            relation_name=relation_name
         )
+        return newState.bindProperties(newProperties)
 
     def apply(self, props: TextToColumnsProperties) -> str:
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Handle delimiter with special characters
         escaped_delimiter = re.escape(props.delimiter).replace("\\", "\\\\\\")
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             "'" + props.columnNames + "'",
             '"' + escaped_delimiter + '"',
             "'" + props.split_strategy + "'",
@@ -314,15 +315,15 @@ class TextToColumns(MacroSpec):
         parametersMap = self.convertToParameterMap(properties.parameters)
         print(f"The name of the parametersMap is {parametersMap}")
         return TextToColumns.TextToColumnsProperties(
-            relation_name=parametersMap.get("relation_name"),
-            columnNames=parametersMap.get("columnNames"),
-            delimiter=parametersMap.get("delimiter"),
-            split_strategy=parametersMap.get("split_strategy"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            columnNames=parametersMap.get('columnNames').lstrip("'").rstrip("'"),
+            delimiter=parametersMap.get('delimiter').lstrip('"').rstrip('"'),
+            split_strategy=parametersMap.get('split_strategy').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get("noOfColumns")),
-            leaveExtraCharLastCol=parametersMap.get("leaveExtraCharLastCol"),
-            splitColumnPrefix=parametersMap.get("splitColumnPrefix"),
-            splitColumnSuffix=parametersMap.get("splitColumnSuffix"),
-            splitRowsColumnName=parametersMap.get("splitRowsColumnName"),
+            leaveExtraCharLastCol=parametersMap.get('leaveExtraCharLastCol').lstrip("'").rstrip("'"),
+            splitColumnPrefix=parametersMap.get('splitColumnPrefix').lstrip("'").rstrip("'"),
+            splitColumnSuffix=parametersMap.get('splitColumnSuffix').lstrip("'").rstrip("'"),
+            splitRowsColumnName=parametersMap.get('splitRowsColumnName').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -330,7 +331,7 @@ class TextToColumns(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("columnNames", properties.columnNames),
                 MacroParameter("delimiter", properties.delimiter),
                 MacroParameter("split_strategy", properties.split_strategy),
@@ -346,7 +347,72 @@ class TextToColumns(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         relation_name = self.get_relation_names(component, context)
-        return replace(
-            component,
-            properties=replace(component.properties, relation_name=relation_name),
+        newProperties = dataclasses.replace(
+            component.properties,
+            relation_name=relation_name
         )
+        return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        col_name = self.props.columnNames
+        col_expr = col(col_name)
+        delimiter = self.props.delimiter.replace("\\t", "\t").replace("\\n", "\n").replace("\\r", "\r")
+        original_delimiter = delimiter
+        import re
+        special_regex_chars = r'\.^$*+?{}[]|()'
+        split_delimiter: SubstituteDisabled = delimiter if delimiter in ["\t", "\n", "\r"] else re.escape(
+            delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
+        placeholder = "%%DELIM%%"
+        tmp_arr_col = "__split_arr_tmp__"
+        tmp_size_col = "__split_arr_size_tmp__"
+
+        if self.props.split_strategy == "splitColumns":
+            replaced_col = regexp_replace(col_expr, split_delimiter, placeholder)
+            split_array_expr = split(replaced_col, placeholder)
+            result_df = in0.withColumn(tmp_arr_col, split_array_expr).withColumn(tmp_size_col, size(col(tmp_arr_col)))
+
+            for i in range(1, self.props.noOfColumns):
+                token_col = when(
+                    col(tmp_size_col) > i - 1,
+                    trim(regexp_replace(col(tmp_arr_col)[i - 1], r'^"|"$', ''))
+                ).otherwise(None)
+                output_col = f"{self.props.splitColumnPrefix}_{i}_{self.props.splitColumnSuffix}"
+                result_df = result_df.withColumn(output_col, token_col)
+
+            last_col_name = f"{self.props.splitColumnPrefix}_{self.props.noOfColumns}_{self.props.splitColumnSuffix}"
+            if self.props.leaveExtraCharLastCol == "Leave extra in last column":
+                remaining = slice(col(tmp_arr_col), self.props.noOfColumns, col(tmp_size_col))
+                last_col = when(
+                    col(tmp_size_col) >= self.props.noOfColumns,
+                    array_join(remaining, original_delimiter)
+                ).otherwise(None)
+            else:
+                last_col = when(
+                    col(tmp_size_col) > self.props.noOfColumns - 1,
+                    trim(regexp_replace(col(tmp_arr_col)[self.props.noOfColumns - 1], r'^"|"$', ''))
+                ).otherwise(None)
+
+            return result_df.withColumn(last_col_name, last_col).drop(tmp_arr_col, tmp_size_col)
+
+        elif self.props.split_strategy == "splitRows":
+            safe_col = when(col_expr.isNull(), lit("")).otherwise(col_expr)
+            replaced_col = regexp_replace(safe_col, split_delimiter, placeholder)
+            split_array_expr = split(replaced_col, placeholder)
+            result_df = in0.withColumn(tmp_arr_col, split_array_expr).withColumn(tmp_size_col, size(col(tmp_arr_col)))
+
+            result_df = result_df.select(
+                [c for c in in0.columns if c != col_name] + [explode(col(tmp_arr_col)).alias("col_temp")])
+            result_df = result_df.filter((col("col_temp") != "") & col("col_temp").isNotNull())
+
+            cleaned = trim(
+                regexp_replace(
+                    regexp_replace(col("col_temp"), r'[{}_]', ' '),
+                    r'\s+', ' '
+                )
+            )
+
+            result_df = result_df.withColumn(self.props.splitRowsColumnName, cleaned)
+            return result_df.drop("col_temp", tmp_arr_col, tmp_size_col)
+
+        else:
+            return in0

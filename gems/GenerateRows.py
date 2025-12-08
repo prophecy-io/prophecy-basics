@@ -190,7 +190,6 @@ class GenerateRows(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: GenerateRowsProperties) -> str:
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -206,13 +205,13 @@ class GenerateRows(MacroSpec):
             return f"'{str(val)}'"
         
         arguments = [
-            safe_str(table_name),  # relation_name - must be present even if empty
-            safe_str(props.init_expr),
-            safe_str(props.condition_expr),
-            safe_str(props.loop_expr),
-            safe_str(props.column_name),
-            str(props.max_rows),  # max_rows is required (validated in validate())
-            safe_str(props.force_mode)
+            str(props.relation_name),
+            "'" + str(props.init_expr) + "'",
+            "'" + str(props.condition_expr) + "'",
+            "'" + str(props.loop_expr) + "'",
+            "'" + str(props.column_name) + "'",
+            "'" + str(props.max_rows) + "'",
+            "'" + str(props.force_mode) + "'"
         ]
 
         params = ",".join(arguments)
@@ -236,12 +235,12 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            init_expr=p.get('init_expr'),  # Use None if empty string
-            condition_expr=p.get('condition_expr'),  # Use None if empty string
-            loop_expr=p.get('loop_expr'),  # Use None if empty string
-            column_name=p.get('column_name'),  # Use None if empty string
-            max_rows=p.get('max_rows'),  # Use None if empty string
-            force_mode=p.get('force_mode')  # Default to 'recursive'
+            init_expr=p.get('init_expr').lstrip("'").rstrip("'"),
+            condition_expr=p.get('condition_expr').lstrip("'").rstrip("'"),
+            loop_expr=p.get('loop_expr').lstrip("'").rstrip("'"),
+            column_name=p.get('column_name').lstrip("'").rstrip("'"),
+            max_rows=p.get('max_rows').lstrip("'").rstrip("'"),
+            force_mode=p.get('force_mode').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -250,13 +249,13 @@ class GenerateRows(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
-                MacroParameter("init_expr", str(properties.init_expr)),
-                MacroParameter("condition_expr", str(properties.condition_expr)),
-                MacroParameter("loop_expr", str(properties.loop_expr)),
-                MacroParameter("column_name", str(properties.column_name)),
-                MacroParameter("max_rows", str(properties.max_rows)),
-                MacroParameter("force_mode", str(properties.force_mode))
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("init_expr", properties.init_expr),
+                MacroParameter("condition_expr", properties.condition_expr),
+                MacroParameter("loop_expr", properties.loop_expr),
+                MacroParameter("column_name", properties.column_name),
+                MacroParameter("max_rows", properties.max_rows),
+                MacroParameter("force_mode", properties.force_mode)
             ],
         )
 

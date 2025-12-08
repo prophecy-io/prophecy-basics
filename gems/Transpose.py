@@ -237,8 +237,6 @@ class Transpose(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: TransposeProperties) -> str:
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
 
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
@@ -246,12 +244,13 @@ class Transpose(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             str(props.keyColumns),
             str(props.dataColumns),
             "'" + props.nameColumn + "'",
             "'" + props.valueColumn + "'",
             str(allColumnNames),
+            str(props.customNames).lower(),
         ]
 
         params = ",".join([param for param in arguments])
@@ -262,12 +261,14 @@ class Transpose(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return Transpose.TransposeProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
-            nameColumn=parametersMap.get("nameColumn"),
-            valueColumn=parametersMap.get("valueColumn"),
+            nameColumn=parametersMap.get("nameColumn").lstrip("'").rstrip("'"),
+            valueColumn=parametersMap.get("valueColumn").lstrip("'").rstrip("'"),
             keyColumns=json.loads(parametersMap.get("keyColumns").replace("'", '"')),
             dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
+            customNames=parametersMap.get("customNames").lower()
+            == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -276,12 +277,16 @@ class Transpose(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("nameColumn", str(properties.nameColumn)),
                 MacroParameter("valueColumn", str(properties.valueColumn)),
                 MacroParameter("keyColumns", json.dumps(properties.keyColumns)),
                 MacroParameter("dataColumns", json.dumps(properties.dataColumns)),
+                MacroParameter(
+                    "customNames",
+                    str(properties.customNames).lower(),
+                ),
             ],
         )
 

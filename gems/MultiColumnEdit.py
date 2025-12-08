@@ -1,10 +1,11 @@
 import dataclasses
 import json
-from dataclasses import dataclass
 
-from prophecy.cb.sql.Component import *
+from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
 
 
 class MultiColumnEdit(MacroSpec):
@@ -75,21 +76,27 @@ class MultiColumnEdit(MacroSpec):
                                     ).bindProperty("changeOutputFieldName")
                                 )
                                 .addElement(
-                                    ColumnsLayout(gap="1rem", height="100%")
-                                    .addColumn(
-                                        SelectBox("")
-                                        .addOption("Prefix", "Prefix")
-                                        .addOption("Suffix", "Suffix")
-                                        .bindProperty("prefixSuffixOption"),
-                                        "10%",
+                                    Condition()
+                                    .ifEqual(
+                                        PropExpr("component.properties.changeOutputFieldName"),
+                                        BooleanExpr(True),
                                     )
-                                    .addColumn(
-                                        TextBox("")
-                                        .bindPlaceholder("Example: new_")
-                                        .bindProperty("prefixSuffixToBeAdded"),
-                                        "20%",
+                                    .then(
+                                        ColumnsLayout(gap="1rem", height="100%")
+                                        .addColumn(
+                                            SelectBox("")
+                                            .addOption("Prefix", "Prefix")
+                                            .addOption("Suffix", "Suffix")
+                                            .bindProperty("prefixSuffixOption"),
+                                            "15%",
+                                        )
+                                        .addColumn(
+                                            TextBox("")
+                                            .bindPlaceholder("Example: new_")
+                                            .bindProperty("prefixSuffixToBeAdded"),
+                                            "85%",
+                                        )
                                     )
-                                    .addColumn()
                                 )
                             )
                         )
@@ -205,7 +212,7 @@ class MultiColumnEdit(MacroSpec):
         return diagnostics
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
@@ -224,9 +231,6 @@ class MultiColumnEdit(MacroSpec):
 
     def apply(self, props: MultiColumnEditProperties) -> str:
 
-        # Get the table name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-
         # Get existing column names
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
@@ -234,7 +238,7 @@ class MultiColumnEdit(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             (
                 props.expressionToBeApplied.replace("{{", "").replace("}}", "").strip()
                 if "{{" in props.expressionToBeApplied
@@ -253,14 +257,14 @@ class MultiColumnEdit(MacroSpec):
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return MultiColumnEdit.MultiColumnEditProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            expressionToBeApplied=parametersMap.get("expressionToBeApplied"),
+            expressionToBeApplied=parametersMap.get('expressionToBeApplied').lstrip('"').rstrip('"'),
             changeOutputFieldName=parametersMap.get("changeOutputFieldName").lower()
             == "true",
-            prefixSuffixOption=parametersMap.get("prefixSuffixOption"),
-            prefixSuffixToBeAdded=parametersMap.get("prefixSuffixToBeAdded"),
+            prefixSuffixOption=parametersMap.get('prefixSuffixOption').lstrip("'").rstrip("'"),
+            prefixSuffixToBeAdded=parametersMap.get('prefixSuffixToBeAdded').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -269,19 +273,19 @@ class MultiColumnEdit(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter(
-                    "expressionToBeApplied", properties.expressionToBeApplied
+                    "expressionToBeApplied", str(properties.expressionToBeApplied)
                 ),
                 MacroParameter(
                     "changeOutputFieldName",
                     str(properties.changeOutputFieldName).lower(),
                 ),
-                MacroParameter("prefixSuffixOption", properties.prefixSuffixOption),
+                MacroParameter("prefixSuffixOption", str(properties.prefixSuffixOption)),
                 MacroParameter(
-                    "prefixSuffixToBeAdded", properties.prefixSuffixToBeAdded
+                    "prefixSuffixToBeAdded", str(properties.prefixSuffixToBeAdded)
                 ),
             ],
         )
@@ -301,3 +305,30 @@ class MultiColumnEdit(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        new_cols = []
+        add_cols = []
+        selected_cols = self.props.columnNames
+        change_field_name_flag = self.props.changeOutputFieldName
+        expression_template = self.props.expressionToBeApplied
+        prefix_suffix = self.props.prefixSuffixOption
+        prefix_suffix_value = self.props.prefixSuffixToBeAdded
+
+        for col_name in in0.columns:
+            if col_name in selected_cols:
+                expression = expression_template.replace("column_value", "`" + col_name + "`").replace("column_name",
+                                                                                                       "'" + col_name + "'")
+                if change_field_name_flag:
+                    if prefix_suffix == "Prefix":
+                        add_cols.append(expr(expression).alias(prefix_suffix_value + col_name))
+                    else:
+                        add_cols.append(expr(expression).alias(col_name + prefix_suffix_value))
+                    new_cols.append(col_name)
+                    pass
+                else:
+                    new_cols.append(expr(expression).alias(col_name))
+            else:
+                new_cols.append(col_name)
+
+        return in0.select(*(new_cols + add_cols))

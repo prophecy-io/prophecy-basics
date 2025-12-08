@@ -4,6 +4,9 @@ import json
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
+from pyspark.sql import *
+from pyspark.sql.functions import *
+
 
 class CountRecords(MacroSpec):
     name: str = "CountRecords"
@@ -158,7 +161,6 @@ class CountRecords(MacroSpec):
 
     def apply(self, props: CountRecordsProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         def safe_str(val):
@@ -169,7 +171,7 @@ class CountRecords(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            safe_str(table_name),
+            str(props.relation_name),
             safe_str(props.column_names),
             safe_str(props.count_method),
         ]
@@ -181,12 +183,12 @@ class CountRecords(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return CountRecords.CountRecordsProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             column_names=json.loads(
                 parametersMap.get("column_names").replace("'", '"')
             ),
-            count_method=parametersMap.get("count_method"),
+            count_method=parametersMap.get('count_method').lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -195,7 +197,7 @@ class CountRecords(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("column_names", json.dumps(properties.column_names)),
                 MacroParameter("count_method", str(properties.count_method)),
@@ -216,3 +218,27 @@ class CountRecords(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        column_names = self.props.column_names
+        count_method = self.props.count_method
+
+        if count_method == "count_all_records":
+            agg_exprs = [count(lit(1)).alias("total_records")]
+
+        elif count_method == "count_non_null_records":
+            if not column_names:
+                agg_exprs = [count(lit(1)).alias("total_records")]
+            else:
+                agg_exprs = [count(col(c)).alias(f"{c}_count") for c in column_names]
+
+        elif count_method == "count_distinct_records":
+            if not column_names:
+                agg_exprs = [count(lit(1)).alias("total_records")]
+            else:
+                agg_exprs = [countDistinct(col(c)).alias(f"{c}_distinct_count") for c in column_names]
+
+        else:
+            agg_exprs = [count(lit(1)).alias("total_records")]
+
+        return in0.agg(*agg_exprs)

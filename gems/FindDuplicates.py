@@ -3,6 +3,8 @@ import json
 
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
+from pyspark.sql import SparkSession, Window, DataFrame
+from pyspark.sql.functions import row_number, count, lit, expr
 
 
 @dataclass(frozen=True)
@@ -334,8 +336,8 @@ class FindDuplicates(MacroSpec):
                         )
                     )
         if component.properties.output_type in (
-            "custom_group_count",
-            "custom_row_number",
+                "custom_group_count",
+                "custom_row_number",
         ):
             if component.properties.column_group_rownum_condition == "":
                 diagnostics.append(
@@ -363,10 +365,10 @@ class FindDuplicates(MacroSpec):
                         )
                     )
                 if (
-                    (component.properties.upper_limit).isdigit()
-                    and (component.properties.lower_limit).isdigit()
-                    and int(component.properties.upper_limit)
-                    < int(component.properties.lower_limit)
+                        (component.properties.upper_limit).isdigit()
+                        and (component.properties.lower_limit).isdigit()
+                        and int(component.properties.upper_limit)
+                        < int(component.properties.lower_limit)
                 ):
                     diagnostics.append(
                         Diagnostic(
@@ -417,7 +419,7 @@ class FindDuplicates(MacroSpec):
         return relation_name
 
     def onChange(
-        self, context: SqlContext, oldState: Component, newState: Component
+            self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
         schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
@@ -436,7 +438,6 @@ class FindDuplicates(MacroSpec):
 
     def apply(self, props: FindDuplicatesProperties) -> str:
         # generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         schema_columns = []
@@ -445,7 +446,7 @@ class FindDuplicates(MacroSpec):
             schema_columns.append(js["name"].lower())
 
         order_rules: List[dict] = [
-            {"expr": expr, "sort": r.sortType}
+            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
             for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty
@@ -459,7 +460,7 @@ class FindDuplicates(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            "'" + table_name + "'",
+            str(props.relation_name),
             safe_str(props.groupByColumnNames),
             safe_str(props.column_group_rownum_condition),
             safe_str(props.output_type),
@@ -477,20 +478,21 @@ class FindDuplicates(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
         return FindDuplicates.FindDuplicatesProperties(
-            relation_name=parametersMap.get("relation_name"),
+            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             schema=parametersMap.get("schema"),
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
             ),
             column_group_rownum_condition=parametersMap.get(
                 "column_group_rownum_condition"
-            ),
-            grouped_count_rownum=parametersMap.get("grouped_count_rownum"),
-            lower_limit=parametersMap.get("lower_limit"),
-            upper_limit=parametersMap.get("upper_limit"),
-            output_type=parametersMap.get("output_type"),
-            generationMethod=parametersMap.get("generationMethod"),
+            ).lstrip("'").rstrip("'"),
+            grouped_count_rownum=parametersMap.get("grouped_count_rownum").lstrip("'").rstrip("'"),
+            lower_limit=parametersMap.get("lower_limit").lstrip("'").rstrip("'"),
+            upper_limit=parametersMap.get("upper_limit").lstrip("'").rstrip("'"),
+            output_type=parametersMap.get("output_type").lstrip("'").rstrip("'"),
+            generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
             orderByColumns=json.loads(
                 parametersMap.get("orderByColumns").replace("'", '"')
             ),
@@ -502,7 +504,7 @@ class FindDuplicates(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
@@ -519,7 +521,7 @@ class FindDuplicates(MacroSpec):
                 MacroParameter("output_type", str(properties.output_type)),
                 MacroParameter("generationMethod", str(properties.generationMethod)),
                 MacroParameter(
-                    "orderByColumns", json.dumps(properties.generationMethod)
+                    "orderByColumns", json.dumps(properties.orderByColumns)
                 ),
             ],
         )
@@ -538,3 +540,67 @@ class FindDuplicates(MacroSpec):
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+
+        if self.props.generationMethod == "selectedCols":
+            group_cols = self.props.groupByColumnNames
+            order_rules = self.props.orderByColumns
+            order_cols = map(lambda x:
+                             expr(x.expression.expression).asc() if (
+                                     x.sortType == "asc") else expr(x.expression.expression).asc_nulls_last()
+                             if (x.sortType == "asc_nulls_last") else expr(
+                                 x.expression.expression).desc_nulls_first() if (
+                                     x.sortType == "desc_nulls_first") else expr(x.expression.expression).desc(),
+                             order_rules) if len(order_rules) > 0 else [lit(1)]
+        else:
+            group_cols = in0.columns
+            order_cols = [lit(1)]
+
+        window_rownum = Window.partitionBy(*group_cols).orderBy(*order_cols)
+        window_count = Window.partitionBy(*group_cols)
+
+        if self.props.output_type == "unique":
+            res = in0.withColumn("temp_row_number", row_number().over(window_rownum)).filter(
+                col("temp_row_number") == 1).drop("temp_row_number")
+        elif self.props.output_type == "duplicate":
+            res = in0.withColumn("temp_row_number", row_number().over(window_rownum)).filter(
+                col("temp_row_number") > 1).drop("temp_row_number")
+        elif self.props.output_type == "custom_group_count":
+            cond = self.props.column_group_rownum_condition
+            res = in0.withColumn("temp_row_count", count(lit(1)).over(window_count))
+            if cond == "between":
+                res = res.filter(
+                    col("temp_row_count").between(int(self.props.lower_limit), int(self.props.upper_limit))).drop(
+                    "temp_row_count")
+            elif cond == "equal_to":
+                res = res.filter(col("temp_row_count") == int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "not_equal_to":
+                res = res.filter(col("temp_row_count") != int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "less_than":
+                res = res.filter(col("temp_row_count") < int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            elif cond == "greater_than":
+                res = res.filter(col("temp_row_count") > int(self.props.grouped_count_rownum)).drop("temp_row_count")
+            else:
+                res = res.drop("temp_row_count")
+        elif self.props.output_type == "custom_row_number":
+            cond = self.props.column_group_rownum_condition
+            res = in0.withColumn("temp_row_num", row_number().over(window_rownum))
+            if cond == "between":
+                res = res.filter(
+                    col("temp_row_num").between(int(self.props.lower_limit), int(self.props.upper_limit))).drop(
+                    "temp_row_num")
+            elif cond == "equal_to":
+                res = res.filter(col("temp_row_num") == int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "not_equal_to":
+                res = res.filter(col("temp_row_num") != int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "less_than":
+                res = res.filter(col("temp_row_num") < int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            elif cond == "greater_than":
+                res = res.filter(col("temp_row_num") > int(self.props.grouped_count_rownum)).drop("temp_row_num")
+            else:
+                res = res.drop("temp_row_num")
+        else:
+            res = in0
+
+        return res
