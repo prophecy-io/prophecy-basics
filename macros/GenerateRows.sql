@@ -23,6 +23,10 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
+    {# Validate required parameters #}
+    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
+        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
+    {% else %}
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
@@ -91,6 +95,10 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
+    {# Validate required parameters #}
+    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
+        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
+    {% else %}
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
@@ -150,6 +158,7 @@
         from gen
         where {{ condition_expr_sql }}
     {% endif %}
+    {% endif %}
 {% endmacro %}
 
 {% macro duckdb__GenerateRows(
@@ -161,6 +170,10 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
+    {# Validate required parameters #}
+    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
+        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
+    {% else %}
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
@@ -229,5 +242,6 @@
         select {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
+    {% endif %}
     {% endif %}
 {% endmacro %}

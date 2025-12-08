@@ -30,7 +30,7 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
+        ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
         ProviderTypeEnum.ProphecyManaged
     ]
 
