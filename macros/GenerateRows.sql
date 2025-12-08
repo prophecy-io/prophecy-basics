@@ -84,6 +84,7 @@
         from gen
         where {{ condition_expr_sql }}
     {% endif %}
+    {% endif %}
 {% endmacro %}
 
 {% macro bigquery__GenerateRows(
