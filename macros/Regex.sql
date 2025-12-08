@@ -305,7 +305,6 @@
 {%- endif -%}
 
 {% endmacro %}
-<<<<<<< HEAD
 {% macro bigquery__Regex(
     relation_name,
     parseColumns,
@@ -378,7 +377,7 @@
                     {%- set col_name = config.columnName -%}
                     {%- set col_type = config.dataType | default('string') -%}
                     {%- set group_index = loop.index -%}
-                    {# Use the group's individual rgxExpression as a single-capturing-group pattern #}
+                    {# Use the group individual rgxExpression as a single-capturing-group pattern #}
                     {%- set group_rgx = config.rgxExpression | default('') -%}
             ,
             {%- if col_type|lower == 'string' %}
