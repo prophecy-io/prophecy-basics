@@ -552,12 +552,12 @@
             from exploded_tokens
         )
         select
-            * EXCEPT (token_value_new),
-            token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_position as token_sequence
+            numbered_tokens.* EXCEPT (token_value_new, token_position),
+            numbered_tokens.token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
+            numbered_tokens.token_position as token_sequence
         from numbered_tokens
         {% if not allowBlankTokens %}
-        where token_value_new != '' and token_value_new is not null
+        where numbered_tokens.token_value_new != '' and numbered_tokens.token_value_new is not null
         {% endif %}
 
     {%- else -%}
