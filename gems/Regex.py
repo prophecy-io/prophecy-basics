@@ -415,7 +415,7 @@ class Regex(MacroSpec):
             capturing_groups = self.extract_capturing_groups(props.regexExpression)
             capturing_groups_count = len(capturing_groups)
         
-        provider = context.sql.metainfo.providerType
+        provider = component.sql.metainfo.providerType
         # Validate splitRows with multiple capturing groups
         is_bigquery = True
         if is_tokenize and has_regex and is_bigquery:
