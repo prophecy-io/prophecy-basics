@@ -415,10 +415,8 @@ class Regex(MacroSpec):
             capturing_groups = self.extract_capturing_groups(props.regexExpression)
             capturing_groups_count = len(capturing_groups)
         
-        provider = component.sql.metainfo.providerType
         # Validate splitRows with multiple capturing groups
-        is_bigquery = True
-        if is_tokenize and has_regex and is_bigquery:
+        if is_tokenize and has_regex:
             tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and 
                              props.tokenizeOutputMethod and 
                              props.tokenizeOutputMethod.lower())
@@ -427,7 +425,7 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.tokenizeOutputMethod",
-                        f"provider = {provider} splitRows is not supported with multiple capturing groups for some SQL dialects. Found {capturing_groups_count} capturing groups in the regex pattern. Please use splitColumns instead.",
+                        f"splitRows is not supported with multiple capturing groups for BigQuery SQL dialects. Found {capturing_groups_count} capturing groups in the regex pattern. Please use splitColumns instead.",
                         SeverityLevelEnum.Warning
                     )
                 )
@@ -437,7 +435,7 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.outputMethod",
-                        f"provider = {provider} splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work correctly in some dialects. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
+                        f"splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work for BigQuery SQL dialect. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
                         SeverityLevelEnum.Warning
                     )
                 )
