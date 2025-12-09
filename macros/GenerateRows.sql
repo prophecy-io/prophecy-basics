@@ -208,7 +208,7 @@
                 {% else %}
                     generate_array(0, {{ max_rows | int }} - 1)
                 {% endif %}
-            ) as {% if use_step %}{{ array_elem_alias }}{% else %}_iter{% endif %}
+            ) as {% if use_step %}{{ array_elem_alias }}{% else %} _iter {% endif %}
             where {{ condition_expr_sql }}
             limit {{ max_rows | int }}
         )
