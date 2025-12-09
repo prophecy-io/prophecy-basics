@@ -540,14 +540,14 @@
         ),
         exploded_tokens as (
             select
-                * EXCEPT (split_tokens),
+                regex_matches.* EXCEPT (split_tokens),
                 token_value_new
             from regex_matches,
             UNNEST(split_tokens) as token_value_new
         ),
         numbered_tokens as (
             select
-                *,
+                exploded_tokens.*,
                 ROW_NUMBER() OVER (PARTITION BY {{ quoted_selected }} ORDER BY (SELECT NULL)) as token_position
             from exploded_tokens
         )
