@@ -30,7 +30,7 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
+        # ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
         ProviderTypeEnum.ProphecyManaged
     ]
 
@@ -415,8 +415,9 @@ class Regex(MacroSpec):
             capturing_groups = self.extract_capturing_groups(props.regexExpression)
             capturing_groups_count = len(capturing_groups)
         
+        provider = context.sql.metainfo.providerType
         # Validate splitRows with multiple capturing groups
-        if is_tokenize and has_regex:
+        if is_tokenize and has_regex and is_bigquery:
             tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and 
                              props.tokenizeOutputMethod and 
                              props.tokenizeOutputMethod.lower())
@@ -426,7 +427,7 @@ class Regex(MacroSpec):
                     Diagnostic(
                         "component.properties.tokenizeOutputMethod",
                         f"splitRows is not supported with multiple capturing groups for some SQL dialects. Found {capturing_groups_count} capturing groups in the regex pattern. Please use splitColumns instead.",
-                        SeverityLevelEnum.Error
+                        SeverityLevelEnum.Warning
                     )
                 )
             
@@ -439,26 +440,6 @@ class Regex(MacroSpec):
                         SeverityLevelEnum.Warning
                     )
                 )
-
-        # Validate BigQuery does not allow multiple capturing groups
-        if has_regex and capturing_groups_count > 1:
-            # Check if the current provider is BigQuery
-            is_bigquery = False
-            if hasattr(context, 'provider') and context.provider == ProviderTypeEnum.BigQuery:
-                is_bigquery = True
-            elif hasattr(context, 'graph') and hasattr(context.graph, 'provider'):
-                if context.graph.provider == ProviderTypeEnum.BigQuery:
-                    is_bigquery = True
-            
-            if is_bigquery:
-                diagnostics.append(
-                    Diagnostic(
-                        "component.properties.regexExpression",
-                        f"BigQuery does not support regex patterns with multiple capturing groups. Found {capturing_groups_count} capturing groups in the regex pattern. BigQuery's REGEXP_EXTRACT and REGEXP_EXTRACT_ALL functions only support patterns with at most 1 capturing group. Please use a pattern with a single capturing group or restructure your regex.",
-                        SeverityLevelEnum.Error
-                    )
-                )
-
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
