@@ -109,13 +109,15 @@
     {% set relation_tables = relation_list | join(', ') if relation_list and relation_list|length > 0 and relation_list[0] else '' %}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
+    {% set array_elem_alias = internal_col %}
 
     {# Extract init value for array generation #}
     {% set init_value = init_expr | replace(column_name, '0') | trim | int %}
     
-    {# Common replacements: column_name -> 'val' for array element reference #}
-    {% set loop_expr_val = loop_expr | replace(column_name, 'val') %}
-    {% set condition_expr_val = condition_expr | replace(column_name, 'val') %}
+    {# Common replacements: column_name -> array_elem_alias for array element reference #}
+    {% set loop_expr_val = loop_expr | replace(column_name, array_elem_alias) %}
+    {% set condition_expr_val = condition_expr | replace(column_name, array_elem_alias) %}
     
     {# Detect patterns and compute accordingly #}
     {% set loop_expr_clean = loop_expr | trim | replace(' ', '') %}
@@ -151,8 +153,8 @@
             {% set step_str = after_col | slice(1) | trim %}
             {% if step_str | int %}
                 {% set step_value = step_str | int %}
-                {# Use GENERATE_ARRAY with step, then just select val #}
-                {% set computed_expr = 'val' %}
+                {# Use GENERATE_ARRAY with step, then just select array element #}
+                {% set computed_expr = array_elem_alias %}
                 {% set condition_expr_sql = condition_expr_val %}
                 {% set use_step = true %}
                 {% set array_step = step_value %}
@@ -190,7 +192,7 @@
                 {% else %}
                     generate_array(0, {{ max_rows | int }} - 1)
                 {% endif %}
-            ) as {% if use_step %}val{% else %}_iter{% endif %}
+            ) as {% if use_step %}{{ array_elem_alias }}{% else %} _iter {% endif %}
             where {{ condition_expr_sql }}
             limit {{ max_rows | int }}
         )
@@ -206,7 +208,7 @@
                 {% else %}
                     generate_array(0, {{ max_rows | int }} - 1)
                 {% endif %}
-            ) as {% if use_step %}val{% else %}_iter{% endif %}
+            ) as {% if use_step %}{{ array_elem_alias }}{% else %}_iter{% endif %}
             where {{ condition_expr_sql }}
             limit {{ max_rows | int }}
         )
