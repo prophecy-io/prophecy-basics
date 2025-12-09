@@ -548,7 +548,6 @@
         numbered_tokens as (
             select
                 *,
-                token_value_new,
                 ROW_NUMBER() OVER (PARTITION BY {{ quoted_selected }} ORDER BY (SELECT NULL)) as token_position
             from exploded_tokens
         )
