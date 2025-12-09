@@ -132,6 +132,11 @@
             {% set computed_expr = init_value ~ ' * POWER(' ~ mult_str ~ ', _iter)' %}
             {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
             {% set use_step = false %}
+        {% else %}
+            {# Use expression directly, replacing column_name with _iter #}
+            {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
+            {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
+            {% set use_step = false %}
         {% endif %}
     {# Check for addition pattern: val + N #}
     {% elif loop_expr_clean | length > col_clean | length and loop_expr_clean | slice(0, col_clean | length) == col_clean and '+' in loop_expr_clean %}
@@ -145,12 +150,22 @@
                 {% set use_step = true %}
                 {% set array_step = step_str | int %}
             {% else %}
-                {# Non-integer step, compute from _iter #}
-                {% set computed_expr = init_value ~ ' + _iter * (' ~ step_str ~ ')' %}
+                {# Non-integer step, use expression directly #}
+                {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
                 {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
                 {% set use_step = false %}
             {% endif %}
+        {% else %}
+            {# Use expression directly, replacing column_name with _iter #}
+            {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
+            {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
+            {% set use_step = false %}
         {% endif %}
+    {% else %}
+        {# Use expression directly, replacing column_name with _iter #}
+        {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
+        {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
+        {% set use_step = false %}
     {% endif %}
     
     {% if relation_tables %}
