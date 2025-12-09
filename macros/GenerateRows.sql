@@ -87,19 +87,6 @@
     {% endif %}
 {% endmacro %}
 
-{% macro bigquery__GenerateRows(
-    relation_name=None,
-    init_expr='1',
-    condition_expr='value <= 10',
-    loop_expr='value + 1',
-    column_name='value',
-    max_rows=100000,
-    force_mode='recursive'
-) %}
-    {# Just delegate to the default recursive implementation #}
-    {{ default__GenerateRows(relation_name, init_expr, condition_expr, loop_expr, column_name, max_rows, force_mode) }}
-{% endmacro %}
-
 {% macro duckdb__GenerateRows(
     relation_name=None,
     init_expr='1',
