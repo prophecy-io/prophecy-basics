@@ -112,61 +112,19 @@
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
     {% set array_elem_alias = internal_col %}
 
-    {# Extract init value for array generation - evaluate init_expr by replacing column_name with a numeric value #}
+    {# Extract init value - evaluate init_expr by replacing column_name with 1 #}
     {% set init_expr_eval = init_expr | replace(column_name, '1') | trim %}
     {% set init_value = init_expr_eval | int %}
     
-    {# Common replacements: column_name -> array_elem_alias for array element reference #}
-    {% set loop_expr_val = loop_expr | replace(column_name, array_elem_alias) %}
-    {% set condition_expr_val = condition_expr | replace(column_name, array_elem_alias) %}
+    {# Extract step value - evaluate loop_expr by replacing column_name with 0 #}
+    {% set step_expr = loop_expr | replace(column_name, '0') | trim %}
+    {% set step_value = step_expr | int %}
     
-    {# Detect patterns: only additive (val + N) or multiplication (val * N) #}
-    {% set loop_expr_clean = loop_expr | trim | replace(' ', '') %}
-    {% set col_clean = column_name | trim | replace(' ', '') %}
-    
-    {# Check for multiplication pattern: val * N #}
-    {% if loop_expr_clean | length > col_clean | length and loop_expr_clean | slice(0, col_clean | length) == col_clean and '*' in loop_expr_clean %}
-        {% set after_col = loop_expr_clean | slice(col_clean | length) %}
-        {% if after_col | slice(0, 1) == '*' %}
-            {% set mult_str = after_col | slice(1) | trim %}
-            {% set computed_expr = init_value ~ ' * POWER(' ~ mult_str ~ ', _iter)' %}
-            {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
-            {% set use_step = false %}
-        {% else %}
-            {# Use expression directly, replacing column_name with _iter #}
-            {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
-            {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
-            {% set use_step = false %}
-        {% endif %}
-    {# Check for addition pattern: val + N #}
-    {% elif loop_expr_clean | length > col_clean | length and loop_expr_clean | slice(0, col_clean | length) == col_clean and '+' in loop_expr_clean %}
-        {% set after_col = loop_expr_clean | slice(col_clean | length) %}
-        {% if after_col | slice(0, 1) == '+' %}
-            {% set step_str = after_col | slice(1) | trim %}
-            {% if step_str | int %}
-                {# Use GENERATE_ARRAY with step #}
-                {% set computed_expr = array_elem_alias %}
-                {% set condition_expr_sql = condition_expr | replace(column_name, array_elem_alias) %}
-                {% set use_step = true %}
-                {% set array_step = step_str | int %}
-            {% else %}
-                {# Non-integer step, use expression directly #}
-                {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
-                {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
-                {% set use_step = false %}
-            {% endif %}
-        {% else %}
-            {# Use expression directly, replacing column_name with _iter #}
-            {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
-            {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
-            {% set use_step = false %}
-        {% endif %}
-    {% else %}
-        {# Use expression directly, replacing column_name with _iter #}
-        {% set computed_expr = loop_expr | replace(column_name, '_iter') %}
-        {% set condition_expr_sql = condition_expr | replace(column_name, computed_expr) %}
-        {% set use_step = false %}
-    {% endif %}
+    {# Use GENERATE_ARRAY with step - always use array element alias #}
+    {% set computed_expr = array_elem_alias %}
+    {% set condition_expr_sql = condition_expr | replace(column_name, array_elem_alias) %}
+    {% set use_step = true %}
+    {% set array_step = step_value %}
     
     {% if relation_tables %}
         {# With source table: generate sequence for each input row #}
@@ -180,12 +138,8 @@
                 {{ computed_expr }} as {{ output_col_alias }}
             from source_data
             cross join unnest(
-                {% if use_step %}
-                    generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
-                {% else %}
-                    generate_array(0, {{ max_rows | int }} - 1)
-                {% endif %}
-            ) as {% if use_step %}{{ array_elem_alias }}{% else %} _iter {% endif %}
+                generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
+            ) as {{ array_elem_alias }}
             where {{ condition_expr_sql }}
             limit {{ max_rows | int }}
         )
@@ -196,12 +150,8 @@
         with gen as (
             select {{ computed_expr }} as {{ output_col_alias }}
             from unnest(
-                {% if use_step %}
-                    generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
-                {% else %}
-                    generate_array(0, {{ max_rows | int }} - 1)
-                {% endif %}
-            ) as {% if use_step %}{{ array_elem_alias }}{% else %} _iter {% endif %}
+                generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
+            ) as {{ array_elem_alias }}
             where {{ condition_expr_sql }}
             limit {{ max_rows | int }}
         )
