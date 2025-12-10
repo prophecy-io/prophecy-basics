@@ -36,24 +36,10 @@
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
     {% set init_strip = init_expr.strip() %}
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-    {% if is_timestamp %}
-        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "to_date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {% if init_strip.startswith("'") or init_strip.startswith('"') %}{% set init_value = init_strip %}{% else %}{% set init_value = "'" ~ init_strip ~ "'" %}{% endif %}
+    {% if is_timestamp %}{% set init_select = "to_timestamp(" ~ init_value ~ ")" %}{% elif is_date %}{% set init_select = "to_date(" ~ init_value ~ ")" %}{% else %}{% set init_select = init_expr %}{% endif %}
 
-    {% if '"' in condition_expr and "'" not in condition_expr %}
-        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
-    {% else %}
-        {% set condition_expr_sql = condition_expr %}
-    {% endif %}
+    {% if '"' in condition_expr and "'" not in condition_expr %}{% set condition_expr_sql = condition_expr.replace('"', "'") %}{% else %}{% set condition_expr_sql = condition_expr %}{% endif %}
 
     {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
@@ -61,20 +47,24 @@
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
 
-    {% set placeholder = '___GEN_INTERNAL_PLACEHOLDER___' %}
+    {% set P_EXIST = '___GEN_P_EXIST___' %}
+    {% set P_NEW = '___GEN_P_NEW___' %}
+
     {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(internal_col, placeholder) %}
+    {% set _cond_tmp = _cond_tmp | replace(internal_col, P_EXIST) %}
     {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace('payload.' ~ plain_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(placeholder, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(internal_col, P_NEW) %}
+    {% set _cond_tmp = _cond_tmp | replace(P_NEW, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(P_EXIST, internal_col) %}
     {% set condition_expr_sql = _cond_tmp %}
 
     {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(internal_col, placeholder) %}
+    {% set _loop_tmp = _loop_tmp | replace(internal_col, P_EXIST) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.gen.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
@@ -82,10 +72,13 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(internal_col, placeholder) %}
+    {% set _loop_tmp = _loop_tmp | replace('gen.' ~ internal_col, P_NEW) %}
     {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(placeholder, internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(P_NEW, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(P_EXIST, internal_col) %}
     {% set loop_expr_replaced = _loop_tmp %}
+
+    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% set _rec_tmp = condition_expr_sql %}
     {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
@@ -93,16 +86,8 @@
 
     {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}{% do specials.append(ch) %}{% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
-        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% else %}
-        {% set output_col_alias = unquoted_col %}
-    {% endif %}
-
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+    {% for ch in unquoted_col %}{% if ch not in allowed %}{% do specials.append(ch) %}{% endif %}{% endfor %}
+    {% if specials | length > 0 %}{% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}{% else %}{% set output_col_alias = unquoted_col %}{% endif %}
 
     {% if relation_tables %}
         with recursive gen as (
