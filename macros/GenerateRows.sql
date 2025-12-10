@@ -87,13 +87,15 @@
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
     {% set _loop_tmp = loop_expr %}
 
-    {# MINIMAL TARGETED FIX:
-       If the caller passed something like 'payload.gen.__gen_<col>' (the bug pattern),
-       replace that exact sequence with 'gen.__gen_<col>' before other replacements.
-       This prevents SQL that tries to access payload.gen.* fields. #}
+    {# MINIMAL TARGETED FIXES:
+       - payload.gen.__gen_<col>  -> gen.__gen_<col>
+       - payload.__gen_<col>      -> gen.__gen_<col>
+       - payload.<col>            -> gen.__gen_<col>   <-- fixes add_months(payload.c, 1)
+       - plain <col> occurrences  -> gen.__gen_<col>
+    #}
     {% set _loop_tmp = _loop_tmp | replace('payload.gen.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.' ~ internal_col, 'gen.' ~ internal_col) %}
-
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
@@ -107,7 +109,6 @@
     {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
     {% set _rec_tmp = condition_expr_sql %}
     {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
     {% set recursion_condition = _rec_tmp %}
 
     {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
