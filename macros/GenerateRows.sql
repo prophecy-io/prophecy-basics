@@ -76,28 +76,31 @@
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
+    {% set _cond_tmp = _cond_tmp | replace(plain_col, '__MARK_INTERNAL__') %}
+    {% set condition_expr_sql = _cond_tmp | replace('__MARK_INTERNAL__', internal_col) %}
     {% set condition_expr_sql = condition_expr_sql | replace('payload.gen.', 'gen.') %}
 
     {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
-    {% set loop_expr_replaced = loop_expr_replaced | replace('payload.gen.', 'gen.') %}
-
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ q_by_adapter, '__MARK_GEN__') %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ backtick_col, '__MARK_GEN__') %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ doubleq_col, '__MARK_GEN__') %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ singleq_col, '__MARK_GEN__') %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, '__MARK_GEN__') %}
+    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, '__MARK_INTERNAL__') %}
+    {% set _loop_tmp = _loop_tmp | replace(backtick_col, '__MARK_INTERNAL__') %}
+    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, '__MARK_INTERNAL__') %}
+    {% set _loop_tmp = _loop_tmp | replace(singleq_col, '__MARK_INTERNAL__') %}
+    {% set _loop_tmp = _loop_tmp | replace(plain_col, '__MARK_INTERNAL__') %}
+    {% set _loop_tmp = _loop_tmp | replace('__MARK_GEN__', 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace('__MARK_INTERNAL__', 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp | replace('payload.gen.', 'gen.') %}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {% set recursion_condition = _rec_tmp %}
-    {% set recursion_condition = recursion_condition | replace('payload.gen.', 'gen.') %}
+    {% set _rec_tmp = _rec_tmp | replace('payload.' ~ internal_col, 'gen.' ~ internal_col) %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, '__MARK_INTERNAL__') %}
+    {% set _rec_tmp = _rec_tmp | replace('__MARK_INTERNAL__', 'gen.' ~ internal_col) %}
+    {% set recursion_condition = _rec_tmp | replace('payload.gen.', 'gen.') %}
 
     {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set specials = [] %}
