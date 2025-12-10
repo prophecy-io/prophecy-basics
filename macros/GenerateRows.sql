@@ -23,6 +23,7 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
+    {# ---------------- basic validations ---------------- #}
     {% if init_expr is none or init_expr == '' %}
         {% do exceptions.raise_compiler_error("init_expr is required") %}
     {% endif %}
@@ -32,17 +33,20 @@
     {% if loop_expr is none or loop_expr == '' %}
         {% do exceptions.raise_compiler_error("loop_expr is required") %}
     {% endif %}
-    {% if max_rows is none or max_rows == '' %}
+
+    {# accept string 'None' passed from callers and fallback to default #}
+    {% if max_rows is none or max_rows == '' or (max_rows is string and max_rows | lower == 'none') %}
         {% set max_rows = 100000 %}
     {% endif %}
 
     {% set alias = "src" %}
     {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
-    {# Use provided helper to unquote the provided column name #}
+
+    {# unquote user-supplied column name and build internal column #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions (kept from your original macro) #}
+    {# Detect date/timestamp style init expressions (kept from original macro) #}
     {% set is_timestamp = " " in init_expr %}
     {% set is_date = ("-" in init_expr) and not is_timestamp %}
     {% set init_strip = init_expr.strip() %}
@@ -61,45 +65,108 @@
         {% set init_select = init_expr %}
     {% endif %}
 
-    {# Normalize user-supplied condition expression quotes if they used double quotes only #}
+    {# Normalize quotes in condition expression if user used only double quotes #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
         {% set condition_expr_sql = condition_expr.replace('"', "'") %}
     {% else %}
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
+    {# --- Prepare quoted variants of column name --- #}
     {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
 
-    {# --- Replace the target column in condition expression to reference the internal column --- #}
+    {# ---------------- Safe replacement helper (sentinel padding technique) ----------------
+       We will add a sentinel character at both ends of the expression so we can safely
+       replace standalone occurrences of the identifier that are bounded by common token
+       separators. This avoids matching substrings like `YMD2` or replacing after a dot
+       (e.g. `payload.YMD`).
+    #}
+
+    {# --- Prepare the condition expression: replace quoted forms first --- #}
     {% set _cond_tmp = condition_expr_sql %}
     {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = regex_replace(_cond_tmp, '(?<![A-Za-z0-9_])' ~ plain_col ~ '(?![A-Za-z0-9_])', internal_col) %}
+
+    {# --- Now safely replace plain (unquoted) occurrences ONLY when they are standalone tokens.
+         We will pad with a sentinel '¦' that is very unlikely to appear in SQL, and perform
+         multiple guarded replaces for the common token boundaries. This avoids using regex.
+    #}
+    {% set _p = '¦' ~ _cond_tmp ~ '¦' %}
+
+    {# boundaries to handle: start/end, space, comma, parens, operators, semicolon, newline, tab #}
+    {% set _p = _p | replace('¦' ~ plain_col ~ '¦', '¦' ~ internal_col ~ '¦') %}
+    {% set _p = _p | replace('¦' ~ plain_col ~ ' ', '¦' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ '¦', ' ' ~ internal_col ~ '¦') %}
+    {% set _p = _p | replace('(' ~ plain_col ~ ' ', '(' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ ')', ' ' ~ internal_col ~ ')') %}
+    {% set _p = _p | replace(',' ~ plain_col ~ ',', ',' ~ internal_col ~ ',') %}
+    {% set _p = _p | replace(',' ~ plain_col ~ ' ', ',' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ ',', ' ' ~ internal_col ~ ',') %}
+    {% set _p = _p | replace('=' ~ plain_col ~ ' ', '=' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace('>' ~ plain_col ~ ' ', '>' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace('<' ~ plain_col ~ ' ', '<' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace('!' ~ plain_col ~ ' ', '!' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ ';', ' ' ~ internal_col ~ ';') %}
+    {% set _p = _p | replace('\n' ~ plain_col ~ '\n', '\n' ~ internal_col ~ '\n') %}
+    {% set _p = _p | replace('\t' ~ plain_col ~ '\t', '\t' ~ internal_col ~ '\t') %}
+    {# handle cases where identifier followed/preceded by arithmetic operators or pipes #}
+    {% set _p = _p | replace('+' ~ plain_col ~ ' ', '+' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ '+', ' ' ~ internal_col ~ '+') %}
+    {% set _p = _p | replace('-' ~ plain_col ~ ' ', '-' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ '-', ' ' ~ internal_col ~ '-') %}
+    {% set _p = _p | replace('*' ~ plain_col ~ ' ', '*' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ '*', ' ' ~ internal_col ~ '*') %}
+    {% set _p = _p | replace('/' ~ plain_col ~ ' ', '/' ~ internal_col ~ ' ') %}
+    {% set _p = _p | replace(' ' ~ plain_col ~ '/', ' ' ~ internal_col ~ '/') %}
+    {% set _cond_tmp = (_p | replace('¦', '') ) %}
+
     {% set condition_expr_sql = _cond_tmp %}
 
-    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
+    {# ---------------- Now prepare loop expression similarly, but we want gen.__gen_x form in recursive step --- #}
     {% set _loop_tmp = loop_expr %}
     {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = regex_replace(_loop_tmp, '(?<![A-Za-z0-9_])' ~ plain_col ~ '(?![A-Za-z0-9_])', 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
+
+    {% set _p2 = '¦' ~ _loop_tmp ~ '¦' %}
+    {% set _p2 = _p2 | replace('¦' ~ plain_col ~ '¦', '¦' ~ 'gen.' ~ internal_col ~ '¦') %}
+    {% set _p2 = _p2 | replace('¦' ~ plain_col ~ ' ', '¦' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ '¦', ' ' ~ 'gen.' ~ internal_col ~ '¦') %}
+    {% set _p2 = _p2 | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _p2 = _p2 | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _p2 = _p2 | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _p2 = _p2 | replace('=' ~ plain_col ~ ' ', '=' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace('>' ~ plain_col ~ ' ', '>' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace('<' ~ plain_col ~ ' ', '<' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace('!' ~ plain_col ~ ' ', '!' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ';', ' ' ~ 'gen.' ~ internal_col ~ ';') %}
+    {% set _p2 = _p2 | replace('\n' ~ plain_col ~ '\n', '\n' ~ 'gen.' ~ internal_col ~ '\n') %}
+    {% set _p2 = _p2 | replace('\t' ~ plain_col ~ '\t', '\t' ~ 'gen.' ~ internal_col ~ '\t') %}
+    {% set _p2 = _p2 | replace('+' ~ plain_col ~ ' ', '+' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ '+', ' ' ~ 'gen.' ~ internal_col ~ '+') %}
+    {% set _p2 = _p2 | replace('-' ~ plain_col ~ ' ', '-' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ '-', ' ' ~ 'gen.' ~ internal_col ~ '-') %}
+    {% set _p2 = _p2 | replace('*' ~ plain_col ~ ' ', '*' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ '*', ' ' ~ 'gen.' ~ internal_col ~ '*') %}
+    {% set _p2 = _p2 | replace('/' ~ plain_col ~ ' ', '/' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ '/', ' ' ~ 'gen.' ~ internal_col ~ '/') %}
+    {% set loop_expr_replaced = (_p2 | replace('¦', '') ) %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
-    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
+    {# --- Build recursion_condition: same condition but referencing the previous iteration as gen.__gen_col --- #}
     {% set _rec_tmp = condition_expr_sql %}
     {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
-    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
     {% set recursion_condition = _rec_tmp %}
 
     {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
@@ -116,6 +183,7 @@
         {% set output_col_alias = unquoted_col %}
     {% endif %}
 
+    {# ---------------- Final SQL generation ---------------- #}
     {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record
@@ -137,12 +205,8 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Use safe EXCEPT only if base column might exist; otherwise fallback
-            {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ except_col }}),
-            {% else %}
-                payload.*,
-            {% endif %}
+            -- exclude original column from payload to avoid duplicate column names
+            payload.* EXCEPT ({{ except_col }}),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
