@@ -70,29 +70,34 @@
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
+    {% set plain_col_upper = plain_col.upper() %}
+    {% set plain_col_lower = plain_col.lower() %}
 
     {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% for target in [q_by_adapter, backtick_col, doubleq_col, singleq_col, plain_col, plain_col_upper, plain_col_lower] %}
+        {% set _cond_tmp = _cond_tmp | replace(target, internal_col) %}
+    {% endfor %}
+    {% for pattern in [" " ~ plain_col ~ " ", "(" ~ plain_col ~ ")", plain_col ~ ",", plain_col ~ ")", plain_col ~ "]", plain_col ~ "<", plain_col ~ ">", plain_col ~ " =", " = " ~ plain_col, plain_col ~ " +", plain_col ~ " -", plain_col ~ " *", plain_col ~ " /"] %}
+        {% set _cond_tmp = _cond_tmp | replace(pattern, " " ~ internal_col ~ " ") %}
+    {% endfor %}
     {% set condition_expr_sql = _cond_tmp %}
 
     {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {% for target in [q_by_adapter, backtick_col, doubleq_col, singleq_col, plain_col, plain_col_upper, plain_col_lower] %}
+        {% set _loop_tmp = _loop_tmp | replace(target, 'gen.' ~ internal_col) %}
+    {% endfor %}
+    {% for pattern in [" " ~ plain_col ~ " ", "(" ~ plain_col ~ ")", plain_col ~ ",", plain_col ~ ")", plain_col ~ "]", plain_col ~ "<", plain_col ~ ">", plain_col ~ " =", " = " ~ plain_col, plain_col ~ " +", plain_col ~ " -", plain_col ~ " *", plain_col ~ " /"] %}
+        {% set _loop_tmp = _loop_tmp | replace(pattern, " " ~ 'gen.' ~ internal_col ~ " ") %}
+    {% endfor %}
     {% set loop_expr_replaced_gen = _loop_tmp %}
 
     {% set _loop_tmp2 = loop_expr %}
-    {% set _loop_tmp2 = _loop_tmp2 | replace(q_by_adapter, internal_col) %}
-    {% set _loop_tmp2 = _loop_tmp2 | replace(backtick_col, internal_col) %}
-    {% set _loop_tmp2 = _loop_tmp2 | replace(doubleq_col, internal_col) %}
-    {% set _loop_tmp2 = _loop_tmp2 | replace(singleq_col, internal_col) %}
-    {% set _loop_tmp2 = _loop_tmp2 | replace(plain_col, internal_col) %}
+    {% for target in [q_by_adapter, backtick_col, doubleq_col, singleq_col, plain_col, plain_col_upper, plain_col_lower] %}
+        {% set _loop_tmp2 = _loop_tmp2 | replace(target, internal_col) %}
+    {% endfor %}
+    {% for pattern in [" " ~ plain_col ~ " ", "(" ~ plain_col ~ ")", plain_col ~ ",", plain_col ~ ")", plain_col ~ "]", plain_col ~ "<", plain_col ~ ">", plain_col ~ " =", " = " ~ plain_col, plain_col ~ " +", plain_col ~ " -", plain_col ~ " *", plain_col ~ " /"] %}
+        {% set _loop_tmp2 = _loop_tmp2 | replace(pattern, " " ~ internal_col ~ " ") %}
+    {% endfor %}
     {% set loop_expr_replaced_plain = _loop_tmp2 %}
 
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
