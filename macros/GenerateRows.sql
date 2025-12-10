@@ -20,7 +20,7 @@
     condition_expr='value <= 10',
     loop_expr='value + 1',
     column_name='value',
-    max_rows=100000,
+    max_rows='100000',
     force_mode='recursive'
 ) %}
     {% if init_expr is none or init_expr == '' %}
@@ -33,7 +33,7 @@
         {% do exceptions.raise_compiler_error("loop_expr is required") %}
     {% endif %}
     {% if max_rows is none or max_rows == '' %}
-        {% set max_rows = 100000 %}
+        {% set max_rows = '100000' %}
     {% endif %}
 
     {% set alias = "src" %}
