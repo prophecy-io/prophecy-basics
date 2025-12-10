@@ -107,33 +107,22 @@
     {% endif %}
 
     {% set conflict = false %}
-    {% for r in (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) %}
-        {% set rel = r | trim %}
-        {% if rel %}
-            {% set cols = none %}
-            {% set success = false %}
-            {% try %}
+    {% if execute %}
+        {% for r in (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) %}
+            {% set rel = r | trim %}
+            {% if rel %}
                 {% set ref_obj = ref(rel) %}
                 {% set cols = adapter.get_columns_in_relation(ref_obj) %}
-                {% set success = true %}
-            {% except %}
-            {% endtry %}
-            {% if not success %}
-                {% try %}
-                    {% set rel_obj = adapter.get_relation(database=None, schema=None, identifier=rel) %}
-                    {% set cols = adapter.get_columns_in_relation(rel_obj) %}
-                {% except %}
-                {% endtry %}
+                {% if cols is not none %}
+                    {% for c in cols %}
+                        {% if c.name == unquoted_col %}
+                            {% set conflict = true %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
             {% endif %}
-            {% if cols is not none %}
-                {% for c in cols %}
-                    {% if c.name == unquoted_col %}
-                        {% set conflict = true %}
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-        {% endif %}
-    {% endfor %}
+        {% endfor %}
+    {% endif %}
 
     {% if conflict %}
         {% if output_col_alias is string and output_col_alias.startswith('"') and output_col_alias.endswith('"') %}
