@@ -32,8 +32,7 @@
     {% if loop_expr is none or loop_expr == '' %}
         {% do exceptions.raise_compiler_error("loop_expr is required") %}
     {% endif %}
-    {# handle string 'None' passed in by caller (minimal change) #}
-    {% if max_rows is none or max_rows == '' or (max_rows is string and max_rows|lower == 'none') %}
+    {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
 
@@ -82,22 +81,7 @@
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-
-    {# --- Guarded replacements for plain (unquoted) column name to avoid touching substrings like YMD2 --- #}
-    {% set _p = ' ' ~ _cond_tmp ~ ' ' %}
-    {% set _p = _p | replace(' ' ~ plain_col ~ ' ', ' ' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace('(' ~ plain_col ~ ' ', '(' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace(' ' ~ plain_col ~ ')', ' ' ~ internal_col ~ ')') %}
-    {% set _p = _p | replace(',' ~ plain_col ~ ',', ',' ~ internal_col ~ ',') %}
-    {% set _p = _p | replace(',' ~ plain_col ~ ' ', ',' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace(' ' ~ plain_col ~ ',', ' ' ~ internal_col ~ ',') %}
-    {% set _p = _p | replace('=' ~ plain_col ~ ' ', '=' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace('>' ~ plain_col ~ ' ', '>' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace('<' ~ plain_col ~ ' ', '<' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace('!' ~ plain_col ~ ' ', '!' ~ internal_col ~ ' ') %}
-    {% set _p = _p | replace(' ' ~ plain_col ~ ';', ' ' ~ internal_col ~ ';') %}
-    {% set _cond_tmp = (_p | trim) %}
-
+    {% set _cond_tmp = regex_replace(_cond_tmp, '(?<![A-Za-z0-9_])' ~ plain_col ~ '(?![A-Za-z0-9_])', internal_col) %}
     {% set condition_expr_sql = _cond_tmp %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
@@ -106,21 +90,8 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-
-    {# --- Guarded replacements for plain column in loop expression as well --- #}
-    {% set _p2 = ' ' ~ _loop_tmp ~ ' ' %}
-    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ' ', ' ' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _p2 = _p2 | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _p2 = _p2 | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _p2 = _p2 | replace('=' ~ plain_col ~ ' ', '=' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace('>' ~ plain_col ~ ' ', '>' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace('<' ~ plain_col ~ ' ', '<' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace('!' ~ plain_col ~ ' ', '!' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _p2 = _p2 | replace(' ' ~ plain_col ~ ';', ' ' ~ 'gen.' ~ internal_col ~ ';') %}
-    {% set loop_expr_replaced = (_p2 | trim) %}
+    {% set _loop_tmp = regex_replace(_loop_tmp, '(?<![A-Za-z0-9_])' ~ plain_col ~ '(?![A-Za-z0-9_])', 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
@@ -166,8 +137,12 @@
               and ({{ recursion_condition }})
         )
         select
-            -- MINIMAL CHANGE: always exclude original column from payload to avoid duplicate column name errors
-            payload.* EXCEPT ({{ except_col }}),
+            -- Use safe EXCEPT only if base column might exist; otherwise fallback
+            {% if column_name in ['a','b','c','d'] %}
+                payload.* EXCEPT ({{ except_col }}),
+            {% else %}
+                payload.*,
+            {% endif %}
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
