@@ -76,7 +76,6 @@
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
     {% set condition_expr_sql = _cond_tmp %}
     {% set condition_expr_sql = condition_expr_sql | replace('payload.gen.', 'gen.') %}
 
@@ -90,7 +89,6 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
     {% set loop_expr_replaced = _loop_tmp %}
     {% set loop_expr_replaced = loop_expr_replaced | replace('payload.gen.', 'gen.') %}
 
