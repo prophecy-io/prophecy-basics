@@ -41,29 +41,10 @@
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {% set is_timestamp = " " in init_expr %}
-    {% set is_date = ("-" in init_expr) and not is_timestamp %}
-    {% set init_strip = init_expr.strip() %}
+    {% set init_value = init_expr.strip() %}
+    {% set init_select = init_value %}
 
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-
-    {% if is_timestamp %}
-        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "to_date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
-
-    {% if '"' in condition_expr and "'" not in condition_expr %}
-        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
-    {% else %}
-        {% set condition_expr_sql = condition_expr %}
-    {% endif %}
+    {% set condition_expr_sql = condition_expr %}
 
     {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
     {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
@@ -80,11 +61,6 @@
     {% set condition_expr_sql = _cond_tmp %}
 
     {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
@@ -95,7 +71,6 @@
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace('payload.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
     {% set recursion_condition = _rec_tmp %}
 
