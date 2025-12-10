@@ -48,23 +48,58 @@
     {% if init_strip.startswith("'") or init_strip.startswith('"') %}
         {% set init_value = init_strip %}
     {% else %}
-        {% if is_timestamp %}
-            {% set init_value = "to_timestamp('" ~ init_strip ~ "')" %}
-        {% elif is_date %}
-            {% set init_value = "to_date('" ~ init_strip ~ "')" %}
-        {% else %}
-            {% set init_value = init_strip %}
-        {% endif %}
+        {% set init_value = "'" ~ init_strip ~ "'" %}
     {% endif %}
 
-    {% set payload_col = "payload." ~ unquoted_col %}
-    {% set gen_internal_col = "gen." ~ internal_col %}
+    {% if is_timestamp %}
+        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
+    {% elif is_date %}
+        {% set init_select = "to_date(" ~ init_value ~ ")" %}
+    {% else %}
+        {% set init_select = init_expr %}
+    {% endif %}
 
-    {% set condition_expr_final = condition_expr | replace(payload_col, internal_col) %}
-    {% set condition_expr_recursive = condition_expr | replace(payload_col, gen_internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(payload_col, gen_internal_col) %}
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
+    {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+
+    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
+    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
+    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+    {% set plain_col = unquoted_col %}
+
+    {% set _cond_tmp = condition_expr_sql %}
+    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set condition_expr_sql = _cond_tmp %}
+    {% set condition_expr_sql = condition_expr_sql | replace('payload.gen.', 'gen.') %}
+
+    {% set _loop_tmp = loop_expr %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ q_by_adapter, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ backtick_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ doubleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ singleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp %}
+    {% set loop_expr_replaced = loop_expr_replaced | replace('payload.gen.', 'gen.') %}
 
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+
+    {% set _rec_tmp = condition_expr_sql %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {% set recursion_condition = _rec_tmp %}
+    {% set recursion_condition = recursion_condition | replace('payload.gen.', 'gen.') %}
 
     {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set specials = [] %}
@@ -83,7 +118,7 @@
         with recursive gen as (
             select
                 struct({{ alias }}.*) as payload,
-                {{ init_value }} as {{ internal_col }},
+                {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_tables }} {{ alias }}
 
@@ -95,7 +130,7 @@
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ condition_expr_recursive }})
+              and ({{ recursion_condition }})
         )
         select
             {% if column_name in ['a','b','c','d'] %}
@@ -105,20 +140,20 @@
             {% endif %}
             {{ internal_col }} as {{ output_col_alias }}
         from gen
-        where {{ condition_expr_final }}
+        where {{ condition_expr_sql }}
     {% else %}
         with recursive gen as (
-            select {{ init_value }} as {{ internal_col }}, 1 as _iter
+            select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
-              and ({{ condition_expr_recursive }})
+              and ({{ recursion_condition }})
         )
         select {{ internal_col }} as {{ output_col_alias }}
         from gen
-        where {{ condition_expr_final }}
+        where {{ condition_expr_sql }}
     {% endif %}
 {% endmacro %}
