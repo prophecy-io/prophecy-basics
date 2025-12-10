@@ -19,6 +19,7 @@ class CountRecords(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = False
 
     @dataclass(frozen=True)
     class CountRecordsProperties(MacroProperties):

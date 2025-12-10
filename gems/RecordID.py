@@ -31,6 +31,7 @@ class RecordID(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = False
 
     @dataclass(frozen=True)
     class RecordIDProperties(MacroProperties):
