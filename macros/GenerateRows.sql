@@ -85,7 +85,15 @@
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
+    {% set loop_expr_replaced_gen = _loop_tmp %}
+
+    {% set _loop_tmp2 = loop_expr %}
+    {% set _loop_tmp2 = _loop_tmp2 | replace(q_by_adapter, internal_col) %}
+    {% set _loop_tmp2 = _loop_tmp2 | replace(backtick_col, internal_col) %}
+    {% set _loop_tmp2 = _loop_tmp2 | replace(doubleq_col, internal_col) %}
+    {% set _loop_tmp2 = _loop_tmp2 | replace(singleq_col, internal_col) %}
+    {% set _loop_tmp2 = _loop_tmp2 | replace(plain_col, internal_col) %}
+    {% set loop_expr_replaced_plain = _loop_tmp2 %}
 
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
@@ -118,7 +126,7 @@
 
             select
                 gen.payload as payload,
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr_replaced_gen }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
@@ -134,7 +142,7 @@
             select {{ init_select }} as {{ internal_col }}, 1 as _iter
             union all
             select
-                {{ loop_expr_replaced }} as {{ internal_col }},
+                {{ loop_expr_replaced_plain }} as {{ internal_col }},
                 _iter + 1
             from gen
             where _iter < {{ max_rows | int }}
