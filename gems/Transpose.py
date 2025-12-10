@@ -18,6 +18,7 @@ class Transpose(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = True
 
     @dataclass(frozen=True)
     class TransposeProperties(MacroProperties):
