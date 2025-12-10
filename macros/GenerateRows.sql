@@ -90,17 +90,32 @@
     {# MINIMAL TARGETED FIXES:
        - payload.gen.__gen_<col>  -> gen.__gen_<col>
        - payload.__gen_<col>      -> gen.__gen_<col>
-       - payload.<col>            -> gen.__gen_<col>   <-- fixes add_months(payload.c, 1)
+       - payload.<col>            -> gen.__gen_<col>
        - plain <col> occurrences  -> gen.__gen_<col>
+       To avoid corrupting internal_col by later plain replacements, mask internal_col first.
     #}
+    {% set placeholder = '___GEN_INTERNAL_PLACEHOLDER___' %}
+
+    {# mask any already-present internal_col so plain 'c' replace won't touch it #}
+    {% set _loop_tmp = _loop_tmp | replace(internal_col, placeholder) %}
+
+    {# handle common payload patterns first #}
     {% set _loop_tmp = _loop_tmp | replace('payload.gen.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.' ~ internal_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace('payload.' ~ plain_col, 'gen.' ~ internal_col) %}
+
+    {# adapter and quoted forms #}
     {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
+
+    {# now safely replace plain occurrences of the column name (won't affect masked internal_col) #}
     {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+
+    {# restore any masked internal_col occurrences back to the real internal_col #}
+    {% set _loop_tmp = _loop_tmp | replace(placeholder, internal_col) %}
+
     {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
