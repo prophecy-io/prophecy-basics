@@ -65,42 +65,25 @@
     sampleRecord,
     sampleSchema) -%}
 
-    {{ log("Parsing JSON using method: " ~ parsingMethod, info=True) }}
+    {{ log("DuckDB: Parsing JSON column with method: " ~ parsingMethod, info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if not columnName or columnName | trim == '' -%}
         select * from {{ relation_list | join(', ') }}
 
-    {%- elif parsingMethod == 'parseFromSchema' and (not sampleSchema or sampleSchema | trim == '') -%}
-        select * from {{ relation_list | join(', ') }}
+    {%- elif parsingMethod == 'parseFromSchema' and sampleSchema and sampleSchema | trim != '' -%}
+        {%- set quoted_col = All_Provider_Gems_Test_2.quote_identifier(columnName) -%}
+        {%- set alias_col = All_Provider_Gems_Test_2.quote_identifier(columnName ~ '_parsed') -%}
 
-    {%- elif parsingMethod == 'parseFromSampleRecord' and (not sampleRecord or sampleRecord | trim == '') -%}
-        select * from {{ relation_list | join(', ') }}
-
+        WITH parsed_data AS (
+            SELECT 
+                *,
+                CAST({{ quoted_col }} AS {{ sampleSchema }}) AS {{ alias_col }}
+            FROM {{ relation_list | join(', ') }}
+        )
+        SELECT * FROM parsed_data
     {%- else -%}
-        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
-        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
-
-        {%- if parsingMethod == 'parseFromSchema' -%}
-            select
-                *,
-                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
-            from {{ relation_list | join(', ') }}
-
-        {%- elif parsingMethod == 'parseFromSampleRecord' -%}
-            select
-                *,
-                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
-            from {{ relation_list | join(', ') }}
-
-        {%- elif parsingMethod == 'none' or not parsingMethod -%}
-            select * from {{ relation_list | join(', ') }}
-
-        {%- else -%}
-            {{ exceptions.raise_compiler_error(
-                "Invalid parsingMethod: '" ~ parsingMethod ~ "'. Expected 'parseFromSchema', 'parseFromSampleRecord', or 'none'."
-            ) }}
-        {%- endif -%}
+        select * from {{ relation_list | join(', ') }}
     {%- endif -%}
 
 {%- endmacro -%}
