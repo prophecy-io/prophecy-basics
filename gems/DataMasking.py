@@ -18,6 +18,7 @@ class DataMasking(MacroSpec):
         # ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = True
 
     @dataclass(frozen=True)
     class DataMaskingProperties(MacroProperties):

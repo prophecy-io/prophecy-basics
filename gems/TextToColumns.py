@@ -20,6 +20,7 @@ class TextToColumns(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = False
 
     @dataclass(frozen=True)
     class TextToColumnsProperties(MacroProperties):
