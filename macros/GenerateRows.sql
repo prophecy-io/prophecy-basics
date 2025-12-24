@@ -38,11 +38,15 @@
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
     {# Use expressions directly and replace column_name with internal_col #}
-    {% set init_select = init_expr | replace(column_name, internal_col) %}
+    {# Replace payload. with src. in base case (init_select) since payload refers to source data #}
+    {% set init_select = init_expr | replace(column_name, internal_col) | replace('payload.', alias ~ '.') %}
     {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
     {# Build recursion_condition: same condition but referencing previous iteration #}
-    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) %}
+    {# Replace payload. with gen. since columns are flattened into gen #}
+    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
+    {# Replace payload. with gen. in final WHERE clause since columns are in gen #}
+    {% set condition_expr_sql = condition_expr_sql | replace('payload.', 'gen.') %}
     {% set output_col_alias = column_name %}
     {% if relation_tables %}
         with recursive gen as (

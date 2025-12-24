@@ -28,7 +28,7 @@ class GenerateRows(MacroSpec):
         condition_expr: Optional[str] = None
         loop_expr: Optional[str] = None
         column_name: Optional[str] = None
-        max_rows: Optional[str] = None
+        max_rows: Optional[str] = "100"
         force_mode: Optional[str] = "recursive"
 
     def get_relation_names(self, component: Component, context: SqlContext):
