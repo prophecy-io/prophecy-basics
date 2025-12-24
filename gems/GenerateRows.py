@@ -1,6 +1,10 @@
 import dataclasses
 import json
+from typing import List, Optional
 
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import StructType, StructField, IntegerType
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -12,8 +16,8 @@ class GenerateRows(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        # ProviderTypeEnum.BigQuery, # Removed because it was not working due to the recursive nature of the macro
+        ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
 
@@ -24,7 +28,7 @@ class GenerateRows(MacroSpec):
         condition_expr: Optional[str] = None
         loop_expr: Optional[str] = None
         column_name: Optional[str] = None
-        max_rows: Optional[str] = None
+        max_rows: Optional[str] = "100"
         force_mode: Optional[str] = "recursive"
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -81,8 +85,8 @@ class GenerateRows(MacroSpec):
                 .addElement(
                     TitleElement("Advanced options")
                 )
-                .addElement(TextBox("Max rows per iteration (default: 100000)").bindPlaceholder(
-                    """100000""").bindProperty("max_rows"))
+                .addElement(TextBox("Max rows per iteration (default: 100)").bindPlaceholder(
+                    """100""").bindProperty("max_rows"))
             )
         )
 
@@ -102,6 +106,78 @@ class GenerateRows(MacroSpec):
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super().validate(context, component)
+        props = component.properties
+        
+        # Validate init_expr
+        if props.init_expr is None or props.init_expr.strip() == "":
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.init_expr",
+                    "Initialization expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Validate condition_expr
+        if props.condition_expr is None or props.condition_expr.strip() == "":
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.condition_expr",
+                    "Condition expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Validate loop_expr
+        if props.loop_expr is None or props.loop_expr.strip() == "":
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.loop_expr",
+                    "Loop expression is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Validate column_name
+        if props.column_name is None or props.column_name.strip() == "":
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.column_name",
+                    "Column name is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        
+        # Validate max_rows
+        if props.max_rows is None or props.max_rows.strip() == "":
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.max_rows",
+                    "Max rows is required and cannot be empty",
+                    SeverityLevelEnum.Error
+                )
+            )
+        else:
+            # Validate that max_rows is a valid integer
+            try:
+                max_rows_int = int(props.max_rows)
+                if max_rows_int <= 0:
+                    diagnostics.append(
+                        Diagnostic(
+                            "component.properties.max_rows",
+                            "Max rows must be a positive integer",
+                            SeverityLevelEnum.Error
+                        )
+                    )
+            except ValueError:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.max_rows",
+                        "Max rows must be a valid integer",
+                        SeverityLevelEnum.Error
+                    )
+                )
+        
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
@@ -117,6 +193,17 @@ class GenerateRows(MacroSpec):
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
+        
+        def safe_str(val):
+            """Safely convert a value to a SQL string literal, handling None and empty strings"""
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, str):
+                # Escape single quotes for SQL string literals ('' represents a single quote in SQL)
+                escaped = val.replace("'", "''")
+                return f"'{escaped}'"
+            return f"'{str(val)}'"
+        
         arguments = [
             str(props.relation_name),
             "'" + str(props.init_expr) + "'",
@@ -180,3 +267,77 @@ class GenerateRows(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
+
+    def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        init_expr = self.props.init_expr
+        condition_expr = self.props.condition_expr
+        loop_expr = self.props.loop_expr
+        column_name = self.props.column_name
+        max_rows = int(self.props.max_rows)
+
+        # Internal column name for the generated value
+        internal_col = f"__gen_{column_name.replace(' ', '_')}"
+
+        # Handle None input - create empty DataFrame with empty columns list
+        if in0 is None:
+            in0 = spark.createDataFrame([], StructType([]))
+
+        # Create payload struct if input columns exist (matching SQL macro: struct(alias.*) as payload)
+        # If no columns, use spark.range(1) as base (matching SQL macro {% else %} branch)
+        if in0.columns:
+            payload_struct = struct(*[col(c) for c in in0.columns]).alias("payload")
+            base = in0.select(payload_struct)
+        else:
+            payload_struct = struct().alias("payload")
+            base = spark.range(1).select(payload_struct)
+
+        # Base case: one row per input record with initial value (matching SQL macro base case)
+        base_with_init = base.select(
+            col("payload"),
+            expr(str(init_expr).replace(column_name, internal_col)).alias(internal_col)
+        )
+
+        # Generate values using sequence and transform
+        # NOTE: This uses a linear formula which only works for linear progressions (value + k, value - k)
+        # For non-linear expressions (value * 2, value * value), this will produce incorrect results
+        # Extract step: loop_expr(initial) - initial
+        # For loop_expr = "value + 1" with init=1: step = (1+1) - 1 = 1
+        loop_expr_with_init = str(loop_expr).replace(column_name, internal_col)
+        step_expr = f"({loop_expr_with_init}) - {internal_col}"
+
+        # Generate array of values: init + (i-1) * step for each iteration
+        # Also track iteration number to filter by max_rows
+        result = base_with_init.select(
+            col("payload"),
+            explode(
+                expr(f"""
+                    transform(
+                        sequence(1, {max_rows}),
+                        i -> struct(
+                            {internal_col} + (i - 1) * ({step_expr}) as {internal_col},
+                            i as _iter
+                        )
+                    )
+                """)
+            ).alias("_gen")
+        ).select(
+            col("payload"),
+            col("_gen._iter").alias("_iter"),
+            col(f"_gen.{internal_col}").alias(internal_col)
+        )
+
+        # Filter where condition is true & iteration < max_rows (matching SQL macro's WHERE clauses)
+        filtered = result.filter(
+            (col("_iter") <= max_rows) &
+            expr(str(condition_expr).replace(column_name, internal_col))
+        )
+
+        # Expand payload and select final columns (matching SQL macro's payload.*)
+        # If no input columns, payload will be empty struct, so only select generated column
+        payload_cols = [col(f"payload.{c}").alias(c) for c in in0.columns]
+        result = filtered.select(
+            *payload_cols,
+            col(internal_col).alias(column_name)
+        )
+
+        return result
