@@ -13,7 +13,7 @@ from pyspark.sql.functions import *
 
 class Sample(MacroSpec):
     name: str = "Sample"
-    projectName: str = "Gem_creator"
+    projectName: str = "prophecy_basics"
     category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
