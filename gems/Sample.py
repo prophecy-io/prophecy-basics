@@ -46,7 +46,7 @@ class Sample(MacroSpec):
 
         sample = StackLayout(gap=("1rem"), height=("100bh")) \
             .addElement(
-            StepContainer()
+            StepContainer(gap=("1rem"))
             .addElement(
                 Step()
                 .addElement(
