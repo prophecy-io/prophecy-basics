@@ -50,6 +50,12 @@ class Sample(MacroSpec):
             .addElement(
                 Step()
                 .addElement(
+                    StackLayout(height="100%").addElement(
+                        SelectBox("Sampling Level")
+                        .addOption("Sample from Entire Dataset", "sampleDataset")
+                        .addOption("Sample from Within Group", "sampleGroup")
+                        .bindProperty("sampleLevelSelection")
+                    ).addElement(
                     SelectBox("Sample Type")
                     .addOption("Random N Rows", "randomN") # Returns random N rows.
                     .addOption("Random N% of rows", "randomNPercent")# Returns N percent of rows. This option requires the data to pass through the tool twice: once to calculate the count of rows and again to return the specified percent of rows.
@@ -61,13 +67,8 @@ class Sample(MacroSpec):
                     .addOption("First N% of rows", "nPercent")# Returns N percent of rows. This option requires the data to pass through the tool twice: once to calculate the count of rows and again to return the specified percent of rows.
                     .bindProperty("currentModeSelection")
                 ) \
-                .addElement(
-                    SelectBox("Sampling Level")
-                    .addOption("Sample from Entire Dataset", "sampleDataset")
-                    .addOption("Sample from Within Group", "sampleGroup")
-                    .bindProperty("sampleLevelSelection")
-                ) \
                 )
+            )
         ) \
             .addElement(
             Condition()
