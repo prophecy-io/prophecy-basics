@@ -206,13 +206,13 @@
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
     
-    {# Replace plain column name first (on original text) to avoid matching in replacements #}
-    {% set result = prophecy_basics.replace_column_safe(text, plain_col, replacement) %}
-    {# Then replace quoted variants (these shouldn't conflict since they're already quoted) #}
+    {# Replace quoted variants first (before plain replacement to avoid conflicts) #}
+    {% set result = text | replace(backtick_col, replacement) %}
     {% set result = result | replace(q_by_adapter, replacement) %}
-    {% set result = result | replace(backtick_col, replacement) %}
     {% set result = result | replace(doubleq_col, replacement) %}
     {% set result = result | replace(singleq_col, replacement) %}
+    {# Then replace plain column name (on already-processed text) to catch any remaining instances #}
+    {% set result = prophecy_basics.replace_column_safe(result, plain_col, replacement) %}
     {# Restore payload references if requested #}
     {% if preserve_payload %}
         {% set result = result | replace('payload.' ~ replacement, 'payload.' ~ plain_col) %}
