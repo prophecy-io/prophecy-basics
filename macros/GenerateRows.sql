@@ -314,7 +314,7 @@
 
             -- recursive step
             select
-                gen.* EXCLUDE ({{ internal_col }}, _iter),
+                gen.* EXCLUDE (_iter),
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
