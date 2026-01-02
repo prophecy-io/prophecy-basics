@@ -67,14 +67,17 @@
     {% set condition_expr_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, internal_col, preserve_payload=true) %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
+    {# Properly quote internal_col when creating gen. reference (e.g., gen.`__gen_date_val` not gen.__gen_date_val) #}
+    {# Use backticks for internal columns to ensure proper SQL syntax #}
+    {% set quoted_internal_col = "`" ~ internal_col ~ "`" %}
+    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ quoted_internal_col, preserve_payload=false) %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
     {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ quoted_internal_col) %}
     {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
     {% set recursion_condition = _rec_tmp %}
 
@@ -270,14 +273,17 @@
     {% set condition_expr_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, internal_col, preserve_payload=true) %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
+    {# Properly quote internal_col when creating gen. reference (e.g., gen.`__gen_date_val` not gen.__gen_date_val) #}
+    {# Use backticks for internal columns to ensure proper SQL syntax #}
+    {% set quoted_internal_col = "`" ~ internal_col ~ "`" %}
+    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ quoted_internal_col, preserve_payload=false) %}
 
     {# Use adapter-safe quoting for EXCLUDE column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
     {% set _rec_tmp = condition_expr_sql %}
-    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ quoted_internal_col) %}
     {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
     {% set recursion_condition = _rec_tmp %}
 
