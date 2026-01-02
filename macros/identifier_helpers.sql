@@ -130,10 +130,10 @@
     {%- endif -%}
 {% endmacro %}
 
-{# Helper: Replace column name only when followed by space, '(', '.', ')', or ',' (not a substring) #}
+{# Helper: Replace column name only when followed by space, operators, or punctuation (not a substring) #}
 {% macro replace_column_safe(text, plain_col, replacement) %}
     {% set result = text %}
-    {% set suffixes = [' ', '(', '.', ')', ','] %}
+    {% set suffixes = [' ', '(', '.', ')', ',', '+', '-', '*', '/', '%', '=', '<', '>', '|', '&'] %}
     {% for suffix in suffixes %}
         {% set result = result | replace(plain_col ~ suffix, replacement ~ suffix) %}
     {% endfor %}
