@@ -130,13 +130,13 @@
     {%- endif -%}
 {% endmacro %}
 
-{# Helper: Replace column name only when it's a complete identifier (not a substring) #}
+{# Helper: Replace column name only when its a complete identifier (not a substring) #}
 {% macro replace_column_safe(text, plain_col, replacement) %}
     {% set word_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set suffixes = [' ', '(', '.', ')', ',', '+', '-', '*', '/', '%', '=', '<', '>', '|', '&'] %}
     {% set col_len = plain_col | length %}
     {% set text_len = text | length %}
-    {% set result_parts = [] %}
+    {% set result = '' %}
     {% set i = 0 %}
     {% for _ in range(0, text_len) %}
         {% if i >= text_len %}
@@ -153,18 +153,18 @@
             {% set valid_before = before_pos < 0 or before_char not in word_chars %}
             {% set valid_after = after_pos >= text_len or after_char in suffixes or after_char not in word_chars %}
             {% if valid_before and valid_after %}
-                {% do result_parts.append(text[i:actual_pos] ~ replacement) %}
+                {% set result = result ~ text[i:actual_pos] ~ replacement %}
                 {% set i = after_pos %}
             {% else %}
-                {% do result_parts.append(text[i:actual_pos + 1]) %}
+                {% set result = result ~ text[i:actual_pos + 1] %}
                 {% set i = actual_pos + 1 %}
             {% endif %}
         {% else %}
-            {% do result_parts.append(text[i:]) %}
+            {% set result = result ~ text[i:] %}
             {% set i = text_len %}
         {% endif %}
     {% endfor %}
-    {{ return(result_parts | join('')) }}
+    {{ return(result) }}
 {% endmacro %}
 
 {# Helper: Replace all variants of a column name (quoted and unquoted) with replacement, preserving payload references #}
