@@ -32,10 +32,11 @@
     
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     
-    {# Iterate through schema objects and check if column name matches #}
+    {# Iterate through schema objects and check if column name matches (using adapter-specific case sensitivity) #}
     {% for c in schema_parsed %}
         {# Each c should be an object with 'name' and 'dataType' keys #}
-        {% if c.name == unquoted_col %}
+        {% set schema_col_name = c.name | trim %}
+        {% if prophecy_basics.column_names_match(schema_col_name, unquoted_col) %}
             {{ return(true) }}
         {% endif %}
     {% endfor %}

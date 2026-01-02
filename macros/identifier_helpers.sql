@@ -221,6 +221,39 @@
 {% endmacro %}
 
 {# Helper: Detect if expression is a simple date string literal and cast it to DATE if needed #}
+{% macro column_names_match(name1, name2) %}
+    {# Compare two column names with case-insensitive matching for Databricks/DuckDB #}
+    {{ return(adapter.dispatch('column_names_match', 'prophecy_basics')(name1, name2)) }}
+{% endmacro %}
+
+{% macro default__column_names_match(name1, name2) %}
+    {# Default: case-insensitive comparison (for Databricks) #}
+    {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
+    {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
+    {{ return(col1 == col2) }}
+{% endmacro %}
+
+{% macro duckdb__column_names_match(name1, name2) %}
+    {# DuckDB: case-insensitive comparison #}
+    {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
+    {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
+    {{ return(col1 == col2) }}
+{% endmacro %}
+
+{% macro databricks__column_names_match(name1, name2) %}
+    {# Databricks: case-insensitive comparison #}
+    {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
+    {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
+    {{ return(col1 == col2) }}
+{% endmacro %}
+
+{% macro spark__column_names_match(name1, name2) %}
+    {# Spark: case-insensitive comparison #}
+    {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
+    {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
+    {{ return(col1 == col2) }}
+{% endmacro %}
+
 {% macro cast_date_if_needed(expr) %}
     {% if expr is none or expr == '' %}
         {{ return(expr) }}
@@ -267,6 +300,65 @@
     
     {% if is_date_string %}
         {{ return('CAST(' ~ date_str_to_cast ~ ' AS DATE)') }}
+    {% else %}
+        {{ return(expr) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro cast_timestamp_if_needed(expr) %}
+    {% if expr is none or expr == '' %}
+        {{ return(expr) }}
+    {% endif %}
+    
+    {% set expr_trimmed = expr | trim %}
+    {% set is_timestamp_string = false %}
+    {% set timestamp_str_to_cast = expr %}
+    
+    {# First check if it's a date-only pattern - use cast_date_if_needed for that #}
+    {% set date_result = prophecy_basics.cast_date_if_needed(expr) %}
+    {% if date_result != expr %}
+        {# It was a date, return the date cast result #}
+        {{ return(date_result) }}
+    {% endif %}
+    
+    {# Check if it matches timestamp pattern (YYYY-MM-DD HH:MM:SS) #}
+    {% set looks_like_timestamp = false %}
+    {% if expr_trimmed.startswith("'") and expr_trimmed.endswith("'") %}
+        {% set timestamp_str = expr_trimmed[1:-1] %}
+        {% if timestamp_str | length == 19 and timestamp_str[4] == '-' and timestamp_str[7] == '-' and timestamp_str[10] == ' ' and timestamp_str[13] == ':' and timestamp_str[16] == ':' %}
+            {% set looks_like_timestamp = true %}
+        {% endif %}
+    {% elif expr_trimmed.startswith('"') and expr_trimmed.endswith('"') %}
+        {% set timestamp_str = expr_trimmed[1:-1] %}
+        {% if timestamp_str | length == 19 and timestamp_str[4] == '-' and timestamp_str[7] == '-' and timestamp_str[10] == ' ' and timestamp_str[13] == ':' and timestamp_str[16] == ':' %}
+            {% set looks_like_timestamp = true %}
+        {% endif %}
+    {% elif expr_trimmed | length == 19 and expr_trimmed[4] == '-' and expr_trimmed[7] == '-' and expr_trimmed[10] == ' ' and expr_trimmed[13] == ':' and expr_trimmed[16] == ':' %}
+        {% set looks_like_timestamp = true %}
+    {% endif %}
+    
+    {# Only cast if it looks like a timestamp AND doesn't contain expression operators #}
+    {% if looks_like_timestamp %}
+        {% set has_operators = '(' in expr_trimmed or ')' in expr_trimmed or '+' in expr_trimmed or '*' in expr_trimmed or '/' in expr_trimmed or 'payload.' in expr_trimmed %}
+        {% if not expr_trimmed.startswith("'") and not expr_trimmed.startswith('"') %}
+            {# For unquoted strings, check if there are extra spaces (other than the one at position 10) or extra operators #}
+            {% if expr_trimmed.count(' ') > 1 or expr_trimmed.count('-') > 2 or expr_trimmed.count(':') > 2 %}
+                {% set has_operators = true %}
+            {% endif %}
+        {% endif %}
+        
+        {% if not has_operators %}
+            {% set is_timestamp_string = true %}
+            {% if expr_trimmed.startswith("'") or expr_trimmed.startswith('"') %}
+                {% set timestamp_str_to_cast = expr %}
+            {% else %}
+                {% set timestamp_str_to_cast = "'" ~ expr_trimmed ~ "'" %}
+            {% endif %}
+        {% endif %}
+    {% endif %}
+    
+    {% if is_timestamp_string %}
+        {{ return('CAST(' ~ timestamp_str_to_cast ~ ' AS TIMESTAMP)') }}
     {% else %}
         {{ return(expr) }}
     {% endif %}

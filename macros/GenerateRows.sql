@@ -69,8 +69,8 @@
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
     {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
 
-    {# Use unquoted column name for EXCEPT - Spark SQL EXCEPT works with unquoted identifiers #}
-    {% set except_col = unquoted_col %}
+    {# Use adapter-safe quoting for EXCEPT column #}
+    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
 
     {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
     {% set _rec_tmp = condition_expr_sql %}
