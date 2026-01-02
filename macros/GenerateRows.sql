@@ -48,57 +48,7 @@
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
     {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
-    {# Only cast if it's a plain date string (not an expression) to avoid false positives #}
-    {% set init_expr_trimmed = init_expr | trim %}
-    {% set is_date_string = false %}
-    {% set date_str_to_cast = init_expr %}
-    
-    {# First check if it matches a date pattern (YYYY-MM-DD) - this takes precedence over operator detection #}
-    {% set looks_like_date = false %}
-    {% if init_expr_trimmed.startswith("'") and init_expr_trimmed.endswith("'") %}
-        {% set date_str = init_expr_trimmed[1:-1] %}
-        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
-            {% set looks_like_date = true %}
-        {% endif %}
-    {% elif init_expr_trimmed.startswith('"') and init_expr_trimmed.endswith('"') %}
-        {% set date_str = init_expr_trimmed[1:-1] %}
-        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
-            {% set looks_like_date = true %}
-        {% endif %}
-    {% elif init_expr_trimmed | length == 10 and init_expr_trimmed[4] == '-' and init_expr_trimmed[7] == '-' %}
-        {# Unquoted date string - check it's not an expression #}
-        {% set looks_like_date = true %}
-    {% endif %}
-    
-    {# Only check for date strings if it looks like a date AND doesn't contain expression operators #}
-    {% if looks_like_date %}
-        {# Check if it contains expression operators (not just date separators) #}
-        {% set has_expression_operators = '(' in init_expr_trimmed or ')' in init_expr_trimmed or '+' in init_expr_trimmed or '*' in init_expr_trimmed or '/' in init_expr_trimmed or 'payload.' in init_expr_trimmed %}
-        {# For unquoted dates, also check if '-' appears in positions other than 4 and 7 (indicating subtraction) #}
-        {% if not init_expr_trimmed.startswith("'") and not init_expr_trimmed.startswith('"') %}
-            {# Check if there are spaces or other characters that suggest it's an expression #}
-            {% if ' ' in init_expr_trimmed or init_expr_trimmed.count('-') > 2 %}
-                {% set has_expression_operators = true %}
-            {% endif %}
-        {% endif %}
-        
-        {% if not has_expression_operators %}
-            {% set is_date_string = true %}
-            {% if init_expr_trimmed.startswith("'") or init_expr_trimmed.startswith('"') %}
-                {% set date_str_to_cast = init_expr %}
-            {% else %}
-                {# Wrap unquoted date string in quotes for SQL #}
-                {% set date_str_to_cast = "'" ~ init_expr_trimmed ~ "'" %}
-            {% endif %}
-        {% endif %}
-    {% endif %}
-    
-    {% if is_date_string %}
-        {# Cast date string to DATE to ensure correct type #}
-        {% set init_select = 'CAST(' ~ date_str_to_cast ~ ' AS DATE)' %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -137,13 +87,18 @@
     {% endif %}
 
     {% if relation_tables %}
-        with recursive gen as (
+        with recursive src_filtered as (
+            -- Exclude the original column if it has the same name as the generated column
+            select {{ alias }}.* EXCEPT ({{ except_col }})
+            from {{ relation_tables }} {{ alias }}
+        ),
+        gen as (
             -- base case: one row per input record
             select
-                struct({{ alias }}.*) as payload,
+                struct(src_filtered.*) as payload,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
-            from {{ relation_tables }} {{ alias }}
+            from src_filtered
 
             union all
 
@@ -157,12 +112,8 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Use safe EXCEPT only if base column might exist; otherwise fallback
-            {% if column_name in ['a','b','c','d'] %}
-                payload.* EXCEPT ({{ except_col }}),
-            {% else %}
-                payload.*,
-            {% endif %}
+            -- Exclude the original column from payload if it has the same name as the generated column
+            payload.* EXCEPT ({{ except_col }}),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
@@ -296,57 +247,7 @@
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
     {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
-    {# Only cast if it's a plain date string (not an expression) to avoid false positives #}
-    {% set init_expr_trimmed = init_expr | trim %}
-    {% set is_date_string = false %}
-    {% set date_str_to_cast = init_expr %}
-    
-    {# First check if it matches a date pattern (YYYY-MM-DD) - this takes precedence over operator detection #}
-    {% set looks_like_date = false %}
-    {% if init_expr_trimmed.startswith("'") and init_expr_trimmed.endswith("'") %}
-        {% set date_str = init_expr_trimmed[1:-1] %}
-        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
-            {% set looks_like_date = true %}
-        {% endif %}
-    {% elif init_expr_trimmed.startswith('"') and init_expr_trimmed.endswith('"') %}
-        {% set date_str = init_expr_trimmed[1:-1] %}
-        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
-            {% set looks_like_date = true %}
-        {% endif %}
-    {% elif init_expr_trimmed | length == 10 and init_expr_trimmed[4] == '-' and init_expr_trimmed[7] == '-' %}
-        {# Unquoted date string - check it's not an expression #}
-        {% set looks_like_date = true %}
-    {% endif %}
-    
-    {# Only check for date strings if it looks like a date AND doesn't contain expression operators #}
-    {% if looks_like_date %}
-        {# Check if it contains expression operators (not just date separators) #}
-        {% set has_expression_operators = '(' in init_expr_trimmed or ')' in init_expr_trimmed or '+' in init_expr_trimmed or '*' in init_expr_trimmed or '/' in init_expr_trimmed or 'payload.' in init_expr_trimmed %}
-        {# For unquoted dates, also check if '-' appears in positions other than 4 and 7 (indicating subtraction) #}
-        {% if not init_expr_trimmed.startswith("'") and not init_expr_trimmed.startswith('"') %}
-            {# Check if there are spaces or other characters that suggest it's an expression #}
-            {% if ' ' in init_expr_trimmed or init_expr_trimmed.count('-') > 2 %}
-                {% set has_expression_operators = true %}
-            {% endif %}
-        {% endif %}
-        
-        {% if not has_expression_operators %}
-            {% set is_date_string = true %}
-            {% if init_expr_trimmed.startswith("'") or init_expr_trimmed.startswith('"') %}
-                {% set date_str_to_cast = init_expr %}
-            {% else %}
-                {# Wrap unquoted date string in quotes for SQL #}
-                {% set date_str_to_cast = "'" ~ init_expr_trimmed ~ "'" %}
-            {% endif %}
-        {% endif %}
-    {% endif %}
-    
-    {% if is_date_string %}
-        {# Cast date string to DATE to ensure correct type #}
-        {% set init_select = 'CAST(' ~ date_str_to_cast ~ ' AS DATE)' %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -393,7 +294,7 @@
         gen as (
             -- base case: one row per input record
             select
-                payload.*,
+                payload.* EXCLUDE ({{ except_col | trim }}),
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from payload

@@ -219,3 +219,55 @@
     {% endif %}
     {{ return(result) }}
 {% endmacro %}
+
+{# Helper: Detect if expression is a simple date string literal and cast it to DATE if needed #}
+{% macro cast_date_if_needed(expr) %}
+    {% if expr is none or expr == '' %}
+        {{ return(expr) }}
+    {% endif %}
+    
+    {% set expr_trimmed = expr | trim %}
+    {% set is_date_string = false %}
+    {% set date_str_to_cast = expr %}
+    
+    {# Check if it matches date pattern (YYYY-MM-DD) #}
+    {% set looks_like_date = false %}
+    {% if expr_trimmed.startswith("'") and expr_trimmed.endswith("'") %}
+        {% set date_str = expr_trimmed[1:-1] %}
+        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
+            {% set looks_like_date = true %}
+        {% endif %}
+    {% elif expr_trimmed.startswith('"') and expr_trimmed.endswith('"') %}
+        {% set date_str = expr_trimmed[1:-1] %}
+        {% if date_str | length == 10 and date_str[4] == '-' and date_str[7] == '-' %}
+            {% set looks_like_date = true %}
+        {% endif %}
+    {% elif expr_trimmed | length == 10 and expr_trimmed[4] == '-' and expr_trimmed[7] == '-' %}
+        {% set looks_like_date = true %}
+    {% endif %}
+    
+    {# Only cast if it looks like a date AND doesn't contain expression operators #}
+    {% if looks_like_date %}
+        {% set has_operators = '(' in expr_trimmed or ')' in expr_trimmed or '+' in expr_trimmed or '*' in expr_trimmed or '/' in expr_trimmed or 'payload.' in expr_trimmed %}
+        {% if not expr_trimmed.startswith("'") and not expr_trimmed.startswith('"') %}
+            {% if ' ' in expr_trimmed or expr_trimmed.count('-') > 2 %}
+                {% set has_operators = true %}
+            {% endif %}
+        {% endif %}
+        
+        {% if not has_operators %}
+            {% set is_date_string = true %}
+            {% if expr_trimmed.startswith("'") or expr_trimmed.startswith('"') %}
+                {% set date_str_to_cast = expr %}
+            {% else %}
+                {% set date_str_to_cast = "'" ~ expr_trimmed ~ "'" %}
+            {% endif %}
+        {% endif %}
+    {% endif %}
+    
+    {% if is_date_string %}
+        {{ return('CAST(' ~ date_str_to_cast ~ ' AS DATE)') }}
+    {% else %}
+        {{ return(expr) }}
+    {% endif %}
+{% endmacro %}
