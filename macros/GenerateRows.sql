@@ -14,6 +14,16 @@
     force_mode)) }}
 {% endmacro %}
 
+{# Helper: Replace column name only when followed by space, '(', '.', or ')' (not a substring) #}
+{% macro replace_column_safe(text, plain_col, replacement) %}
+    {% set result = text %}
+    {% set result = result | replace(plain_col ~ ' ', replacement ~ ' ') %}
+    {% set result = result | replace(plain_col ~ '(', replacement ~ '(') %}
+    {% set result = result | replace(plain_col ~ '.', replacement ~ '.') %}
+    {% set result = result | replace(plain_col ~ ')', replacement ~ ')') %}
+    {{ return(result) }}
+{% endmacro %}
+
 {% macro default__GenerateRows(
     relation_name=None,
     init_expr='1',
@@ -35,8 +45,9 @@
         {% do exceptions.raise_compiler_error("loop_expr is required") %}
     {% endif %}
 
+    {# max_rows defaults to 100 if not provided (set by apply function) #}
     {% if max_rows is none or max_rows == '' %}
-        {% set max_rows = 100000 %}
+        {% set max_rows = 100 %}
     {% endif %}
 
     {% set alias = "src" %}
@@ -46,22 +57,8 @@
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions (kept from your original macro) #}
-    {% set is_timestamp = " " in init_expr %}
-    {% set is_date = ("-" in init_expr) and not is_timestamp %}
-    {% set init_strip = init_expr.strip() %}
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-    {% if is_timestamp %}
-        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "to_date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {# Use init_expr as-is - no date/timestamp conversion #}
+    {% set init_select = init_expr %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -83,7 +80,9 @@
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set _cond_tmp = replace_column_safe(_cond_tmp, plain_col, internal_col) %}
+    {# Restore payload.YMD - payload references should not be replaced #}
+    {% set _cond_tmp = _cond_tmp | replace('payload.' ~ internal_col, 'payload.' ~ plain_col) %}
     {% set condition_expr_sql = _cond_tmp %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
@@ -92,29 +91,7 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {# Replace patterns with spaces/brackets to avoid replacing substrings like YMD in YMD2 #}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ '.', '.' ~ 'gen.' ~ internal_col ~ '.') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ')', '.' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ',', '.' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ' ', '.' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ')', '(' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ',', '(' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ' ', ' ' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ')', ',' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {# Handle start/end of string #}
-    {% if _loop_tmp == plain_col %}
-        {% set _loop_tmp = 'gen.' ~ internal_col %}
-    {% elif _loop_tmp.startswith(plain_col ~ '.') or _loop_tmp.startswith(plain_col ~ ')') or _loop_tmp.startswith(plain_col ~ ',') or _loop_tmp.startswith(plain_col ~ ' ') %}
-        {% set _loop_tmp = 'gen.' ~ internal_col ~ _loop_tmp[plain_col | length:] %}
-    {% endif %}
-    {% if _loop_tmp.endswith('.' ~ plain_col) or _loop_tmp.endswith('(' ~ plain_col) or _loop_tmp.endswith(',' ~ plain_col) or _loop_tmp.endswith(' ' ~ plain_col) %}
-        {% set _loop_tmp = _loop_tmp[:_loop_tmp | length - plain_col | length] ~ 'gen.' ~ internal_col %}
-    {% endif %}
+    {% set _loop_tmp = replace_column_safe(_loop_tmp, plain_col, 'gen.' ~ internal_col) %}
     {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
@@ -200,8 +177,9 @@
     {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
         select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
     {% else %}
+    {# max_rows defaults to 100 if not provided (set by apply function) #}
     {% if max_rows is none or max_rows == '' %}
-        {% set max_rows = 100000 %}
+        {% set max_rows = 100 %}
     {% endif %}
 
     {% set alias = "src" %}
@@ -286,8 +264,9 @@
         {% do exceptions.raise_compiler_error("loop_expr is required") %}
     {% endif %}
 
+    {# max_rows defaults to 100 if not provided (set by apply function) #}
     {% if max_rows is none or max_rows == '' %}
-        {% set max_rows = 100000 %}
+        {% set max_rows = 100 %}
     {% endif %}
 
     {% set alias = "src" %}
@@ -297,22 +276,8 @@
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# detect date/timestamp style init expressions #}
-    {% set is_timestamp = " " in init_expr %}
-    {% set is_date = ("-" in init_expr) and not is_timestamp %}
-    {% set init_strip = init_expr.strip() %}
-    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
-        {% set init_value = init_strip %}
-    {% else %}
-        {% set init_value = "'" ~ init_strip ~ "'" %}
-    {% endif %}
-    {% if is_timestamp %}
-        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
-    {% elif is_date %}
-        {% set init_select = "to_date(" ~ init_value ~ ")" %}
-    {% else %}
-        {% set init_select = init_expr %}
-    {% endif %}
+    {# Use init_expr as-is - no date/timestamp conversion #}
+    {% set init_select = init_expr %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -334,7 +299,9 @@
     {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
     {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set _cond_tmp = replace_column_safe(_cond_tmp, plain_col, internal_col) %}
+    {# Restore payload.YMD - payload references should not be replaced #}
+    {% set _cond_tmp = _cond_tmp | replace('payload.' ~ internal_col, 'payload.' ~ plain_col) %}
     {% set condition_expr_sql = _cond_tmp %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
@@ -343,29 +310,7 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {# Replace patterns with spaces/brackets to avoid replacing substrings like YMD in YMD2 #}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ '.', '.' ~ 'gen.' ~ internal_col ~ '.') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ')', '.' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ',', '.' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ' ', '.' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ')', '(' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ',', '(' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ' ', ' ' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ')', ',' ~ 'gen.' ~ internal_col ~ ')') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
-    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
-    {# Handle start/end of string #}
-    {% if _loop_tmp == plain_col %}
-        {% set _loop_tmp = 'gen.' ~ internal_col %}
-    {% elif _loop_tmp.startswith(plain_col ~ '.') or _loop_tmp.startswith(plain_col ~ ')') or _loop_tmp.startswith(plain_col ~ ',') or _loop_tmp.startswith(plain_col ~ ' ') %}
-        {% set _loop_tmp = 'gen.' ~ internal_col ~ _loop_tmp[plain_col | length:] %}
-    {% endif %}
-    {% if _loop_tmp.endswith('.' ~ plain_col) or _loop_tmp.endswith('(' ~ plain_col) or _loop_tmp.endswith(',' ~ plain_col) or _loop_tmp.endswith(' ' ~ plain_col) %}
-        {% set _loop_tmp = _loop_tmp[:_loop_tmp | length - plain_col | length] ~ 'gen.' ~ internal_col %}
-    {% endif %}
+    {% set _loop_tmp = replace_column_safe(_loop_tmp, plain_col, 'gen.' ~ internal_col) %}
     {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCLUDE column #}

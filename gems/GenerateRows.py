@@ -148,13 +148,13 @@ class GenerateRows(MacroSpec):
                 )
             )
         
-        # Validate max_rows
+        # Validate max_rows - warning only, default to 100 if not provided
         if props.max_rows is None or props.max_rows.strip() == "":
             diagnostics.append(
                 Diagnostic(
                     "component.properties.max_rows",
-                    "Max rows is required and cannot be empty",
-                    SeverityLevelEnum.Error
+                    "Max rows not provided, will default to 100",
+                    SeverityLevelEnum.Warning
                 )
             )
         else:
@@ -165,16 +165,16 @@ class GenerateRows(MacroSpec):
                     diagnostics.append(
                         Diagnostic(
                             "component.properties.max_rows",
-                            "Max rows must be a positive integer",
-                            SeverityLevelEnum.Error
+                            "Max rows must be a positive integer, will default to 100",
+                            SeverityLevelEnum.Warning
                         )
                     )
             except ValueError:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.max_rows",
-                        "Max rows must be a valid integer",
-                        SeverityLevelEnum.Error
+                        "Max rows must be a valid integer, will default to 100",
+                        SeverityLevelEnum.Warning
                     )
                 )
         
@@ -204,13 +204,25 @@ class GenerateRows(MacroSpec):
                 return f"'{escaped}'"
             return f"'{str(val)}'"
         
+        # Default max_rows to 100 if not provided or invalid
+        max_rows_value = props.max_rows
+        if max_rows_value is None or max_rows_value.strip() == "":
+            max_rows_value = "100"
+        else:
+            try:
+                max_rows_int = int(max_rows_value)
+                if max_rows_int <= 0:
+                    max_rows_value = "100"
+            except ValueError:
+                max_rows_value = "100"
+        
         arguments = [
             str(props.relation_name),
             "'" + str(props.init_expr) + "'",
             "'" + str(props.condition_expr) + "'",
             "'" + str(props.loop_expr) + "'",
             "'" + str(props.column_name) + "'",
-            "'" + str(props.max_rows) + "'",
+            "'" + str(max_rows_value) + "'",
             "'" + str(props.force_mode) + "'"
         ]
 
