@@ -316,18 +316,35 @@
     
     {# First check if it matches timestamp pattern (YYYY-MM-DD HH:MM:SS) #}
     {% set looks_like_timestamp = false %}
+    {% set inner_timestamp_str = expr_trimmed %}
+    {% set is_quoted = false %}
+    
+    {# Extract inner string if quoted #}
     {% if expr_trimmed.startswith("'") and expr_trimmed.endswith("'") %}
-        {% set timestamp_str = expr_trimmed[1:-1] %}
-        {% if timestamp_str | length == 19 and timestamp_str[4] == '-' and timestamp_str[7] == '-' and timestamp_str[10] == ' ' and timestamp_str[13] == ':' and timestamp_str[16] == ':' %}
-            {% set looks_like_timestamp = true %}
-        {% endif %}
+        {% set inner_timestamp_str = expr_trimmed[1:-1] | trim %}
+        {% set is_quoted = true %}
     {% elif expr_trimmed.startswith('"') and expr_trimmed.endswith('"') %}
-        {% set timestamp_str = expr_trimmed[1:-1] %}
-        {% if timestamp_str | length == 19 and timestamp_str[4] == '-' and timestamp_str[7] == '-' and timestamp_str[10] == ' ' and timestamp_str[13] == ':' and timestamp_str[16] == ':' %}
-            {% set looks_like_timestamp = true %}
+        {% set inner_timestamp_str = expr_trimmed[1:-1] | trim %}
+        {% set is_quoted = true %}
+    {% else %}
+        {% set inner_timestamp_str = expr_trimmed | trim %}
+    {% endif %}
+    
+    {# Check if inner string matches timestamp pattern (19 chars: YYYY-MM-DD HH:MM:SS) #}
+    {% if inner_timestamp_str | length == 19 %}
+        {% if inner_timestamp_str[4] == '-' and inner_timestamp_str[7] == '-' and inner_timestamp_str[10] == ' ' and inner_timestamp_str[13] == ':' and inner_timestamp_str[16] == ':' %}
+            {# Verify it's actually digits and valid format #}
+            {% set is_valid = true %}
+            {% for i in [0,1,2,3,5,6,8,9,11,12,14,15,17,18] %}
+                {% if inner_timestamp_str[i] not in '0123456789' %}
+                    {% set is_valid = false %}
+                    {% break %}
+                {% endif %}
+            {% endfor %}
+            {% if is_valid %}
+                {% set looks_like_timestamp = true %}
+            {% endif %}
         {% endif %}
-    {% elif expr_trimmed | length == 19 and expr_trimmed[4] == '-' and expr_trimmed[7] == '-' and expr_trimmed[10] == ' ' and expr_trimmed[13] == ':' and expr_trimmed[16] == ':' %}
-        {% set looks_like_timestamp = true %}
     {% endif %}
     
     {# Only cast if it looks like a timestamp AND doesn't contain expression operators #}
@@ -342,10 +359,12 @@
         
         {% if not has_operators %}
             {% set is_timestamp_string = true %}
-            {% if expr_trimmed.startswith("'") or expr_trimmed.startswith('"') %}
+            {% if is_quoted %}
+                {# Already quoted, use as-is #}
                 {% set timestamp_str_to_cast = expr %}
             {% else %}
-                {% set timestamp_str_to_cast = "'" ~ expr_trimmed ~ "'" %}
+                {# Not quoted, add quotes #}
+                {% set timestamp_str_to_cast = "'" ~ inner_timestamp_str ~ "'" %}
             {% endif %}
         {% endif %}
     {% endif %}
