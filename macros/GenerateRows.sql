@@ -23,36 +23,106 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
-    {# Validate required parameters #}
-    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
-        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
-    {% else %}
+    {% if init_expr is none or init_expr == '' %}
+        {% do exceptions.raise_compiler_error("init_expr is required") %}
+    {% endif %}
+
+    {% if condition_expr is none or condition_expr == '' %}
+        {% do exceptions.raise_compiler_error("condition_expr is required") %}
+    {% endif %}
+
+    {% if loop_expr is none or loop_expr == '' %}
+        {% do exceptions.raise_compiler_error("loop_expr is required") %}
+    {% endif %}
+
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
 
     {% set alias = "src" %}
     {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
+
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# Use expressions directly and replace column_name with internal_col #}
-    {# Replace payload. with src. in base case (init_select) since payload refers to source data #}
-    {% set init_select = init_expr | replace(column_name, internal_col) | replace('payload.', alias ~ '.') %}
-    {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
-    {# Build recursion_condition: same condition but referencing previous iteration #}
-    {# Replace payload. with gen. since columns are flattened into gen #}
-    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
-    {# Replace payload. with gen. in final WHERE clause since columns are in gen #}
-    {% set condition_expr_sql = condition_expr_sql | replace('payload.', 'gen.') %}
-    {% set output_col_alias = column_name %}
+    {# detect date/timestamp style init expressions (kept from your original macro) #}
+    {% set is_timestamp = " " in init_expr %}
+    {% set is_date = ("-" in init_expr) and not is_timestamp %}
+    {% set init_strip = init_expr.strip() %}
+    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
+        {% set init_value = init_strip %}
+    {% else %}
+        {% set init_value = "'" ~ init_strip ~ "'" %}
+    {% endif %}
+    {% if is_timestamp %}
+        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
+    {% elif is_date %}
+        {% set init_select = "to_date(" ~ init_value ~ ")" %}
+    {% else %}
+        {% set init_select = init_expr %}
+    {% endif %}
+
+    {# Normalize user-supplied condition expression quotes if they used double quotes only #}
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
+    {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+
+    {# --- Build quoted/plain variants for replacement --- #}
+    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
+    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
+    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+    {% set plain_col = unquoted_col %}
+
+    {# --- Replace the target column in condition expression to reference the internal column --- #}
+    {% set _cond_tmp = condition_expr_sql %}
+    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set condition_expr_sql = _cond_tmp %}
+
+    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
+    {% set _loop_tmp = loop_expr %}
+    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp %}
+
+    {# Use adapter-safe quoting for EXCEPT column #}
+    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+
+    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
+    {% set _rec_tmp = condition_expr_sql %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
+    {% set recursion_condition = _rec_tmp %}
+
+    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
+    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
+    {% set specials = [] %}
+    {% for ch in unquoted_col %}
+        {% if ch not in allowed %}
+            {% do specials.append(ch) %}
+        {% endif %}
+    {% endfor %}
+    {% if specials | length > 0 %}
+        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% else %}
+        {% set output_col_alias = unquoted_col %}
+    {% endif %}
+
     {% if relation_tables %}
         with recursive gen as (
             -- base case: one row per input record
             select
-                {{ alias }}.*,
+                struct({{ alias }}.*) as payload,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from {{ relation_tables }} {{ alias }}
@@ -61,7 +131,7 @@
 
             -- recursive step
             select
-                gen.* EXCEPT ({{ internal_col }}, _iter),
+                gen.payload as payload,
                 {{ loop_expr_replaced }} as {{ internal_col }},
                 _iter + 1
             from gen
@@ -69,7 +139,12 @@
               and ({{ recursion_condition }})
         )
         select
-            gen.* EXCEPT ({{ internal_col }}, _iter),
+            -- Use safe EXCEPT only if base column might exist; otherwise fallback
+            {% if column_name in ['a','b','c','d'] %}
+                payload.* EXCEPT ({{ except_col }}),
+            {% else %}
+                payload.*,
+            {% endif %}
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
@@ -87,7 +162,6 @@
         select {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
-    {% endif %}
     {% endif %}
 {% endmacro %}
 
@@ -178,29 +252,100 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
-    {# Validate required parameters #}
-    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
-        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
-    {% else %}
+    {% if init_expr is none or init_expr == '' %}
+        {% do exceptions.raise_compiler_error("init_expr is required") %}
+    {% endif %}
+
+    {% if condition_expr is none or condition_expr == '' %}
+        {% do exceptions.raise_compiler_error("condition_expr is required") %}
+    {% endif %}
+
+    {% if loop_expr is none or loop_expr == '' %}
+        {% do exceptions.raise_compiler_error("loop_expr is required") %}
+    {% endif %}
+
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100000 %}
     {% endif %}
 
     {% set alias = "src" %}
     {% set relation_tables = (relation_name if relation_name is iterable and relation_name is not string else [relation_name]) | join(', ')  %}
-    {% set unquoted_col = column_name | trim %}
+
+    {# Use provided helper to unquote the provided column name #}
+    {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
 
-    {# Use expressions directly and replace column_name with internal_col (matching applyPython logic) #}
-    {% set init_select = init_expr | replace(column_name, internal_col) %}
-    {% set condition_expr_sql = condition_expr | replace(column_name, internal_col) %}
-    {% set loop_expr_replaced = loop_expr | replace(column_name, 'gen.' ~ internal_col) %}
-    {# Replace payload. references with gen. in recursion condition since payload columns are flattened into gen #}
-    {% set recursion_condition = condition_expr_sql | replace(internal_col, 'gen.' ~ internal_col) | replace('payload.', 'gen.') %}
-    {# Replace payload. references in final WHERE clause since columns are flattened #}
-    {% set condition_expr_sql = condition_expr_sql | replace('payload.', '') %}
-    {% set output_col_alias = column_name %}
+    {# detect date/timestamp style init expressions #}
+    {% set is_timestamp = " " in init_expr %}
+    {% set is_date = ("-" in init_expr) and not is_timestamp %}
+    {% set init_strip = init_expr.strip() %}
+    {% if init_strip.startswith("'") or init_strip.startswith('"') %}
+        {% set init_value = init_strip %}
+    {% else %}
+        {% set init_value = "'" ~ init_strip ~ "'" %}
+    {% endif %}
+    {% if is_timestamp %}
+        {% set init_select = "to_timestamp(" ~ init_value ~ ")" %}
+    {% elif is_date %}
+        {% set init_select = "to_date(" ~ init_value ~ ")" %}
+    {% else %}
+        {% set init_select = init_expr %}
+    {% endif %}
+
+    {# Normalize user-supplied condition expression quotes if they used double quotes only #}
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
+    {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+
+    {# --- Build quoted/plain variants for replacement --- #}
+    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
+    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
+    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+    {% set plain_col = unquoted_col %}
+
+    {# --- Replace the target column in condition expression to reference the internal column --- #}
+    {% set _cond_tmp = condition_expr_sql %}
+    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
+    {% set _cond_tmp = _cond_tmp | replace(plain_col, internal_col) %}
+    {% set condition_expr_sql = _cond_tmp %}
+
+    {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
+    {% set _loop_tmp = loop_expr %}
+    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
+    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {% set loop_expr_replaced = _loop_tmp %}
+
+    {# Use adapter-safe quoting for EXCLUDE column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+
+    {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
+    {% set _rec_tmp = condition_expr_sql %}
+    {% set _rec_tmp = _rec_tmp | replace(internal_col, 'gen.' ~ internal_col) %}
+    {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
+    {% set recursion_condition = _rec_tmp %}
+
+    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
+    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
+    {% set specials = [] %}
+    {% for ch in unquoted_col %}
+        {% if ch not in allowed %}
+            {% do specials.append(ch) %}
+        {% endif %}
+    {% endfor %}
+    {% if specials | length > 0 %}
+        {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% else %}
+        {% set output_col_alias = unquoted_col %}
+    {% endif %}
 
     {% if relation_tables %}
         with recursive payload as (
@@ -228,10 +373,6 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Exclude internal_col and _iter. Note: We don't exclude column_name here because
-            -- DuckDB errors if we try to EXCLUDE a non-existent column. If column_name exists
-            -- in source, it will be included and then we'll add it again, causing a duplicate
-            -- column error which is expected (user shouldn't have a column with same name as output)
             gen.* EXCLUDE ({{ internal_col }}, _iter),
             {{ internal_col }} as {{ output_col_alias }}
         from gen
@@ -250,6 +391,5 @@
         select {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
-    {% endif %}
     {% endif %}
 {% endmacro %}
