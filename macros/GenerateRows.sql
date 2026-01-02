@@ -53,8 +53,8 @@
     {# Check if column exists in source schema #}
     {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 
-    {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
-    {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
+    {# Detect if init_expr is a simple date or timestamp string literal and cast it if needed #}
+    {% set init_select = prophecy_basics.cast_timestamp_if_needed(init_expr) %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}
@@ -256,8 +256,8 @@
     {# Check if column exists in source schema #}
     {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 
-    {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
-    {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
+    {# Detect if init_expr is a simple date or timestamp string literal and cast it if needed #}
+    {% set init_select = prophecy_basics.cast_timestamp_if_needed(init_expr) %}
 
     {# Normalize user-supplied condition expression quotes if they used double quotes only #}
     {% if '"' in condition_expr and "'" not in condition_expr %}

@@ -314,14 +314,7 @@
     {% set is_timestamp_string = false %}
     {% set timestamp_str_to_cast = expr %}
     
-    {# First check if it's a date-only pattern - use cast_date_if_needed for that #}
-    {% set date_result = prophecy_basics.cast_date_if_needed(expr) %}
-    {% if date_result != expr %}
-        {# It was a date, return the date cast result #}
-        {{ return(date_result) }}
-    {% endif %}
-    
-    {# Check if it matches timestamp pattern (YYYY-MM-DD HH:MM:SS) #}
+    {# First check if it matches timestamp pattern (YYYY-MM-DD HH:MM:SS) #}
     {% set looks_like_timestamp = false %}
     {% if expr_trimmed.startswith("'") and expr_trimmed.endswith("'") %}
         {% set timestamp_str = expr_trimmed[1:-1] %}
@@ -360,6 +353,8 @@
     {% if is_timestamp_string %}
         {{ return('CAST(' ~ timestamp_str_to_cast ~ ' AS TIMESTAMP)') }}
     {% else %}
-        {{ return(expr) }}
+        {# If not a timestamp, check if it's a date-only pattern #}
+        {% set date_result = prophecy_basics.cast_date_if_needed(expr) %}
+        {{ return(date_result) }}
     {% endif %}
 {% endmacro %}
