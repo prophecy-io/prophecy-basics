@@ -92,7 +92,29 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {# Replace patterns with spaces/brackets to avoid replacing substrings like YMD in YMD2 #}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ '.', '.' ~ 'gen.' ~ internal_col ~ '.') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ')', '.' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ',', '.' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ' ', '.' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ')', '(' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ',', '(' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ' ', ' ' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ')', ',' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {# Handle start/end of string #}
+    {% if _loop_tmp == plain_col %}
+        {% set _loop_tmp = 'gen.' ~ internal_col %}
+    {% elif _loop_tmp.startswith(plain_col ~ '.') or _loop_tmp.startswith(plain_col ~ ')') or _loop_tmp.startswith(plain_col ~ ',') or _loop_tmp.startswith(plain_col ~ ' ') %}
+        {% set _loop_tmp = 'gen.' ~ internal_col ~ _loop_tmp[plain_col | length:] %}
+    {% endif %}
+    {% if _loop_tmp.endswith('.' ~ plain_col) or _loop_tmp.endswith('(' ~ plain_col) or _loop_tmp.endswith(',' ~ plain_col) or _loop_tmp.endswith(' ' ~ plain_col) %}
+        {% set _loop_tmp = _loop_tmp[:_loop_tmp | length - plain_col | length] ~ 'gen.' ~ internal_col %}
+    {% endif %}
     {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
@@ -321,7 +343,29 @@
     {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
     {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(plain_col, 'gen.' ~ internal_col) %}
+    {# Replace patterns with spaces/brackets to avoid replacing substrings like YMD in YMD2 #}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ '.', '.' ~ 'gen.' ~ internal_col ~ '.') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ')', '.' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ',', '.' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace('.' ~ plain_col ~ ' ', '.' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ')', '(' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ',', '(' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace('(' ~ plain_col ~ ' ', '(' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ')', ' ' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ',', ' ' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace(' ' ~ plain_col ~ ' ', ' ' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ')', ',' ~ 'gen.' ~ internal_col ~ ')') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ',', ',' ~ 'gen.' ~ internal_col ~ ',') %}
+    {% set _loop_tmp = _loop_tmp | replace(',' ~ plain_col ~ ' ', ',' ~ 'gen.' ~ internal_col ~ ' ') %}
+    {# Handle start/end of string #}
+    {% if _loop_tmp == plain_col %}
+        {% set _loop_tmp = 'gen.' ~ internal_col %}
+    {% elif _loop_tmp.startswith(plain_col ~ '.') or _loop_tmp.startswith(plain_col ~ ')') or _loop_tmp.startswith(plain_col ~ ',') or _loop_tmp.startswith(plain_col ~ ' ') %}
+        {% set _loop_tmp = 'gen.' ~ internal_col ~ _loop_tmp[plain_col | length:] %}
+    {% endif %}
+    {% if _loop_tmp.endswith('.' ~ plain_col) or _loop_tmp.endswith('(' ~ plain_col) or _loop_tmp.endswith(',' ~ plain_col) or _loop_tmp.endswith(' ' ~ plain_col) %}
+        {% set _loop_tmp = _loop_tmp[:_loop_tmp | length - plain_col | length] ~ 'gen.' ~ internal_col %}
+    {% endif %}
     {% set loop_expr_replaced = _loop_tmp %}
 
     {# Use adapter-safe quoting for EXCLUDE column #}
