@@ -255,7 +255,7 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
-            schema=parametersMap.get("schema", ""),
+            schema=p.get("schema", "").lstrip("'").rstrip("'") if p.get("schema", "") else "",
             init_expr=p.get('init_expr').lstrip("'").rstrip("'"),
             condition_expr=p.get('condition_expr').lstrip("'").rstrip("'"),
             loop_expr=p.get('loop_expr').lstrip("'").rstrip("'"),
