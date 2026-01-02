@@ -1,4 +1,5 @@
 {% macro GenerateRows(relation_name,
+    schema,
     init_expr,
     condition_expr,
     loop_expr,
@@ -6,6 +7,7 @@
     max_rows,
     force_mode) -%}
     {{ return(adapter.dispatch('GenerateRows', 'prophecy_basics')(relation_name,
+    schema,
     init_expr,
     condition_expr,
     loop_expr,
@@ -16,6 +18,7 @@
 
 {% macro default__GenerateRows(
     relation_name=None,
+    schema='[]',
     init_expr='1',
     condition_expr='value <= 10',
     loop_expr='value + 1',
@@ -46,6 +49,9 @@
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
+    
+    {# Check if column exists in source schema #}
+    {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 
     {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
     {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
@@ -63,8 +69,8 @@
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
     {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
 
-    {# Use adapter-safe quoting for EXCEPT column #}
-    {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
+    {# Use unquoted column name for EXCEPT - Spark SQL EXCEPT works with unquoted identifiers #}
+    {% set except_col = unquoted_col %}
 
     {# --- Build recursion_condition: same condition but referencing the previous iteration (gen.__gen_col) --- #}
     {% set _rec_tmp = condition_expr_sql %}
@@ -87,18 +93,13 @@
     {% endif %}
 
     {% if relation_tables %}
-        with recursive src_filtered as (
-            -- Exclude the original column if it has the same name as the generated column
-            select {{ alias }}.* EXCEPT ({{ except_col }})
-            from {{ relation_tables }} {{ alias }}
-        ),
-        gen as (
+        with recursive gen as (
             -- base case: one row per input record
             select
-                struct(src_filtered.*) as payload,
+                struct({{ alias }}.*) as payload,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
-            from src_filtered
+            from {{ relation_tables }} {{ alias }}
 
             union all
 
@@ -112,8 +113,12 @@
               and ({{ recursion_condition }})
         )
         select
-            -- Exclude the original column from payload if it has the same name as the generated column
+            -- Exclude the original column from payload only if it exists in the source schema
+            {% if column_exists_in_schema %}
             payload.* EXCEPT ({{ except_col }}),
+            {% else %}
+            payload.*,
+            {% endif %}
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}
@@ -136,6 +141,7 @@
 
 {% macro bigquery__GenerateRows(
     relation_name=None,
+    schema='[]',
     init_expr='1',
     condition_expr='value <= 10',
     loop_expr='value + 1',
@@ -215,6 +221,7 @@
 
 {% macro duckdb__GenerateRows(
     relation_name=None,
+    schema='[]',
     init_expr='1',
     condition_expr='value <= 10',
     loop_expr='value + 1',
@@ -245,6 +252,9 @@
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
+    
+    {# Check if column exists in source schema #}
+    {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 
     {# Detect if init_expr is a simple date string literal and cast it to DATE if needed #}
     {% set init_select = prophecy_basics.cast_date_if_needed(init_expr) %}
@@ -293,8 +303,9 @@
         ),
         gen as (
             -- base case: one row per input record
+            -- Don't exclude the column here - it needs to be available in the recursive loop
             select
-                payload.* EXCLUDE ({{ except_col | trim }}),
+                payload.*,
                 {{ init_select }} as {{ internal_col }},
                 1 as _iter
             from payload
@@ -311,7 +322,12 @@
               and ({{ recursion_condition }})
         )
         select
+            -- Exclude internal column, iteration counter, and original column from payload (only if it exists in schema)
+            {% if column_exists_in_schema %}
+            gen.* EXCLUDE ({{ internal_col }}, _iter, {{ unquoted_col }}),
+            {% else %}
             gen.* EXCLUDE ({{ internal_col }}, _iter),
+            {% endif %}
             {{ internal_col }} as {{ output_col_alias }}
         from gen
         where {{ condition_expr_sql }}

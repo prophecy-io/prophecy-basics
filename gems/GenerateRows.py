@@ -24,6 +24,7 @@ class GenerateRows(MacroSpec):
     @dataclass(frozen=True)
     class GenerateRowsProperties(MacroProperties):
         relation_name: List[str] = field(default_factory=list)
+        schema: str = ""
         init_expr: Optional[str] = None
         condition_expr: Optional[str] = None
         loop_expr: Optional[str] = None
@@ -181,10 +182,16 @@ class GenerateRows(MacroSpec):
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
             newState.properties,
+            schema=json.dumps(fields_array),
             relation_name=relation_name
         )
         return newState.bindProperties(newProperties)
@@ -218,6 +225,7 @@ class GenerateRows(MacroSpec):
         
         arguments = [
             str(props.relation_name),
+            safe_str(props.schema),
             "'" + str(props.init_expr) + "'",
             "'" + str(props.condition_expr) + "'",
             "'" + str(props.loop_expr) + "'",
@@ -247,6 +255,7 @@ class GenerateRows(MacroSpec):
 
         return GenerateRows.GenerateRowsProperties(
             relation_name=relation_name_list,  # <-- now always a list
+            schema=parametersMap.get("schema", ""),
             init_expr=p.get('init_expr').lstrip("'").rstrip("'"),
             condition_expr=p.get('condition_expr').lstrip("'").rstrip("'"),
             loop_expr=p.get('loop_expr').lstrip("'").rstrip("'"),
@@ -262,6 +271,7 @@ class GenerateRows(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("schema", str(properties.schema)),
                 MacroParameter("init_expr", properties.init_expr),
                 MacroParameter("condition_expr", properties.condition_expr),
                 MacroParameter("loop_expr", properties.loop_expr),
@@ -272,10 +282,16 @@ class GenerateRows(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
+            schema=json.dumps(fields_array),
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
