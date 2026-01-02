@@ -132,38 +132,69 @@
 
 {# Helper: Replace column name only when its a complete identifier (not a substring) #}
 {% macro replace_column_safe(text, plain_col, replacement) %}
+    {% if text is none or text == '' %}
+        {{ return(text) }}
+    {% endif %}
+    {% if plain_col is none or plain_col == '' %}
+        {{ return(text) }}
+    {% endif %}
     {% set word_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set suffixes = [' ', '(', '.', ')', ',', '+', '-', '*', '/', '%', '=', '<', '>', '|', '&'] %}
     {% set col_len = plain_col | length %}
     {% set text_len = text | length %}
-    {% set result = '' %}
-    {% set i = 0 %}
+    
+    {# Step 1: Find all positions where column name appears in original text #}
+    {# Use namespace to maintain state across loop iterations (Jinja2 limitation) #}
+    {% set ns = namespace(positions=[], search_pos=0) %}
     {% for _ in range(0, text_len) %}
-        {% if i >= text_len %}
+        {% if ns.search_pos >= text_len %}
             {% break %}
         {% endif %}
-        {% set remaining = text[i:] %}
-        {% set pos = remaining.find(plain_col) %}
-        {% if pos >= 0 %}
-            {% set actual_pos = i + pos %}
-            {% set before_pos = actual_pos - 1 %}
-            {% set after_pos = actual_pos + col_len %}
-            {% set before_char = '' if before_pos < 0 else text[before_pos] %}
-            {% set after_char = '' if after_pos >= text_len else text[after_pos] %}
-            {% set valid_before = before_pos < 0 or before_char not in word_chars %}
-            {% set valid_after = after_pos >= text_len or after_char in suffixes or after_char not in word_chars %}
-            {% if valid_before and valid_after %}
-                {% set result = result ~ text[i:actual_pos] ~ replacement %}
-                {% set i = after_pos %}
-            {% else %}
-                {% set result = result ~ text[i:actual_pos + 1] %}
-                {% set i = actual_pos + 1 %}
-            {% endif %}
+        {% set remaining = text[ns.search_pos:] %}
+        {% set found_pos = remaining.find(plain_col) %}
+        {% if found_pos >= 0 %}
+            {% set actual_pos = ns.search_pos + found_pos %}
+            {% do ns.positions.append(actual_pos) %}
+            {# Advance past the match to avoid finding it again #}
+            {% set ns.search_pos = actual_pos + col_len %}
         {% else %}
-            {% set result = result ~ text[i:] %}
-            {% set i = text_len %}
+            {% break %}
         {% endif %}
     {% endfor %}
+    {% set positions = ns.positions %}
+    
+    {# Step 2: Process each position and build result #}
+    {% set result_parts = [] %}
+    {% set ns2 = namespace(last_pos=0) %}
+    {% for match_pos in positions %}
+        {% set before_pos = match_pos - 1 %}
+        {% set after_pos = match_pos + col_len %}
+        {% set before_char = '' if before_pos < 0 else text[before_pos] %}
+        {% set after_char = '' if after_pos >= text_len else text[after_pos] %}
+        {# If before_char is '.', it's a qualified column (e.g., payload.YMD) - don't replace #}
+        {% set valid_before = match_pos == 0 or (before_char != '.' and before_char not in word_chars) %}
+        {% set valid_after = after_pos >= text_len or after_char in suffixes or after_char not in word_chars %}
+        
+        {# Add text before this match #}
+        {% do result_parts.append(text[ns2.last_pos:match_pos]) %}
+        
+        {# Replace if valid, otherwise keep original #}
+        {% if valid_before and valid_after %}
+            {% do result_parts.append(replacement) %}
+        {% else %}
+            {% do result_parts.append(plain_col) %}
+        {% endif %}
+        
+        {% set ns2.last_pos = after_pos %}
+    {% endfor %}
+    
+    {# Add remaining text after last match #}
+    {% do result_parts.append(text[ns2.last_pos:]) %}
+    
+    {% set result = result_parts | join('') %}
+    {% if result == '' %}
+        {% set result = text %}
+    {% endif %}
     {{ return(result) }}
 {% endmacro %}
 
@@ -175,14 +206,13 @@
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
     
-    {% set result = text %}
-    {# Replace quoted variants first #}
+    {# Replace plain column name first (on original text) to avoid matching in replacements #}
+    {% set result = prophecy_basics.replace_column_safe(text, plain_col, replacement) %}
+    {# Then replace quoted variants (these shouldn't conflict since they're already quoted) #}
     {% set result = result | replace(q_by_adapter, replacement) %}
     {% set result = result | replace(backtick_col, replacement) %}
     {% set result = result | replace(doubleq_col, replacement) %}
     {% set result = result | replace(singleq_col, replacement) %}
-    {# Replace plain column name (word-boundary aware) #}
-    {% set result = prophecy_basics.replace_column_safe(result, plain_col, replacement) %}
     {# Restore payload references if requested #}
     {% if preserve_payload %}
         {% set result = result | replace('payload.' ~ replacement, 'payload.' ~ plain_col) %}
