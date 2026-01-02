@@ -130,12 +130,62 @@
     {%- endif -%}
 {% endmacro %}
 
-{# Helper: Replace column name only when followed by space, operators, or punctuation (not a substring) #}
+{# Helper: Replace column name only when it's a complete identifier (not a substring) #}
 {% macro replace_column_safe(text, plain_col, replacement) %}
-    {% set result = text %}
+    {% set word_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
     {% set suffixes = [' ', '(', '.', ')', ',', '+', '-', '*', '/', '%', '=', '<', '>', '|', '&'] %}
-    {% for suffix in suffixes %}
-        {% set result = result | replace(plain_col ~ suffix, replacement ~ suffix) %}
+    {% set col_len = plain_col | length %}
+    {% set text_len = text | length %}
+    {% set result_parts = [] %}
+    {% set i = 0 %}
+    {% for _ in range(0, text_len) %}
+        {% if i >= text_len %}
+            {% break %}
+        {% endif %}
+        {% set remaining = text[i:] %}
+        {% set pos = remaining.find(plain_col) %}
+        {% if pos >= 0 %}
+            {% set actual_pos = i + pos %}
+            {% set before_pos = actual_pos - 1 %}
+            {% set after_pos = actual_pos + col_len %}
+            {% set before_char = '' if before_pos < 0 else text[before_pos] %}
+            {% set after_char = '' if after_pos >= text_len else text[after_pos] %}
+            {% set valid_before = before_pos < 0 or before_char not in word_chars %}
+            {% set valid_after = after_pos >= text_len or after_char in suffixes or after_char not in word_chars %}
+            {% if valid_before and valid_after %}
+                {% do result_parts.append(text[i:actual_pos] ~ replacement) %}
+                {% set i = after_pos %}
+            {% else %}
+                {% do result_parts.append(text[i:actual_pos + 1]) %}
+                {% set i = actual_pos + 1 %}
+            {% endif %}
+        {% else %}
+            {% do result_parts.append(text[i:]) %}
+            {% set i = text_len %}
+        {% endif %}
     {% endfor %}
+    {{ return(result_parts | join('')) }}
+{% endmacro %}
+
+{# Helper: Replace all variants of a column name (quoted and unquoted) with replacement, preserving payload references #}
+{% macro replace_column_in_expression(text, unquoted_col, replacement, preserve_payload=true) %}
+    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
+    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
+    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
+    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
+    {% set plain_col = unquoted_col %}
+    
+    {% set result = text %}
+    {# Replace quoted variants first #}
+    {% set result = result | replace(q_by_adapter, replacement) %}
+    {% set result = result | replace(backtick_col, replacement) %}
+    {% set result = result | replace(doubleq_col, replacement) %}
+    {% set result = result | replace(singleq_col, replacement) %}
+    {# Replace plain column name (word-boundary aware) #}
+    {% set result = prophecy_basics.replace_column_safe(result, plain_col, replacement) %}
+    {# Restore payload references if requested #}
+    {% if preserve_payload %}
+        {% set result = result | replace('payload.' ~ replacement, 'payload.' ~ plain_col) %}
+    {% endif %}
     {{ return(result) }}
 {% endmacro %}

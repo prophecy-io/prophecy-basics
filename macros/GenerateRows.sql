@@ -57,32 +57,11 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
-    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
-    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
-    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
-    {% set plain_col = unquoted_col %}
-
     {# --- Replace the target column in condition expression to reference the internal column --- #}
-    {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = prophecy_basics.replace_column_safe(_cond_tmp, plain_col, internal_col) %}
-    {# Restore payload.YMD - payload references should not be replaced #}
-    {% set _cond_tmp = _cond_tmp | replace('payload.' ~ internal_col, 'payload.' ~ plain_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
+    {% set condition_expr_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, internal_col, preserve_payload=true) %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = prophecy_basics.replace_column_safe(_loop_tmp, plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
+    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
 
     {# Use adapter-safe quoting for EXCEPT column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
@@ -276,32 +255,11 @@
         {% set condition_expr_sql = condition_expr %}
     {% endif %}
 
-    {# --- Build quoted/plain variants for replacement --- #}
-    {% set q_by_adapter = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set backtick_col = "`" ~ unquoted_col ~ "`" %}
-    {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
-    {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
-    {% set plain_col = unquoted_col %}
-
     {# --- Replace the target column in condition expression to reference the internal column --- #}
-    {% set _cond_tmp = condition_expr_sql %}
-    {% set _cond_tmp = _cond_tmp | replace(q_by_adapter, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(backtick_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(doubleq_col, internal_col) %}
-    {% set _cond_tmp = _cond_tmp | replace(singleq_col, internal_col) %}
-    {% set _cond_tmp = prophecy_basics.replace_column_safe(_cond_tmp, plain_col, internal_col) %}
-    {# Restore payload.YMD - payload references should not be replaced #}
-    {% set _cond_tmp = _cond_tmp | replace('payload.' ~ internal_col, 'payload.' ~ plain_col) %}
-    {% set condition_expr_sql = _cond_tmp %}
+    {% set condition_expr_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, internal_col, preserve_payload=true) %}
 
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
-    {% set _loop_tmp = loop_expr %}
-    {% set _loop_tmp = _loop_tmp | replace(q_by_adapter, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(backtick_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(doubleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = _loop_tmp | replace(singleq_col, 'gen.' ~ internal_col) %}
-    {% set _loop_tmp = prophecy_basics.replace_column_safe(_loop_tmp, plain_col, 'gen.' ~ internal_col) %}
-    {% set loop_expr_replaced = _loop_tmp %}
+    {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ internal_col, preserve_payload=false) %}
 
     {# Use adapter-safe quoting for EXCLUDE column #}
     {% set except_col = prophecy_basics.safe_identifier(unquoted_col) %}
