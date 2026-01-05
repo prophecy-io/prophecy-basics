@@ -1,6 +1,6 @@
 name: prophecy_basics
 description: ''
-version: 1.0.6.dev0
+version: 1.0.6
 author: abhisheks+e2etests@prophecy.io
 language: sql
 buildSystem: ''
