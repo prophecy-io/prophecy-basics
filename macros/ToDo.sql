@@ -18,3 +18,11 @@
     ) AS dummy
     WHERE error('ToDo: {{ diag_message }}') IS NULL
 {% endmacro %}
+
+{% macro bigquery__ToDo(diag_message) %}
+    SELECT *
+    FROM (
+        SELECT CAST(1 AS STRING) AS error_message
+    ) AS dummy
+    WHERE ERROR(CONCAT('ToDo: ', '{{ diag_message }}')) IS NULL
+{% endmacro %}
