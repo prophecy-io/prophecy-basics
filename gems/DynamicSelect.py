@@ -4,7 +4,7 @@ import json
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import expr, lit
+from pyspark.sql.functions import expr, lit, col
 
 
 class DynamicSelect(MacroSpec):
@@ -18,6 +18,7 @@ class DynamicSelect(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = True
 
     @dataclass(frozen=True)
     class DynamicSelectProperties(MacroProperties):
@@ -372,7 +373,11 @@ class DynamicSelect(MacroSpec):
             res = in0.select(*desired_cols)
 
         else:
-            columns_df: SubstituteDisabled = spark.createDataFrame([(x[0], x[1], i) for i, x in enumerate(in0.dtypes)], ["column_name", "data_type", "column_index"])
+            schema_fields = json.loads(self.props.schema)
+            columns_df: SubstituteDisabled = spark.createDataFrame(
+                [(field["name"], field["dataType"], i) for i, field in enumerate(schema_fields)], 
+                ["column_name", "column_type", "field_number"]
+            )
 
             column_output_df: SubstituteDisabled = columns_df.withColumn("value", expr(self.props.customExpression)).filter(col("value") == lit(True))
             desired_cols: SubstituteDisabled = [ x[0] for x in column_output_df.collect()]

@@ -19,6 +19,7 @@ class UnionByName(MacroSpec):
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = True
 
     @dataclass(frozen=True)
     class UnionByNameProperties(MacroProperties):

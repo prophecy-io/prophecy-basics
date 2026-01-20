@@ -19,7 +19,7 @@ class GenerateRows(MacroSpec):
         # ProviderTypeEnum.BigQuery, # Removed because it was not working due to the recursive nature of the macro
         ProviderTypeEnum.ProphecyManaged
     ]
-
+    dependsOnUpstreamSchema: bool = False
 
     @dataclass(frozen=True)
     class GenerateRowsProperties(MacroProperties):

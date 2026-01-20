@@ -33,6 +33,7 @@ class Regex(MacroSpec):
         ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
         ProviderTypeEnum.ProphecyManaged
     ]
+    dependsOnUpstreamSchema: bool = True
 
     @dataclass(frozen=True)
     class RegexProperties(MacroProperties):

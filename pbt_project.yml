@@ -1,6 +1,6 @@
 name: prophecy_basics
 description: ''
-version: 1.0.4
+version: 1.0.7.dev2
 author: abhisheks+e2etests@prophecy.io
 language: sql
 buildSystem: ''
@@ -255,6 +255,17 @@ sqlMacros:
       - .prophecy/ide/macros/TableOperations.json
       - macros/macros.yml
       - gems/TableOperations.py
+    createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/Sample:
+    name: Sample
+    macroType: expression
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/Sample.sql
+      - .prophecy/ide/macros/Sample.json
+      - macros/macros.yml
+      - gems/Sample.py
     createdAt: '2025-10-13 04:59:45'
 sqlSeeds: {}
 sqlSources: {}
