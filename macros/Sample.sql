@@ -148,3 +148,194 @@
 {%- endif -%}
 
 {%- endmacro -%}
+
+{%- macro bigquery__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+
+{%- set seed_value = randomSeed | default(42) -%}
+{%- set sample_size = numberN | default(100) -%}
+
+{%- if currentModeSelection == 'firstN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where rn <= {{ sample_size }}
+    {%- else -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (order by 1) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where rn <= {{ sample_size }}
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'lastN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn, group_rows, total_rows)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
+                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                count(*) over () as total_rows
+            from {{ relation_name }}
+        ) numbered_data
+        where rn > greatest(0, group_rows - {{ sample_size }})
+        order by rn
+    {%- else -%}
+        select * except (rn, total_rows)
+        from (
+            select *,
+                row_number() over (order by 1) as rn,
+                count(*) over () as total_rows
+            from {{ relation_name }}
+        ) numbered_data
+        where rn > greatest(0, total_rows - {{ sample_size }})
+        order by rn
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'skipN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where rn > {{ sample_size }}
+    {%- else -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (order by 1) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where rn > {{ sample_size }}
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'oneOfN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where MOD(rn - 1, greatest(1, {{ sample_size }})) = 0
+    {%- else -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (order by 1) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where MOD(rn - 1, greatest(1, {{ sample_size }})) = 0
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'oneInN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where MOD(rn, greatest(1, {{ sample_size }})) = 0
+    {%- else -%}
+        select * except (rn)
+        from (
+            select *,
+                row_number() over (order by 1) as rn
+            from {{ relation_name }}
+        ) numbered_data
+        where MOD(rn, greatest(1, {{ sample_size }})) = 0
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'randomN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * except (rn, random_rn, group_rows, total_rows)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                count(*) over () as total_rows
+            from {{ relation_name }} as t
+        ) numbered_data
+        where random_rn <= least({{ sample_size }}, group_rows)
+    {%- else -%}
+        select * except (rn, random_rn, total_rows)
+        from (
+            select *,
+                row_number() over (order by 1) as rn,
+                row_number() over (order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over () as total_rows
+            from {{ relation_name }} as t
+        ) numbered_data
+        where random_rn <= least({{ sample_size }}, total_rows)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'nPercent' -%}
+    {% set percent_val = sample_size | default(10) %}
+    {% if percent_val > 100 %}
+        {% set percent_val = 100 %}
+    {% endif %}
+
+    {%- if groupCols | length > 0 -%}
+        select * except (rn, group_rows, total_rows)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
+                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                count(*) over () as total_rows
+            from {{ relation_name }}
+        ) numbered_data
+        where rn <= ceiling(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        select * except (rn, total_rows)
+        from (
+            select *,
+                row_number() over (order by 1) as rn,
+                count(*) over () as total_rows
+            from {{ relation_name }}
+        ) numbered_data
+        where rn <= ceiling(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'randomNPercent' -%}
+    {%- set percent_val = sample_size | default(10) -%}
+    {%- if percent_val > 100 -%}
+        {%- set percent_val = 100 -%}
+    {%- endif -%}
+
+    {%- if groupCols | length > 0 -%}
+        select * except (rn, random_rn, group_rows, total_rows)
+        from (
+            select *,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
+                row_number() over (partition by {{ groupCols | join(', ') }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                count(*) over () as total_rows
+            from {{ relation_name }} as t
+        ) numbered_data
+        where random_rn <= ceiling(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        select * except (rn, random_rn, total_rows)
+        from (
+            select *,
+                row_number() over (order by 1) as rn,
+                row_number() over (order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over () as total_rows
+            from {{ relation_name }} as t
+        ) numbered_data
+        where random_rn <= ceiling(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- else -%}
+    select 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' as error_message
+{%- endif -%}
+
+{%- endmacro -%}
