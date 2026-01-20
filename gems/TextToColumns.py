@@ -361,8 +361,11 @@ class TextToColumns(MacroSpec):
         original_delimiter = delimiter
         import re
         special_regex_chars = r'\.^$*+?{}[]|()'
-        split_delimiter: SubstituteDisabled = delimiter if delimiter in ["\t", "\n", "\r"] else re.escape(
-            delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
+        if delimiter in ["\t", "\n", "\r"]:
+            split_delimiter = delimiter
+        else:
+            split_delimiter: SubstituteDisabled = re.escape(delimiter) if any(c in special_regex_chars for c in delimiter) else delimiter
+
         placeholder = "%%DELIM%%"
         tmp_arr_col = "__split_arr_tmp__"
         tmp_size_col = "__split_arr_size_tmp__"
