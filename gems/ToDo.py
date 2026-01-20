@@ -13,7 +13,7 @@ class ToDo(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
