@@ -1,4 +1,4 @@
-{% test assert_expression(model, expression) %}
+{% test assert_expression(model, expression, column_name=None) %}
   {{ return(adapter.dispatch('test_assert_expression', 'prophecy_basics')(model, expression)) }}
 {% endtest %}
 
