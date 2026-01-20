@@ -106,7 +106,11 @@
 {% endmacro %}
 
 {% macro duckdb__escape_regex_pattern(pattern, escape_backslashes=false) %}
-    {# Regex patterns use the same escaping as SQL strings #}
-    {{ return(prophecy_basics.escape_sql_string(pattern, escape_backslashes)) }}
+    {# 
+    Escapes regex patterns for DuckDB.
+    DuckDB does NOT require backslash escaping in regex patterns, so we always use false.
+    The escape_backslashes parameter is ignored for DuckDB - backslashes are never escaped.
+    #}
+    {{ return(prophecy_basics.escape_sql_string(pattern, false)) }}
 {% endmacro %}
 
