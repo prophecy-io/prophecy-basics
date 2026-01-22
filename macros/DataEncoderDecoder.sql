@@ -200,6 +200,7 @@
         {% endfor %}
     {%- endif -%}
     {%- set select_clause_sql = withColumn_clause | join(', ') -%}
+    {%- set quoted_remaining_columns_sql = prophecy_basics.quote_column_list(remaining_columns) -%}
     {%- set select_cte_sql -%}
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
@@ -218,7 +219,7 @@
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ quoted_remaining_columns_sql }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
@@ -306,6 +307,7 @@
     {%- endif -%}
     
     {%- set select_clause_sql = withColumn_clause | join(', ') -%}
+    {%- set quoted_remaining_columns_sql = prophecy_basics.quote_column_list(remaining_columns) -%}
     {%- set select_cte_sql -%}
         {%- if select_clause_sql == "" -%}
             WITH final_cte AS (
@@ -320,7 +322,7 @@
                 )
             {%- else -%}
                 WITH final_cte AS (
-                    SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                    SELECT {{ quoted_remaining_columns_sql }}, {{ select_clause_sql }}
                     FROM {{ relation_list | join(', ') }}
                 )
             {%- endif -%}
@@ -331,7 +333,7 @@
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ quoted_remaining_columns_sql }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}

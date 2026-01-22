@@ -19,6 +19,12 @@ macros:
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
     macroType: "expression"
+  - name: "quote_column_list"
+    arguments:
+      - name: "column_list"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
   - name: "evaluate_expression"
     arguments:
       - name: "expression"
