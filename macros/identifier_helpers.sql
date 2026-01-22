@@ -115,3 +115,54 @@
         {{ quote_char }}{{ identifier }}{{ quote_char }}
     {%- endif -%}
 {% endmacro %}
+
+{% macro quote_column_list(column_list) %}
+    {# Takes a comma-separated string of column names and returns a quoted, comma-separated string #}
+    {{ return(adapter.dispatch('quote_column_list', 'prophecy_basics')(column_list)) }}
+{% endmacro %}
+
+{% macro default__quote_column_list(column_list) %}
+    {%- if column_list == "" or column_list is none -%}
+        {{ return("") }}
+    {%- else -%}
+        {%- set quoted_columns = [] -%}
+        {%- set column_list_split = column_list.split(',') | map('trim') | list -%}
+        {%- for col in column_list_split -%}
+            {%- if col != "" -%}
+                {%- do quoted_columns.append(prophecy_basics.quote_identifier(col)) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {{ return(quoted_columns | join(', ')) }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro duckdb__quote_column_list(column_list) %}
+    {%- if column_list == "" or column_list is none -%}
+        {{ return("") }}
+    {%- else -%}
+        {%- set quoted_columns = [] -%}
+        {%- set column_list_split = column_list.split(',') | map('trim') | list -%}
+        {%- for col in column_list_split -%}
+            {%- if col != "" -%}
+                {%- do quoted_columns.append(prophecy_basics.quote_identifier(col)) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {{ return(quoted_columns | join(', ')) }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro bigquery__quote_column_list(column_list) %}
+    {# BigQuery uses backticks for identifiers, same as default #}
+    {%- if column_list == "" or column_list is none -%}
+        {{ return("") }}
+    {%- else -%}
+        {%- set quoted_columns = [] -%}
+        {%- set column_list_split = column_list.split(',') | map('trim') | list -%}
+        {%- for col in column_list_split -%}
+            {%- if col != "" -%}
+                {%- do quoted_columns.append(prophecy_basics.quote_identifier(col)) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {{ return(quoted_columns | join(', ')) }}
+    {%- endif -%}
+{% endmacro %}
