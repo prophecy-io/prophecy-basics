@@ -13,7 +13,7 @@ class GenerateRows(MacroSpec):
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
 
