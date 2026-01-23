@@ -23,7 +23,6 @@
         {{ return(false) }}
     {% endif %}
 
-    {# Ensure it's a list/array (not a single object or other type) #}
     {% if schema_parsed is not iterable or schema_parsed is string or schema_parsed is number %}
         {{ return(false) }}
     {% endif %}
