@@ -1,6 +1,10 @@
 import dataclasses
 import json
+from typing import List, Optional
 
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+from pyspark.sql.types import StructType, StructField, IntegerType
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
@@ -25,7 +29,7 @@ class GenerateRows(MacroSpec):
         condition_expr: Optional[str] = None
         loop_expr: Optional[str] = None
         column_name: Optional[str] = None
-        max_rows: Optional[str] = None
+        max_rows: Optional[str] = "100"
         force_mode: Optional[str] = "recursive"
 
     def get_relation_names(self, component: Component, context: SqlContext):
@@ -153,7 +157,7 @@ class GenerateRows(MacroSpec):
                     diagnostics.append(
                         Diagnostic(
                             "component.properties.max_rows",
-                            "Max rows must be a positive integer",
+                            "Max rows must be a positive integer, will default to 100",
                             SeverityLevelEnum.Warning
                         )
                     )
@@ -161,7 +165,7 @@ class GenerateRows(MacroSpec):
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.max_rows",
-                        "Max rows must be a valid integer",
+                        "Max rows must be a valid integer, will default to 100",
                         SeverityLevelEnum.Warning
                     )
                 )
@@ -182,7 +186,6 @@ class GenerateRows(MacroSpec):
             relation_name=relation_name
         )
         return newState.bindProperties(newProperties)
-
 
     def apply(self, props: GenerateRowsProperties) -> str:
 
