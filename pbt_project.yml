@@ -25,7 +25,15 @@ functions:
 subgraphs: {}
 sqlModels: {}
 sqlSnapshots: {}
-sqlTests: {}
+sqlTests:
+  .prophecy/metadata/sqltests/assert_expression:
+    name: assert_expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - tests/generic/assert_expression.sql
+    testType: GenericDataTest
+    createdAt: '2026-02-04 06:22:28'
 sqlMacros:
   .prophecy/metadata/sqlmacros/DataCleansing:
     name: DataCleansing
@@ -33,10 +41,10 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/DataCleansing.sql
-      - .prophecy/ide/macros/DataCleansing.json
-      - macros/macros.yml
-      - gems/DataCleansing.py
+    - macros/DataCleansing.sql
+    - .prophecy/ide/macros/DataCleansing.json
+    - macros/macros.yml
+    - gems/DataCleansing.py
     createdAt: '2025-04-10 05:01:34'
   .prophecy/metadata/sqlmacros/DynamicSelect:
     name: DynamicSelect
@@ -44,10 +52,10 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/DynamicSelect.sql
-      - .prophecy/ide/macros/DynamicSelect.json
-      - macros/macros.yml
-      - gems/DynamicSelect.py
+    - macros/DynamicSelect.sql
+    - .prophecy/ide/macros/DynamicSelect.json
+    - macros/macros.yml
+    - gems/DynamicSelect.py
     createdAt: '2025-04-10 05:01:34'
   .prophecy/metadata/sqlmacros/FuzzyMatch:
     name: FuzzyMatch
@@ -55,10 +63,9 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/FuzzyMatch.sql
-      - .prophecy/ide/macros/FuzzyMatch.json
-      - macros/macros.yml
-      - gems/FuzzyMatch.py
+    - macros/FuzzyMatch.sql
+    - .prophecy/ide/macros/FuzzyMatch.json
+    - gems/FuzzyMatch.py
     createdAt: '2025-04-10 05:01:34'
   .prophecy/metadata/sqlmacros/Transpose:
     name: Transpose
@@ -66,10 +73,10 @@ sqlMacros:
     description: null
     author: shashank@prophecy.io
     files:
-      - macros/Transpose.sql
-      - .prophecy/ide/macros/Transpose.json
-      - macros/macros.yml
-      - gems/Transpose.py
+    - macros/Transpose.sql
+    - .prophecy/ide/macros/Transpose.json
+    - macros/macros.yml
+    - gems/Transpose.py
     createdAt: '2025-04-11 05:23:51'
   .prophecy/metadata/sqlmacros/MultiColumnEdit:
     name: MultiColumnEdit
@@ -77,10 +84,10 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/MultiColumnEdit.sql
-      - .prophecy/ide/macros/MultiColumnEdit.json
-      - macros/macros.yml
-      - gems/MultiColumnEdit.py
+    - macros/MultiColumnEdit.sql
+    - .prophecy/ide/macros/MultiColumnEdit.json
+    - macros/macros.yml
+    - gems/MultiColumnEdit.py
     createdAt: '2025-04-10 05:01:34'
   .prophecy/metadata/sqlmacros/MultiColumnRename:
     name: MultiColumnRename
@@ -88,10 +95,10 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/MultiColumnRename.sql
-      - .prophecy/ide/macros/MultiColumnRename.json
-      - macros/macros.yml
-      - gems/MultiColumnRename.py
+    - macros/MultiColumnRename.sql
+    - .prophecy/ide/macros/MultiColumnRename.json
+    - macros/macros.yml
+    - gems/MultiColumnRename.py
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/TextToColumns:
     name: TextToColumns
@@ -99,10 +106,9 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/TextToColumns.sql
-      - .prophecy/ide/macros/TextToColumns.json
-      - macros/macros.yml
-      - gems/TextToColumns.py
+    - macros/TextToColumns.sql
+    - .prophecy/ide/macros/TextToColumns.json
+    - gems/TextToColumns.py
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/UnionByName:
     name: UnionByName
@@ -110,21 +116,21 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/UnionByName.sql
-      - .prophecy/ide/macros/UnionByName.json
-      - macros/macros.yml
-      - gems/UnionByName.py
+    - macros/UnionByName.sql
+    - .prophecy/ide/macros/UnionByName.json
+    - macros/macros.yml
+    - gems/UnionByName.py
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/JSONParse:
     name: JSONParse
-    macroType: query
+    macroType: expression
     description: null
     author: abhinav@prophecy.io
     files:
-      - macros/JSONParse.sql
-      - .prophecy/ide/macros/JSONParse.json
-      - macros/macros.yml
-      - gems/JSONParse.py
+    - macros/JSONParse.sql
+    - .prophecy/ide/macros/JSONParse.json
+    - macros/macros.yml
+    - gems/JSONParse.py
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/XMLParse:
     name: XMLParse
@@ -132,10 +138,10 @@ sqlMacros:
     description: null
     author: abhinav@prophecy.io
     files:
-      - macros/XMLParse.sql
-      - .prophecy/ide/macros/XMLParse.json
-      - macros/macros.yml
-      - gems/XMLParse.py
+    - macros/XMLParse.sql
+    - .prophecy/ide/macros/XMLParse.json
+    - macros/macros.yml
+    - gems/XMLParse.py
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/ToDo:
     name: ToDo
@@ -143,10 +149,10 @@ sqlMacros:
     description: null
     author: abhinav@prophecy.io
     files:
-      - macros/ToDo.sql
-      - .prophecy/ide/macros/ToDo.json
-      - macros/macros.yml
-      - gems/ToDo.py
+    - macros/ToDo.sql
+    - .prophecy/ide/macros/ToDo.json
+    - macros/macros.yml
+    - gems/ToDo.py
     createdAt: '2025-06-09 04:59:45'
   .prophecy/metadata/sqlmacros/CountRecords:
     name: CountRecords
@@ -154,10 +160,10 @@ sqlMacros:
     description: null
     author: g.ayush@prophecy.io
     files:
-      - macros/CountRecords.sql
-      - .prophecy/ide/macros/CountRecords.json
-      - macros/macros.yml
-      - gems/CountRecords.py
+    - macros/CountRecords.sql
+    - .prophecy/ide/macros/CountRecords.json
+    - macros/macros.yml
+    - gems/CountRecords.py
     createdAt: '2025-07-22 04:59:45'
   .prophecy/metadata/sqlmacros/RecordID:
     name: RecordID
@@ -165,10 +171,10 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/RecordID.sql
-      - .prophecy/ide/macros/RecordID.json
-      - macros/macros.yml
-      - gems/RecordID.py
+    - macros/RecordID.sql
+    - .prophecy/ide/macros/RecordID.json
+    - macros/macros.yml
+    - gems/RecordID.py
     createdAt: '2025-07-01 04:59:45'
   .prophecy/metadata/sqlmacros/FindDuplicates:
     name: FindDuplicates
@@ -176,10 +182,10 @@ sqlMacros:
     description: null
     author: g.ayush@prophecy.io
     files:
-      - macros/FindDuplicates.sql
-      - .prophecy/ide/macros/FindDuplicates.json
-      - macros/macros.yml
-      - gems/FindDuplicates.py
+    - macros/FindDuplicates.sql
+    - .prophecy/ide/macros/FindDuplicates.json
+    - macros/macros.yml
+    - gems/FindDuplicates.py
     createdAt: '2025-07-04 04:59:45'
   .prophecy/metadata/sqlmacros/generate_schema_name:
     name: generate_schema_name
@@ -187,9 +193,9 @@ sqlMacros:
     description: null
     author: ayadav@prophecy.io
     files:
-      - macros/generate_schema_name.sql
-      - .prophecy/ide/macros/generate_schema_name.json
-      - macros/macros.yml
+    - macros/generate_schema_name.sql
+    - .prophecy/ide/macros/generate_schema_name.json
+    - macros/macros.yml
     createdAt: '2025-03-28 05:05:21'
   .prophecy/metadata/sqlmacros/evaluate_expression:
     name: evaluate_expression
@@ -197,76 +203,732 @@ sqlMacros:
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/evaluate_expression.sql
-      - .prophecy/ide/macros/evaluate_expression.json
-      - macros/macros.yml
+    - macros/evaluate_expression.sql
+    - .prophecy/ide/macros/evaluate_expression.json
+    - macros/macros.yml
     createdAt: '2024-11-28 04:59:45'
   .prophecy/metadata/sqlmacros/DataMasking:
     name: DataMasking
-    macroType: expression
+    macroType: query
     description: null
     author: g.ayush@prophecy.io
     files:
-      - macros/DataMasking.sql
-      - .prophecy/ide/macros/DataMasking.json
-      - macros/macros.yml
-      - gems/DataMasking.py
+    - macros/DataMasking.sql
+    - .prophecy/ide/macros/DataMasking.json
+    - macros/macros.yml
+    - gems/DataMasking.py
     createdAt: '2025-06-09 04:59:45'
   .prophecy/metadata/sqlmacros/DataEncoderDecoder:
     name: DataEncoderDecoder
-    macroType: expression
+    macroType: query
     description: null
     author: g.ayush@prophecy.io
     files:
-      - macros/DataEncoderDecoder.sql
-      - .prophecy/ide/macros/DataEncoderDecoder.json
-      - macros/macros.yml
-      - gems/DataEncoderDecoder.py
+    - macros/DataEncoderDecoder.sql
+    - .prophecy/ide/macros/DataEncoderDecoder.json
+    - macros/macros.yml
+    - gems/DataEncoderDecoder.py
     createdAt: '2025-06-09 04:59:45'
   .prophecy/metadata/sqlmacros/Regex:
     name: Regex
-    macroType: expression
+    macroType: query
     description: null
     author: nadeesh@prophecy.io
     files:
-      - macros/Regex.sql
-      - .prophecy/ide/macros/Regex.json
-      - macros/macros.yml
-      - gems/Regex.py
+    - macros/Regex.sql
+    - .prophecy/ide/macros/Regex.json
+    - macros/macros.yml
+    - gems/Regex.py
     createdAt: '2025-06-09 04:59:45'
   .prophecy/metadata/sqlmacros/GenerateRows:
     name: GenerateRows
-    macroType: expression
+    macroType: query
     description: null
     author: abhinav@prophecy.io
     files:
-      - macros/GenerateRows.sql
-      - .prophecy/ide/macros/GenerateRows.json
-      - macros/macros.yml
-      - gems/GenerateRows.py
+    - macros/GenerateRows.sql
+    - .prophecy/ide/macros/GenerateRows.json
+    - macros/macros.yml
+    - gems/GenerateRows.py
     createdAt: '2025-10-13 04:59:45'
   .prophecy/metadata/sqlmacros/TableOperations:
     name: TableOperations
-    macroType: expression
+    macroType: query
     description: null
     author: adak.debashis@prophecy.io
     files:
-      - macros/TableOperations.sql
-      - .prophecy/ide/macros/TableOperations.json
-      - macros/macros.yml
-      - gems/TableOperations.py
+    - macros/TableOperations.sql
+    - .prophecy/ide/macros/TableOperations.json
+    - macros/macros.yml
+    - gems/TableOperations.py
     createdAt: '2025-10-13 04:59:45'
   .prophecy/metadata/sqlmacros/Sample:
     name: Sample
-    macroType: expression
+    macroType: query
     description: null
     author: nadeesh@prophecy.io
     files:
-      - macros/Sample.sql
-      - .prophecy/ide/macros/Sample.json
-      - macros/macros.yml
-      - gems/Sample.py
+    - macros/Sample.sql
+    - .prophecy/ide/macros/Sample.json
+    - macros/macros.yml
+    - gems/Sample.py
     createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/SchemaInfo:
+    name: SchemaInfo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/SchemaInfo.sql
+    - .prophecy/ide/macros/SchemaInfo.json
+    - macros/macros.yml
+    - gems/SchemaInfo.py
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__FuzzyMatch:
+    name: bigquery__FuzzyMatch
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/FuzzyMatch.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__GenerateRows:
+    name: bigquery__GenerateRows
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/GenerateRows.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__RecordID:
+    name: bigquery__RecordID
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/RecordID.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__Sample:
+    name: bigquery__Sample
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/Sample.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__SchemaInfo:
+    name: bigquery__SchemaInfo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/SchemaInfo.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__TextToColumns:
+    name: bigquery__TextToColumns
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/TextToColumns.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__ToDo:
+    name: bigquery__ToDo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/ToDo.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__escape_regex_pattern:
+    name: bigquery__escape_regex_pattern
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__escape_sql_string:
+    name: bigquery__escape_sql_string
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/bigquery__quote_column_list:
+    name: bigquery__quote_column_list
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/cast_date_if_needed:
+    name: cast_date_if_needed
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/cast_timestamp_if_needed:
+    name: cast_timestamp_if_needed
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/column_exists_in_schema:
+    name: column_exists_in_schema
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/schema_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/column_names_match:
+    name: column_names_match
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/databricks__column_names_match:
+    name: databricks__column_names_match
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__CountRecords:
+    name: default__CountRecords
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/CountRecords.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__DataCleansing:
+    name: default__DataCleansing
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataCleansing.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__DataEncoderDecoder:
+    name: default__DataEncoderDecoder
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataEncoderDecoder.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__DataMasking:
+    name: default__DataMasking
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataMasking.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__DynamicSelect:
+    name: default__DynamicSelect
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DynamicSelect.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__FindDuplicates:
+    name: default__FindDuplicates
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/FindDuplicates.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__FuzzyMatch:
+    name: default__FuzzyMatch
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/FuzzyMatch.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__GenerateRows:
+    name: default__GenerateRows
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/GenerateRows.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__JSONParse:
+    name: default__JSONParse
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/JSONParse.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__MultiColumnEdit:
+    name: default__MultiColumnEdit
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/MultiColumnEdit.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__MultiColumnRename:
+    name: default__MultiColumnRename
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/MultiColumnRename.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__RecordID:
+    name: default__RecordID
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/RecordID.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__Regex:
+    name: default__Regex
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/Regex.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__Sample:
+    name: default__Sample
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/Sample.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__SchemaInfo:
+    name: default__SchemaInfo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/SchemaInfo.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__TableOperations:
+    name: default__TableOperations
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/TableOperations.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__TextToColumns:
+    name: default__TextToColumns
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/TextToColumns.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__ToDo:
+    name: default__ToDo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/ToDo.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__Transpose:
+    name: default__Transpose
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/Transpose.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__UnionByName:
+    name: default__UnionByName
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/UnionByName.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__XMLParse:
+    name: default__XMLParse
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/XMLParse.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__column_names_match:
+    name: default__column_names_match
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__escape_regex_pattern:
+    name: default__escape_regex_pattern
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__escape_sql_string:
+    name: default__escape_sql_string
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__evaluate_expression:
+    name: default__evaluate_expression
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/evaluate_expression.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__quote_column_list:
+    name: default__quote_column_list
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__quote_identifier:
+    name: default__quote_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__safe_identifier:
+    name: default__safe_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/default__unquote_identifier:
+    name: default__unquote_identifier
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__DataCleansing:
+    name: duckdb__DataCleansing
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataCleansing.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__DataEncoderDecoder:
+    name: duckdb__DataEncoderDecoder
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataEncoderDecoder.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__DataMasking:
+    name: duckdb__DataMasking
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DataMasking.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__DynamicSelect:
+    name: duckdb__DynamicSelect
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/DynamicSelect.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__FindDuplicates:
+    name: duckdb__FindDuplicates
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/FindDuplicates.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__FuzzyMatch:
+    name: duckdb__FuzzyMatch
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/FuzzyMatch.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__GenerateRows:
+    name: duckdb__GenerateRows
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/GenerateRows.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__JSONParse:
+    name: duckdb__JSONParse
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/JSONParse.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__MultiColumnEdit:
+    name: duckdb__MultiColumnEdit
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/MultiColumnEdit.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__MultiColumnRename:
+    name: duckdb__MultiColumnRename
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/MultiColumnRename.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__RecordID:
+    name: duckdb__RecordID
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/RecordID.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__TextToColumns:
+    name: duckdb__TextToColumns
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/TextToColumns.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__ToDo:
+    name: duckdb__ToDo
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/ToDo.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__Transpose:
+    name: duckdb__Transpose
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/Transpose.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__UnionByName:
+    name: duckdb__UnionByName
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/UnionByName.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__XMLParse:
+    name: duckdb__XMLParse
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/XMLParse.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__column_names_match:
+    name: duckdb__column_names_match
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__escape_regex_pattern:
+    name: duckdb__escape_regex_pattern
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__escape_sql_string:
+    name: duckdb__escape_sql_string
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__evaluate_expression:
+    name: duckdb__evaluate_expression
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/evaluate_expression.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__quote_column_list:
+    name: duckdb__quote_column_list
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__quote_identifier:
+    name: duckdb__quote_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__safe_identifier:
+    name: duckdb__safe_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/duckdb__unquote_identifier:
+    name: duckdb__unquote_identifier
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/escape_regex_pattern:
+    name: escape_regex_pattern
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/escape_sql_string:
+    name: escape_sql_string
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/quote_column_list:
+    name: quote_column_list
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    - macros/macros.yml
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/quote_identifier:
+    name: quote_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    - macros/macros.yml
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/replace_column_in_expression:
+    name: replace_column_in_expression
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/replace_column_safe:
+    name: replace_column_safe
+    macroType: query
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/safe_identifier:
+    name: safe_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    - macros/macros.yml
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/snowflake__escape_regex_pattern:
+    name: snowflake__escape_regex_pattern
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/snowflake__escape_sql_string:
+    name: snowflake__escape_sql_string
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/escape_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/spark__column_names_match:
+    name: spark__column_names_match
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/unquote_identifier:
+    name: unquote_identifier
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/identifier_helpers.sql
+    - macros/macros.yml
+    createdAt: '2026-02-04 06:22:28'
+  .prophecy/metadata/sqlmacros/prophecy_tmp_source:
+    name: prophecy_tmp_source
+    macroType: expression
+    description: null
+    author: sony@prophecy.io
+    files:
+    - macros/prophecy_tmp_source.sql
+    - .prophecy/ide/macros/prophecy_tmp_source.json
+    createdAt: '2026-02-04 06:22:47'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
@@ -280,3 +942,27 @@ projectDependencies: {}
 flags:
   shouldAddDefaultDependenciesIfAbsent: true
 pipelineConfigurations: {}
+projectConfigurations: {}
+sqlOrchestratorPipelines:
+  .prophecy/metadata/sqlorchestratorpipeline/test:
+    name: test
+    schema: null
+    description: null
+    author: sony@prophecy.io
+    files:
+    - .prophecy/ide/pipelines/test.json
+    - pipelines/test.py
+    - models/test/schema.yml
+    - models/test/test__DataCleansing_1.sql
+    - models/test/test__xyzart_schema_info.sql
+    createdAt: '2026-02-04 06:22:47'
+sqlBusinessApps:
+  .prophecy/metadata/sqlbusinessapp/test_analysis:
+    name: test_analysis
+    schema: null
+    description: null
+    author: sony@prophecy.io
+    files:
+    - apps/test_analysis.json
+    createdAt: '2026-02-04 06:22:48'
+    sqlOrchestrationPipelineName: test
