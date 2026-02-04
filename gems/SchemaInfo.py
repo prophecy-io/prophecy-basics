@@ -11,7 +11,7 @@ from pyspark.sql.types import StructField, StringType, IntegerType, StructType
 class SchemaInfo(MacroSpec):
     name: str = "SchemaInfo"
     projectName: str = "prophecy_basics"
-    category: str = "Utilities"
+    category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
@@ -27,20 +27,7 @@ class SchemaInfo(MacroSpec):
         schema: str = ""
 
     def dialog(self) -> Dialog:
-        return Dialog("Schema Info").addElement(
-            ColumnsLayout(gap="1rem", height="100%")
-            .addColumn(Ports(), "content")
-            .addColumn(
-                StackLayout(height="100%")
-                .addElement(
-                    StepContainer().addElement(
-                        Step().addElement(
-                            TitleElement("Emits a table describing the incoming schema. No configuration needed.")
-                        )
-                    )
-                )
-            )
-        )
+        return Dialog("Schema Info")
 
     def get_relation_names(self, component: Component, context: SqlContext):
         all_upstream_nodes = []
