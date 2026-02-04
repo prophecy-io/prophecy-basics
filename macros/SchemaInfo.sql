@@ -35,7 +35,11 @@
                 {{ col.get("size", 4) if col.get("size") is not none else 4 }},
                 '{{ prophecy_basics.escape_sql_string(col.get("description", ''), true) }}',
                 '{{ prophecy_basics.escape_sql_string(col.get("source", ''), true) }}',
-                {%- if col.get("scale") is not none -%}{{ col.get("scale") }}{%- else -%}cast(null as int){%- endif -%}
+                {% if col.get("scale") is not none %}
+                    {{ col.get("scale") }}
+                {% else %}
+                    cast(null as int)
+                {% endif %}
             ){% if not loop.last %},{% endif %}
         {%- endfor %}
         as schema_info(Name, Type, Size, Description, Source, Scale)
@@ -74,7 +78,11 @@
                     {{ col.get("size", 4) if col.get("size") is not none else 4 }} as Size,
                     '{{ prophecy_basics.escape_sql_string(col.get("description", ''), true) }}' as Description,
                     '{{ prophecy_basics.escape_sql_string(col.get("source", ''), true) }}' as Source,
-                    {%- if col.get("scale") is not none -%}{{ col.get("scale") }}{%- else -%}cast(null as int64){%- endif -%} as Scale
+                    {% if col.get("scale") is not none %}
+                        {{ col.get("scale") }}
+                    {% else %}
+                        cast(null as int64)
+                    {% endif %} as Scale
                 ){% if not loop.last %}, {% endif %}
             {%- endfor %}
         ]) as schema_info
