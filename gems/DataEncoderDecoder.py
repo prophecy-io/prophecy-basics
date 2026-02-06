@@ -485,7 +485,7 @@ class DataEncoderDecoder(MacroSpec):
             diagnostics.append(
                 Diagnostic(
                     "component.properties.schema",
-                    "Input schema is missing (""). Connect an input dataset.",
+                    "Input schema is missing (). Connect an input dataset.",
                     SeverityLevelEnum.Error,
                 )
             )
@@ -621,12 +621,18 @@ class DataEncoderDecoder(MacroSpec):
     def onChange(
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
-        # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        # Handle changes in the component's state and return the new state (pattern as in other gems; guard schema parse)
+        fields_array = []
+        try:
+            schema_raw = newState.ports.inputs[0].schema
+            if schema_raw:
+                schema = json.loads(str(schema_raw).replace("'", '"'))
+                fields_array = [
+                    {"name": field["name"], "dataType": field["dataType"]["type"]}
+                    for field in schema.get("fields", [])
+                ]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+            pass
         relation_name = self.get_relation_names(newState, context)
 
         old_enc_method, old_enc_mode = (
@@ -657,9 +663,13 @@ class DataEncoderDecoder(MacroSpec):
                 newState.properties.aes_enc_dec_secretKey_aad,
             )
 
+        if fields_array == []:
+            fields_array_str = ""
+        else:
+            fields_array_str = json.dumps(fields_array)
         newProperties = dataclasses.replace(
             newState.properties,
-            schema=json.dumps(fields_array),
+            schema=fields_array_str,
             relation_name=relation_name,
             aes_enc_dec_secretScope_iv=aes_enc_dec_secretScope_iv,
             aes_enc_dec_secretKey_iv=aes_enc_dec_secretKey_iv,
@@ -776,16 +786,26 @@ class DataEncoderDecoder(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        # Match pattern from other gems; guard schema parse so missing/invalid schema does not crash
+        fields_array = []
+        try:
+            schema_raw = component.ports.inputs[0].schema
+            if schema_raw:
+                schema = json.loads(str(schema_raw).replace("'", '"'))
+                fields_array = [
+                    {"name": field["name"], "dataType": field["dataType"]["type"]}
+                    for field in schema.get("fields", [])
+                ]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+            pass
         relation_name = self.get_relation_names(component, context)
-
+        if fields_array == []:
+            fields_array_str = ""
+        else:
+            fields_array_str = json.dumps(fields_array)
         newProperties = dataclasses.replace(
             component.properties,
-            schema=json.dumps(fields_array),
+            schema=fields_array_str
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
