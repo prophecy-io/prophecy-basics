@@ -805,7 +805,7 @@ class DataEncoderDecoder(MacroSpec):
             fields_array_str = json.dumps(fields_array)
         newProperties = dataclasses.replace(
             component.properties,
-            schema=fields_array_str
+            schema=fields_array_str,
             relation_name=relation_name,
         )
         return component.bindProperties(newProperties)
