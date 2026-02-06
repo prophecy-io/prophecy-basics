@@ -485,7 +485,7 @@ class DataEncoderDecoder(MacroSpec):
             diagnostics.append(
                 Diagnostic(
                     "component.properties.schema",
-                    "Input schema is missing or invalid. Connect an input dataset.",
+                    "Input schema is missing (""). Connect an input dataset.",
                     SeverityLevelEnum.Error,
                 )
             )
