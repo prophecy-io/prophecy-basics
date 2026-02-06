@@ -466,9 +466,30 @@ class DataEncoderDecoder(MacroSpec):
         aes_enc_dec_secretScope_iv = component.properties.aes_enc_dec_secretScope_iv
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
-        for js in schema_js:
-            schema_columns.append(js["name"])
+        schema_str = component.properties.schema
+        if schema_str != "":
+            try:
+                schema_js = json.loads(schema_str)
+                for js in schema_js:
+                    schema_columns.append(js["name"])
+            except (json.JSONDecodeError, TypeError, KeyError):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.schema",
+                        "Input schema is missing or invalid. Connect an input dataset.",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+                schema_js = []
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.schema",
+                    "Input schema is missing or invalid. Connect an input dataset.",
+                    SeverityLevelEnum.Error,
+                )
+            )
+            schema_js = []
 
         doing_aes_encryption = None
         if enc_dec_method in ("aes_decrypt", "try_aes_decrypt"):
@@ -484,7 +505,7 @@ class DataEncoderDecoder(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        if len(component.properties.column_names) > 0:
+        if len(component.properties.column_names) > 0 and schema_columns:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
