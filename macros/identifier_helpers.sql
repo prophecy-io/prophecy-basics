@@ -409,3 +409,28 @@
         {{ return(date_result) }}
     {% endif %}
 {% endmacro %}
+
+{# Normalize empty-like values (none, "", "''", '""') to "" so gem-passed empty can be used with quote_column_list #}
+{% macro normalize_empty_string(value) %}
+    {%- if value is none or value == "" or (value is string and value | trim == "") or value == "''" or value == '""' -%}
+        {{ return("") }}
+    {%- else -%}
+        {{ return(value) }}
+    {%- endif -%}
+{% endmacro %}
+
+{# For REGEXP_REPLACE replacement: NULL/none → '' (remove); else → 'value' with single quotes escaped. Gem may pass NULL or 'NULL' (quoted). #}
+{% macro mask_replacement_sql(substitute) %}
+    {%- if substitute is none -%}
+        {{ return("''") }}
+    {%- endif -%}
+    {%- if substitute == "NULL" -%}
+        {{ return("''") }}
+    {%- endif -%}
+    {%- set normalized = (substitute | default("") | trim | replace("'", "")) -%}
+    {%- if normalized == "" or normalized | upper == "NULL" -%}
+        {{ return("''") }}
+    {%- else -%}
+        {{ return("'" ~ (substitute | replace("'", "\\'")) ~ "'") }}
+    {%- endif -%}
+{% endmacro %}

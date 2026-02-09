@@ -276,9 +276,30 @@ class DataMasking(MacroSpec):
         diagnostics = super(DataMasking, self).validate(context, component)
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
-        for js in schema_js:
-            schema_columns.append(js["name"].lower())
+        schema_str = component.properties.schema
+        if schema_str:
+            try:
+                schema_js = json.loads(schema_str)
+                for js in schema_js:
+                    schema_columns.append(js["name"].lower())
+            except (json.JSONDecodeError, TypeError, KeyError):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.schema",
+                        "Input schema is missing or invalid. Connect an input dataset.",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+                schema_js = []
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.schema",
+                    "Input schema is missing or invalid. Connect an input dataset.",
+                    SeverityLevelEnum.Error,
+                )
+            )
+            schema_js = []
 
         if len(component.properties.column_names) == 0:
             diagnostics.append(
@@ -288,7 +309,7 @@ class DataMasking(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        elif len(component.properties.column_names) > 0:
+        elif len(component.properties.column_names) > 0 and schema_columns:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
@@ -398,11 +419,17 @@ class DataMasking(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = []
+        try:
+            schema_raw = newState.ports.inputs[0].schema
+            if schema_raw:
+                schema = json.loads(str(schema_raw).replace("'", '"'))
+                fields_array = [
+                    {"name": field["name"], "dataType": field["dataType"]["type"]}
+                    for field in schema.get("fields", [])
+                ]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+            pass
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -433,11 +460,15 @@ class DataMasking(MacroSpec):
 
     def apply(self, props: DataMaskingProperties) -> str:
         # Generate the actual macro call given the component's state
-        
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        schema_columns = [js["name"] for js in json.loads(props.schema)]
+        schema_columns = []
+        if props.schema:
+            try:
+                schema_columns = [js["name"] for js in json.loads(props.schema)]
+            except (json.JSONDecodeError, TypeError, KeyError):
+                pass
         remaining_columns = ", ".join(
-            list(set(schema_columns) - set(props.column_names))
+            list(set(schema_columns) - set(props.column_names or []))
         )
 
         def safe_str(val):
@@ -543,11 +574,17 @@ class DataMasking(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = []
+        try:
+            schema_raw = component.ports.inputs[0].schema
+            if schema_raw:
+                schema = json.loads(str(schema_raw).replace("'", '"'))
+                fields_array = [
+                    {"name": field["name"], "dataType": field["dataType"]["type"]}
+                    for field in schema.get("fields", [])
+                ]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+            pass
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(

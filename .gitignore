@@ -15,3 +15,8 @@ profiles.yml
 .user.yml
 
 __pycache__/
+.conda/
+condaenv.*.requirements.txt
+tests/
+environment.yml
+requirements.txt

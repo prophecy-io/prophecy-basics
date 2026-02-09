@@ -1,3 +1,7 @@
+{# cast_timestamp_if_needed and replace_column_in_expression live in identifier_helpers.sql #}
+
+{# column_names_match lives in identifier_helpers.sql (adapter-dispatched) #}
+
 {% macro column_exists_in_schema(schema, column_name) %}
     {# Check if a column exists in the provided schema #}
     {# Schema is a JSON array of objects with 'name' and 'dataType' keys #}
@@ -31,8 +35,8 @@
 
     {# Iterate through schema objects and check if column name matches (using adapter-specific case sensitivity) #}
     {% for c in schema_parsed %}
-        {# Each c should be an object with 'name' and 'dataType' keys #}
-        {% set schema_col_name = c.name | trim %}
+        {# Each c is a dict with 'name' and 'dataType' keys; use bracket access #}
+        {% set schema_col_name = (c['name'] if c is mapping else c.name) | default("") | trim %}
         {% if prophecy_basics.column_names_match(schema_col_name, unquoted_col) %}
             {{ return(true) }}
         {% endif %}
