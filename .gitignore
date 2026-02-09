@@ -1,4 +1,5 @@
 .vscode/
+.cursor/
 .venv/
 logs/
 dbt_packages/
