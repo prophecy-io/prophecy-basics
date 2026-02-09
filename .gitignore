@@ -1,6 +1,7 @@
 .vscode/
 .cursor/
 .venv/
+scripts/
 logs/
 dbt_packages/
 target/
