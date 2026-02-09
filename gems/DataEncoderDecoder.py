@@ -485,7 +485,7 @@ class DataEncoderDecoder(MacroSpec):
             try:
                 schema_js = json.loads(schema_str)
                 for js in schema_js:
-                    schema_columns.append(js["name"])
+                    schema_columns.append(js["name"].lower())
             except (json.JSONDecodeError, TypeError, KeyError):
                 diagnostics.append(
                     Diagnostic(
@@ -499,7 +499,7 @@ class DataEncoderDecoder(MacroSpec):
             diagnostics.append(
                 Diagnostic(
                     "component.properties.schema",
-                    "Input schema is missing (). Connect an input dataset.",
+                    "Input schema is missing or invalid. Connect an input dataset.",
                     SeverityLevelEnum.Error,
                 )
             )
@@ -519,11 +519,11 @@ class DataEncoderDecoder(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        if len(component.properties.column_names) > 0:
+        elif len(component.properties.column_names) > 0 and schema_columns:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
-                if col not in schema_columns
+                if col.lower() not in schema_columns
             ]
             if missingKeyColumns:
                 diagnostics.append(

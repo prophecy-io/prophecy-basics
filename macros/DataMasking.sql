@@ -394,8 +394,10 @@
             {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
             {%- if sha2_bit_length == "256" -%}
                 {%- set sha2_function = "TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
+            {%- elif sha2_bit_length == "512" -%}
+                {%- set sha2_function = "TO_HEX(SHA512(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
             {%- else -%}
-                {%- set sha2_function = "TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
+                {{ exceptions.raise_compiler_error("BigQuery only supports SHA2 with 256 or 512 bit length. sha2_bit_length=" ~ sha2_bit_length ~ " is not supported. Use 256 or 512.") }}
             {%- endif -%}
             {%- if masked_column_add_method == "inplace_substitute" -%}
                 {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}

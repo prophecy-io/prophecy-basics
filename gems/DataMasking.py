@@ -155,6 +155,7 @@ class DataMasking(MacroSpec):
                         .bindProperty("sha2_bit_length")
                         .withDefault("256")
                         .addOption("256", "256")
+                        .addOption("512", "512")
                     )
                     .otherwise(
                         SelectBox("Select the bit length")
