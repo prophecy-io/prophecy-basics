@@ -149,7 +149,7 @@ class DataMasking(MacroSpec):
                 )
                 .otherwise(
                     Condition()
-                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("BigQuery"))
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
                     .then(
                         SelectBox("Select the bit length")
                         .bindProperty("sha2_bit_length")
@@ -207,7 +207,7 @@ class DataMasking(MacroSpec):
                                     )
                                     .otherwise(
                                         Condition()
-                                        .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("BigQuery"))
+                                        .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
                                         .then(
                                             SelectBox("Select masking strategy")
                                             .bindProperty("masking_method")
