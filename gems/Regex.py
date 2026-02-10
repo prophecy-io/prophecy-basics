@@ -230,6 +230,20 @@ class Regex(MacroSpec):
                                             .addOption("Split to rows", "splitRows")
                                             .bindProperty("tokenizeOutputMethod")
                                         ).addElement(
+                                            Condition()
+                                            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                            .then(
+                                                AlertBox(
+                                                    variant="warning",
+                                                    _children=[
+                                                        Markdown(
+                                                            "**BigQuery:** Regex is not supported with multiple capturing groups for BigQuery SQL dialects. "
+                                                            "Regex patterns having more than one capturing group don't work with BigQuery's REGEXP_EXTRACT_ALL function. "
+                                                        )
+                                                    ],
+                                                )
+                                            )
+                                        ).addElement(
                                             Checkbox("Allow Blank Tokens").bindProperty("allowBlankTokens")
                                         )
                                         .addElement(
@@ -416,23 +430,13 @@ class Regex(MacroSpec):
             capturing_groups = self.extract_capturing_groups(props.regexExpression)
             capturing_groups_count = len(capturing_groups)
         
-        # Validate splitRows with multiple capturing groups
+        # Validate splitColumns with multiple capturing groups (splitRows case handled by AlertBox for BigQuery)
         if is_tokenize and has_regex:
             tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and 
                              props.tokenizeOutputMethod and 
                              props.tokenizeOutputMethod.lower())
             
-            if tokenize_method == 'splitrows' and capturing_groups_count > 1:
-                diagnostics.append(
-                    Diagnostic(
-                        "component.properties.tokenizeOutputMethod",
-                        f"splitRows is not supported with multiple capturing groups for BigQuery SQL dialects. Found {capturing_groups_count} capturing groups in the regex pattern. Please use splitColumns instead.",
-                        SeverityLevelEnum.Warning
-                    )
-                )
-            
-            # Validate splitColumns with multiple capturing groups
-            elif tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
+            if tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.outputMethod",

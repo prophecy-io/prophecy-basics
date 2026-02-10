@@ -17,3 +17,9 @@ profiles.yml
 .dbt/
 
 __pycache__/
+.conda/
+.cursor/
+environment.yml
+requirements.txt
+scripts/
+tests/
