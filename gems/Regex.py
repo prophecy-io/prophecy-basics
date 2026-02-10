@@ -95,6 +95,21 @@ class Regex(MacroSpec):
                                     Checkbox("Case Insensitive Matching").bindProperty("caseInsensitive")
                                 )
                                 .addElement(
+                                    Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                    .then(
+                                        AlertBox(
+                                            variant="warning",
+                                            _children=[
+                                                Markdown(
+                                                    "**BigQuery:** Regex is not supported with multiple capturing groups for BigQuery SQL dialects. "
+                                                    "Regex patterns having more than one capturing group don't work with BigQuery's REGEXP_EXTRACT_ALL function. "
+                                                )
+                                            ],
+                                        )
+                                    )
+                                )
+                                .addElement(
                                     AlertBox(
                                         variant="success",
                                         _children=[
@@ -229,20 +244,6 @@ class Regex(MacroSpec):
                                             .addOption("Split to columns", "splitColumns")
                                             .addOption("Split to rows", "splitRows")
                                             .bindProperty("tokenizeOutputMethod")
-                                        ).addElement(
-                                            Condition()
-                                            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
-                                            .then(
-                                                AlertBox(
-                                                    variant="warning",
-                                                    _children=[
-                                                        Markdown(
-                                                            "**BigQuery:** Regex is not supported with multiple capturing groups for BigQuery SQL dialects. "
-                                                            "Regex patterns having more than one capturing group don't work with BigQuery's REGEXP_EXTRACT_ALL function. "
-                                                        )
-                                                    ],
-                                                )
-                                            )
                                         ).addElement(
                                             Checkbox("Allow Blank Tokens").bindProperty("allowBlankTokens")
                                         )
