@@ -335,7 +335,116 @@
     {%- endif -%}
 
 {%- else -%}
-    select 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' as error_message
+    SELECT 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' AS error_message
+{%- endif -%}
+
+{%- endmacro -%}
+
+{%- macro snowflake__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+
+{%- set seed_value = randomSeed | default(42) -%}
+{%- set sample_size = numberN | default(100) -%}
+
+{# Parse groupCols if string (e.g. from JSON) #}
+{%- if groupCols is string -%}
+    {%- set groupCols = fromjson(groupCols) -%}
+{%- endif -%}
+
+{# Normalize relation list #}
+{%- if relation_name is string -%}
+    {%- set relation_list = relation_name.split(',') | map('trim') | list -%}
+{%- else -%}
+    {%- set relation_list = relation_name if relation_name is iterable else [relation_name] -%}
+{%- endif -%}
+{%- set source_table = relation_list | join(', ') -%}
+
+{# Quoted group columns for partition/order #}
+{%- set quoted_group_cols = prophecy_basics.quote_column_list(groupCols) if groupCols and groupCols | length > 0 else '' -%}
+
+{%- if groupCols | length > 0 -%}
+    {%- set partition_clause = "PARTITION BY " ~ quoted_group_cols -%}
+    {%- set order_clause = "ORDER BY " ~ quoted_group_cols -%}
+    {%- set inner_select %}
+        SELECT *,
+            ROW_NUMBER() OVER ({{ partition_clause }} {{ order_clause }}) AS rn,
+            ROW_NUMBER() OVER ({{ partition_clause }} ORDER BY RANDOM({{ seed_value }})) AS random_rn,
+            COUNT(*) OVER ({{ partition_clause }}) AS group_rows,
+            COUNT(*) OVER () AS total_rows
+        FROM {{ source_table }}
+    {%- endset -%}
+{%- else -%}
+    {%- set inner_select %}
+        SELECT *,
+            ROW_NUMBER() OVER (ORDER BY 1) AS rn,
+            ROW_NUMBER() OVER (ORDER BY RANDOM({{ seed_value }})) AS random_rn,
+            COUNT(*) OVER () AS total_rows
+        FROM {{ source_table }}
+    {%- endset -%}
+{%- endif -%}
+
+{%- if currentModeSelection == 'firstN' -%}
+    SELECT * EXCLUDE (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    FROM ({{ inner_select }}) numbered_data
+    WHERE rn <= {{ sample_size }}
+
+{%- elif currentModeSelection == 'lastN' -%}
+    SELECT * EXCLUDE (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    FROM ({{ inner_select }}) numbered_data
+    WHERE {%- if groupCols | length > 0 %} rn > GREATEST(0, group_rows - {{ sample_size }}) {%- else %} rn > GREATEST(0, total_rows - {{ sample_size }}) {%- endif %}
+    ORDER BY rn
+
+{%- elif currentModeSelection == 'skipN' -%}
+    SELECT * EXCLUDE (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    FROM ({{ inner_select }}) numbered_data
+    WHERE rn > {{ sample_size }}
+
+{%- elif currentModeSelection == 'oneOfN' -%}
+    SELECT * EXCLUDE (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    FROM ({{ inner_select }}) numbered_data
+    WHERE MOD(rn - 1, GREATEST(1, {{ sample_size }})) = 0
+
+{%- elif currentModeSelection == 'oneInN' -%}
+    SELECT * EXCLUDE (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    FROM ({{ inner_select }}) numbered_data
+    WHERE MOD(rn, GREATEST(1, {{ sample_size }})) = 0
+
+{%- elif currentModeSelection == 'randomN' -%}
+    {%- if groupCols | length > 0 -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows, group_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE random_rn <= LEAST({{ sample_size }}, group_rows)
+    {%- else -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE random_rn <= LEAST({{ sample_size }}, total_rows)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'nPercent' -%}
+    {%- set percent_val = [sample_size, 100] | min -%}
+    {%- if groupCols | length > 0 -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows, group_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE rn <= CEIL(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE rn <= CEIL(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'randomNPercent' -%}
+    {%- set percent_val = [sample_size, 100] | min -%}
+    {%- if groupCols | length > 0 -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows, group_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE random_rn <= CEIL(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        SELECT * EXCLUDE (rn, random_rn, total_rows)
+        FROM ({{ inner_select }}) numbered_data
+        WHERE random_rn <= CEIL(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- else -%}
+    SELECT 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' AS error_message
 {%- endif -%}
 
 {%- endmacro -%}

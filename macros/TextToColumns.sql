@@ -161,6 +161,62 @@ SELECT * FROM {{ relation_list | join(', ') }}
 {% endmacro %}
 
 
+{% macro snowflake__TextToColumns(
+    relation_name,
+    columnNames,
+    delimiter,
+    split_strategy,
+    noOfColumns,
+    leaveExtraCharLastCol,
+    splitColumnPrefix,
+    splitColumnSuffix,
+    splitRowsColumnName
+    ) %}
+
+{%- set pattern = delimiter -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{%- set quoted_column_name = prophecy_basics.quote_identifier(columnNames) -%}
+
+{%- if split_strategy == 'splitColumns' -%}
+    WITH source AS (
+        SELECT *,
+            SPLIT(
+                REGEXP_REPLACE({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
+                '%%DELIM%%'
+            ) AS tokens
+        FROM {{ relation_list | join(', ') }}
+    ),
+    all_data AS (
+    SELECT *,
+        {%- for i in range(1, noOfColumns) %}
+            TRIM(s.tokens[{{ i - 1 }}], '"') AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix) }}{% if not loop.last or leaveExtraCharLastCol %}, {% endif %}
+        {%- endfor %}
+        {%- if leaveExtraCharLastCol == 'Leave extra in last column' or leaveExtraCharLastCol %}
+            CASE
+                WHEN ARRAY_SIZE(s.tokens) >= {{ noOfColumns }}
+                    THEN ARRAY_TO_STRING(ARRAY_SLICE(s.tokens, {{ noOfColumns - 1 }}, ARRAY_SIZE(s.tokens)), '{{ delimiter }}')
+                ELSE NULL
+            END AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+        {%- else %}
+            s.tokens[{{ noOfColumns - 1 }}] AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix) }}
+        {%- endif %}
+    FROM source AS s
+    )
+    SELECT * EXCLUDE(tokens) FROM all_data
+
+{%- elif split_strategy == 'splitRows' -%}
+    SELECT r.*,
+        TRIM(REGEXP_REPLACE(s.value, '[{}_]', ' ')) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
+    FROM {{ relation_list | join(', ') }} r,
+    LATERAL SPLIT_TO_TABLE(IFF({{ quoted_column_name }} IS NULL, '', {{ quoted_column_name }}), '{{ pattern }}') s
+
+{%- else -%}
+    SELECT * FROM {{ relation_list | join(', ') }}
+{%- endif -%}
+
+{% endmacro %}
+
+
 {%- macro duckdb__TextToColumns(
     relation_name,
     columnNames,

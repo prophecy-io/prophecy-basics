@@ -18,7 +18,7 @@ class MultiColumnRename(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
@@ -225,11 +225,14 @@ class MultiColumnRename(MacroSpec):
             )
 
         if len(component.properties.columnNames) > 0:
+            schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
+            
             missingKeyColumns = [
                 col
                 for col in component.properties.columnNames
-                if col not in component.properties.schema
+                if col.lower() not in schema_cols_lower
             ]
+            
             if missingKeyColumns:
                 diagnostics.append(
                     Diagnostic(
