@@ -59,48 +59,48 @@
 
 {% endmacro %}
 
+{# DuckDB: Simple JSON parsing using json_extract #}
 {%- macro duckdb__JSONParse(relation_name,
     columnName,
     parsingMethod,
     sampleRecord,
     sampleSchema) -%}
 
-    {{ log("Parsing JSON using method: " ~ parsingMethod, info=True) }}
+    {{ log("Parsing JSON (DuckDB)", info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if not columnName or columnName | trim == '' -%}
         select * from {{ relation_list | join(', ') }}
-
-    {%- elif parsingMethod == 'parseFromSchema' and (not sampleSchema or sampleSchema | trim == '') -%}
-        select * from {{ relation_list | join(', ') }}
-
-    {%- elif parsingMethod == 'parseFromSampleRecord' and (not sampleRecord or sampleRecord | trim == '') -%}
-        select * from {{ relation_list | join(', ') }}
-
     {%- else -%}
         {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
         {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
+        select
+            *,
+            json_extract({{ quoted_col }}, '$') as {{ alias_col }}
+        from {{ relation_list | join(', ') }}
+    {%- endif -%}
 
-        {%- if parsingMethod == 'parseFromSchema' -%}
-            select
-                *,
-                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
-            from {{ relation_list | join(', ') }}
+{%- endmacro -%}
 
-        {%- elif parsingMethod == 'parseFromSampleRecord' -%}
-            select
-                *,
-                json_extract({{ quoted_col }}, '$') as {{ alias_col }}
-            from {{ relation_list | join(', ') }}
+{# BigQuery: Simple JSON parsing using PARSE_JSON #}
+{%- macro bigquery__JSONParse(relation_name,
+    columnName,
+    parsingMethod,
+    sampleRecord,
+    sampleSchema) -%}
 
-        {%- elif parsingMethod == 'none' or not parsingMethod -%}
-            select * from {{ relation_list | join(', ') }}
+    {{ log("Parsing JSON (BigQuery)", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
-        {%- else -%}
-            {{ exceptions.raise_compiler_error(
-                "Invalid parsingMethod: '" ~ parsingMethod ~ "'. Expected 'parseFromSchema', 'parseFromSampleRecord', or 'none'."
-            ) }}
-        {%- endif -%}
+    {%- if not columnName or columnName | trim == '' -%}
+        select * from {{ relation_list | join(', ') }}
+    {%- else -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
+        select
+            *,
+            PARSE_JSON({{ quoted_col }}) as {{ alias_col }}
+        from {{ relation_list | join(', ') }}
     {%- endif -%}
 
 {%- endmacro -%}

@@ -16,7 +16,7 @@ class JSONParse(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         # ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
@@ -26,7 +26,7 @@ class JSONParse(MacroSpec):
         # properties for the component with default values
         columnName: str = ""
         relation_name: List[str] = field(default_factory=list)
-        parsingMethod: str = "parseFromSampleRecord"
+        parsingMethod: str = ""
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
@@ -50,6 +50,8 @@ class JSONParse(MacroSpec):
         return relation_name
 
     def dialog(self) -> Dialog:
+        # Standard parsing method radio group (for Databricks and other providers)
+        # Parsing method radio group (only shown for Databricks)
         methodRadioGroup = (
             RadioGroup("Parsing method")
             .addOption(
@@ -108,7 +110,11 @@ class JSONParse(MacroSpec):
                         )
                     )
                 )
-                .addElement(methodRadioGroup)
+                .addElement(
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("databricks"))
+                    .then(methodRadioGroup)
+                )
                 .addElement(
                     Condition()
                     .ifEqual(
@@ -178,50 +184,32 @@ class JSONParse(MacroSpec):
                     )
                 )
 
-        if (
-            component.properties.parsingMethod is None
-            or component.properties.parsingMethod == ""
-        ):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.parsingMethod",
-                    "Please select a parsing method",
-                    SeverityLevelEnum.Error,
-                )
-            )
-        else:
-            if component.properties.parsingMethod == "parseFromSchema":
-                if (
-                    component.properties.sampleSchema is None
-                    or component.properties.sampleSchema == ""
-                ):
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.sampleSchema",
-                            "Please provide a valid SQL struct schema",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
-            elif component.properties.parsingMethod == "parseFromSampleRecord":
-                if (
-                    component.properties.sampleRecord is None
-                    or component.properties.sampleRecord == ""
-                ):
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.sampleRecord",
-                            "Please provide a valid sample json record",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
-            else:
+        # Validate parsingMethod-dependent fields (only for Databricks where parsingMethod is used)
+        if component.properties.parsingMethod == "parseFromSchema":
+            if (
+                component.properties.sampleSchema is None
+                or component.properties.sampleSchema == ""
+            ):
                 diagnostics.append(
                     Diagnostic(
-                        "component.properties.parsingMethod",
-                        "Invalid Parsing method selected",
+                        "component.properties.sampleSchema",
+                        "Please provide a valid SQL struct schema",
                         SeverityLevelEnum.Error,
                     )
                 )
+        elif component.properties.parsingMethod == "parseFromSampleRecord":
+            if (
+                component.properties.sampleRecord is None
+                or component.properties.sampleRecord == ""
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.sampleRecord",
+                        "Please provide a valid sample json record",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+        # For BigQuery/DuckDB: parsingMethod is None/empty - no validation needed
 
         return diagnostics
 
