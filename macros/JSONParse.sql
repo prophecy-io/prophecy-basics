@@ -32,8 +32,8 @@
         select * from {{ relation_list | join(', ') }}
 
     {%- else -%}
-        {%- set quoted_col = "`" ~ columnName ~ "`" -%}
-        {%- set alias_col = "`" ~ columnName ~ "_parsed`" -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
@@ -72,8 +72,8 @@
     {%- if not columnName or columnName | trim == '' -%}
         select * from {{ relation_list | join(', ') }}
     {%- else -%}
-        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
-        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
         select
             *,
             json_extract({{ quoted_col }}, '$') as {{ alias_col }}
@@ -95,8 +95,8 @@
     {%- if not columnName or columnName | trim == '' -%}
         select * from {{ relation_list | join(', ') }}
     {%- else -%}
-        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) -%}
-        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
         select
             *,
             PARSE_JSON({{ quoted_col }}) as {{ alias_col }}
