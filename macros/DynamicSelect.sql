@@ -75,6 +75,22 @@
         {%- do enriched_schema.append(new_column) -%}
     {%- endfor -%}
 
+    {# Remap Databricks-style targetTypes to Snowflake schema types #}
+    {%- set convert_to_snowflake = {
+        "Integer": "Number", "Long": "Number", "Short": "Number", "Byte": "Number",
+        "Decimal": "Number", "Numeric": "Number","Number": "Number",
+        "Float": "Float", "Double": "Float",
+        "String": "String", "Boolean": "Boolean", "Binary": "Binary",
+        "Date": "Date", "Timestamp": "Timestamp", "Struct": "Variant", "Variant": "Variant"
+    } -%}
+    {%- set snowflake_target_types = [] -%}
+    {%- for t in targetTypes -%}
+        {%- set mapped = convert_to_snowflake[t] if t in convert_to_snowflake else t -%}
+        {%- if mapped not in snowflake_target_types -%}
+            {%- do snowflake_target_types.append(mapped) -%}
+        {%- endif -%}
+    {%- endfor -%}
+
     {%- set selected_columns = [] -%}
     {%- for column in enriched_schema -%}
         {%- if selectUsing == 'SELECT_EXPR' -%}
@@ -102,8 +118,7 @@
                     {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
                 {%- endif -%}
         {%- else -%}
-            {# If no custom expression, select columns based on target types #}
-            {%- if column["dataType"] in targetTypes -%}
+            {%- if column["dataType"] in snowflake_target_types -%}
                 {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
             {%- endif -%}
         {%- endif -%}

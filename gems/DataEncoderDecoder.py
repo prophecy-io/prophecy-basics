@@ -382,32 +382,32 @@ class DataEncoderDecoder(MacroSpec):
                                     )
                                     .otherwise(
                                         Condition()
-                                            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
-                                            .then(
-                                                SelectBox("Choose your encoding/decoding method")
-                                                .bindProperty("enc_dec_method")
-                                                .withStyle({"width": "100%"})
-                                                .withDefault("")
-                                                .addOption("base64", "base64")
-                                                .addOption("unbase64", "unbase64")
-                                                .addOption("hex", "hex")
-                                                .addOption("unhex", "unhex")
-                                            )
-                                            .otherwise(
-                                                SelectBox("Choose your encoding/decoding method")
-                                                .bindProperty("enc_dec_method")
-                                                .withStyle({"width": "100%"})
-                                                .withDefault("")
-                                                .addOption("base64", "base64")
-                                                .addOption("unbase64", "unbase64")
-                                                .addOption("hex", "hex")
-                                                .addOption("unhex", "unhex")
-                                                .addOption("encode", "encode")
-                                                .addOption("decode", "decode")
-                                                .addOption("aes_encrypt", "aes_encrypt")
-                                                # .addOption("aes_decrypt", "aes_decrypt")
-                                                # .addOption("try_aes_decrypt", "try_aes_decrypt")
-                                            )
+                                        .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
+                                        .then(
+                                            SelectBox("Choose your encoding/decoding method")
+                                            .bindProperty("enc_dec_method")
+                                            .withStyle({"width": "100%"})
+                                            .withDefault("")
+                                            .addOption("base64", "base64")
+                                            .addOption("unbase64", "unbase64")
+                                            .addOption("hex", "hex")
+                                            .addOption("unhex", "unhex")                                         
+                                        )
+                                        .otherwise(
+                                            SelectBox("Choose your encoding/decoding method")
+                                            .bindProperty("enc_dec_method")
+                                            .withStyle({"width": "100%"})
+                                            .withDefault("")
+                                            .addOption("base64", "base64")
+                                            .addOption("unbase64", "unbase64")
+                                            .addOption("hex", "hex")
+                                            .addOption("unhex", "unhex")
+                                            .addOption("encode", "encode")
+                                            .addOption("decode", "decode")
+                                            .addOption("aes_encrypt", "aes_encrypt")
+                                            # .addOption("aes_decrypt", "aes_decrypt")
+                                            # .addOption("try_aes_decrypt", "try_aes_decrypt")
+                                        )                                        
                                     )                       
                             )
                             .addElement(
@@ -499,14 +499,11 @@ class DataEncoderDecoder(MacroSpec):
                 )
             )
         if len(component.properties.column_names) > 0:
-            schema_cols_lower = set(col["name"].lower() for col in json.loads(schema_columns))
-            
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
-                if col.lower() not in schema_cols_lower
+                if col not in schema_columns
             ]
-            
             if missingKeyColumns:
                 diagnostics.append(
                     Diagnostic(

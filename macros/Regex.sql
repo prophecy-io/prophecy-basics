@@ -442,7 +442,7 @@
         WITH extracted_array AS (
             SELECT
                 *,
-                REGEXP_SUBSTR_ALL({{ quoted_selected }}, '{{ escaped_regex }}', 1, 1, '{{ regex_params }}e', 1) AS regex_matches
+                REGEXP_SUBSTR_ALL({{ quoted_selected }}, '{{ escaped_regex }}', 1, 1, '{{ regex_params }}') AS regex_matches
             FROM {{ source_table }}
         )
         {%- if extra_handling_lower == 'dropextrawitherror' -%}
@@ -451,11 +451,11 @@
                 {%- for i in range(1, noOfColumns + 1) %},
                 CASE
                     WHEN ARRAY_SIZE(regex_matches) > {{ noOfColumns }} THEN
-                        'ERROR: Found ' || ARRAY_SIZE(regex_matches)::VARCHAR || ' regex matches, but only ' || {{ noOfColumns }}::VARCHAR || ' columns expected'
+                        CAST('ERROR: Found ' || ARRAY_SIZE(regex_matches)::VARCHAR || ' regex matches, but only ' || {{ noOfColumns }}::VARCHAR || ' columns expected' AS VARCHAR)
                     WHEN ARRAY_SIZE(regex_matches) = 0 THEN CAST(NULL AS VARCHAR)
                     WHEN ARRAY_SIZE(regex_matches) < {{ i }} THEN
                         CASE WHEN {{ allowBlankTokens }} THEN '' ELSE CAST(NULL AS VARCHAR) END
-                    WHEN TRIM(regex_matches[{{ i - 1 }}]::VARCHAR) = '' THEN
+                    WHEN TRIM(COALESCE(regex_matches[{{ i - 1 }}]::VARCHAR, '')) = '' THEN
                         CASE WHEN {{ allowBlankTokens }} THEN '' ELSE CAST(NULL AS VARCHAR) END
                     ELSE regex_matches[{{ i - 1 }}]::VARCHAR
                 END AS {{ prophecy_basics.quote_identifier(outputRootName ~ i) }}
@@ -482,7 +482,7 @@
                                 CASE WHEN {{ allowBlankTokens }} THEN '' ELSE CAST(NULL AS VARCHAR) END
                             ELSE regex_matches[{{ noOfColumns - 1 }}]::VARCHAR
                         END
-                    ELSE ARRAY_TO_STRING(ARRAY_SLICE(regex_matches, {{ noOfColumns - 1 }}, ARRAY_SIZE(regex_matches) - 1), '')
+                    ELSE ARRAY_TO_STRING(ARRAY_SLICE(regex_matches, {{ noOfColumns - 1 }}, ARRAY_SIZE(regex_matches)), '')
                 END AS {{ prophecy_basics.quote_identifier(outputRootName ~ noOfColumns) }}
             FROM extracted_array
         {%- else -%}
@@ -505,7 +505,8 @@
         WITH regex_matches AS (
             SELECT
                 *,
-                REGEXP_SUBSTR_ALL({{ quoted_selected }}, '{{ escaped_regex }}', 1, 1, '{{ regex_params }}e', 1) AS split_tokens
+                {# Use REGEXP_SUBSTR_ALL without 'e' to match the entire pattern #}
+                REGEXP_SUBSTR_ALL({{ quoted_selected }}, '{{ escaped_regex }}', 1, 1, '{{ regex_params }}') AS split_tokens
             FROM {{ source_table }}
         ),
         exploded_tokens AS (
@@ -526,6 +527,7 @@
         {% endif %}
 
     {%- else -%}
+        {# Default tokenize behavior - extract numbered groups #}
         SELECT
             *,
             {% for i in range(1, noOfColumns + 1) %}

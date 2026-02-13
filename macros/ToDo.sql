@@ -24,14 +24,5 @@
 {% endmacro %}
 
 {% macro snowflake__ToDo(diag_message) %}
-EXECUTE IMMEDIATE $$
-DECLARE
-    todo_exception EXCEPTION (-20001, 'ToDo: {{ diag_message }}');
-BEGIN
-    RAISE todo_exception;
-EXCEPTION
-    WHEN todo_exception THEN
-        RETURN SQLERRM;
-END;
-$$;
+    SELECT CAST('ToDo: {{ diag_message }}' AS INT) AS error_message
 {% endmacro %}

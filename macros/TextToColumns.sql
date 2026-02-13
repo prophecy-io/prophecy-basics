@@ -205,6 +205,8 @@ SELECT * FROM {{ relation_list | join(', ') }}
     SELECT * EXCLUDE(tokens) FROM all_data
 
 {%- elif split_strategy == 'splitRows' -%}
+    {%- set backslash_count = delimiter.count('\\') -%}
+    {%- set pattern = delimiter.replace('\\\\', '') if backslash_count % 2 == 1 else delimiter.replace('\\', '') -%}
     SELECT r.*,
         TRIM(REGEXP_REPLACE(s.value, '[{}_]', ' ')) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
     FROM {{ relation_list | join(', ') }} r,
