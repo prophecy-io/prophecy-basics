@@ -26,7 +26,7 @@ class FindDuplicates(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
@@ -322,20 +322,23 @@ class FindDuplicates(MacroSpec):
                         SeverityLevelEnum.Error,
                     )
                 )
-            if len(component.properties.groupByColumnNames) > 0:
-                missingKeyColumns = [
-                    col
-                    for col in component.properties.groupByColumnNames
-                    if col not in component.properties.schema
-                ]
-                if missingKeyColumns:
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.groupByColumnNames",
-                            f"Selected columns {missingKeyColumns} are not present in input schema.",
-                            SeverityLevelEnum.Error,
-                        )
+        if len(component.properties.groupByColumnNames) > 0:
+            schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
+            
+            missingKeyColumns = [
+                col
+                for col in component.properties.groupByColumnNames
+                if col.lower() not in schema_cols_lower
+            ]
+            
+            if missingKeyColumns:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.groupByColumnNames",
+                        f"Selected columns {missingKeyColumns} are not present in input schema.",
+                        SeverityLevelEnum.Error,
                     )
+                )
         if component.properties.output_type in (
                 "custom_group_count",
                 "custom_row_number",

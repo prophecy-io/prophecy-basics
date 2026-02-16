@@ -35,6 +35,26 @@
     {%- endif -%}
 {% endmacro %}
 
+{% macro snowflake__quote_identifier(identifier, quote_char='"') %}
+    {%- if identifier is string -%}
+        {# Unquote first to avoid double-quoting; then add Snowflake double quotes #}
+        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) | trim -%}
+        {{ quote_char }}{{ clean_id }}{{ quote_char }}
+    {%- elif identifier is iterable -%}
+        {# List of identifiers - unquote each before quoting #}
+        {%- set quoted_identifiers = [] -%}
+        {%- for id in identifier -%}
+            {%- set clean_id = prophecy_basics.unquote_identifier(id) | trim -%}
+            {%- do quoted_identifiers.append(quote_char ~ clean_id ~ quote_char) -%}
+        {%- endfor -%}
+        {{ quoted_identifiers }}
+    {%- else -%}
+        {# Fallback: treat as string #}
+        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) | trim -%}
+        {{ quote_char }}{{ clean_id }}{{ quote_char }}
+    {%- endif -%}
+{% endmacro %}
+
 {% macro unquote_identifier(identifier) %}
     {{ return(adapter.dispatch('unquote_identifier', 'prophecy_basics')(identifier)) }}
 {% endmacro %}
@@ -67,6 +87,37 @@
         {%- for id in identifier -%}
             {%- set clean_id = id | trim -%}
             {%- if clean_id.startswith('"') and clean_id.endswith('"') -%}
+                {%- do unquoted_identifiers.append(clean_id[1:-1]) -%}
+            {%- else -%}
+                {%- do unquoted_identifiers.append(clean_id) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {{ unquoted_identifiers }}
+    {%- else -%}
+        {# Fallback: treat as string #}
+        {{ identifier }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro snowflake__unquote_identifier(identifier) %}
+    {%- if identifier is string -%}
+        {# Single identifier - unquote if quoted (double or single quotes) #}
+        {%- set clean_identifier = identifier | trim -%}
+        {%- if clean_identifier.startswith('"') and clean_identifier.endswith('"') -%}
+            {{ clean_identifier[1:-1] }}
+        {%- elif clean_identifier.startswith("'") and clean_identifier.endswith("'") -%}
+            {{ clean_identifier[1:-1] }}
+        {%- else -%}
+            {{ clean_identifier }}
+        {%- endif -%}
+    {%- elif identifier is iterable -%}
+        {# List of identifiers - return list of unquoted strings #}
+        {%- set unquoted_identifiers = [] -%}
+        {%- for id in identifier -%}
+            {%- set clean_id = id | trim -%}
+            {%- if clean_id.startswith('"') and clean_id.endswith('"') -%}
+                {%- do unquoted_identifiers.append(clean_id[1:-1]) -%}
+            {%- elif clean_id.startswith("'") and clean_id.endswith("'") -%}
                 {%- do unquoted_identifiers.append(clean_id[1:-1]) -%}
             {%- else -%}
                 {%- do unquoted_identifiers.append(clean_id) -%}
@@ -116,6 +167,24 @@
     {%- endif -%}
 {% endmacro %}
 
+{% macro snowflake__safe_identifier(identifier, quote_char='"') %}
+    {# Returns a safe identifier that can be used in Snowflake SQL queries #}
+    {%- if identifier is string -%}
+        {# Single identifier - return quoted string #}
+        {{ quote_char }}{{ identifier }}{{ quote_char }}
+    {%- elif identifier is iterable -%}
+        {# List of identifiers - return list of quoted strings #}
+        {%- set quoted_identifiers = [] -%}
+        {%- for id in identifier -%}
+            {%- do quoted_identifiers.append(quote_char ~ id ~ quote_char) -%}
+        {%- endfor -%}
+        {{ quoted_identifiers }}
+    {%- else -%}
+        {# Fallback: treat as string #}
+        {{ quote_char }}{{ identifier }}{{ quote_char }}
+    {%- endif -%}
+{% endmacro %}
+
 {% macro quote_column_list(column_list) %}
     {# Takes a comma-separated string of column names and returns a quoted, comma-separated string #}
     {{ return(adapter.dispatch('quote_column_list', 'prophecy_basics')(column_list)) }}
@@ -137,6 +206,21 @@
 {% endmacro %}
 
 {% macro duckdb__quote_column_list(column_list) %}
+    {%- if column_list == "" or column_list is none -%}
+        {{ return("") }}
+    {%- else -%}
+        {%- set quoted_columns = [] -%}
+        {%- set column_list_split = column_list.split(',') | map('trim') | list -%}
+        {%- for col in column_list_split -%}
+            {%- if col != "" -%}
+                {%- do quoted_columns.append(prophecy_basics.quote_identifier(col)) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {{ return(quoted_columns | join(', ')) }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro snowflake__quote_column_list(column_list) %}
     {%- if column_list == "" or column_list is none -%}
         {{ return("") }}
     {%- else -%}
@@ -285,6 +369,13 @@
 
 {% macro spark__column_names_match(name1, name2) %}
     {# Spark: case-insensitive comparison #}
+    {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
+    {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
+    {{ return(col1 == col2) }}
+{% endmacro %}
+
+{% macro snowflake__column_names_match(name1, name2) %}
+    {# Snowflake: case-insensitive comparison #}
     {% set col1 = prophecy_basics.unquote_identifier(name1) | trim | lower %}
     {% set col2 = prophecy_basics.unquote_identifier(name2) | trim | lower %}
     {{ return(col1 == col2) }}

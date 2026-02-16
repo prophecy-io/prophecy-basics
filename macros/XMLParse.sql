@@ -59,6 +59,27 @@
 
 {% endmacro %}
 
+{% macro snowflake__XMLParse(
+    relation_name,
+    columnName,
+    parsingMethod,
+    sampleRecord,
+    sampleSchema
+) %}
+
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+
+    {%- if columnName -%}
+        select
+            *,
+            PARSE_XML({{ '"' ~ columnName ~ '"' }}) as {{ '"' ~ columnName ~ '_parsed"' }}
+        from {{ relation_list | join(', ') }}
+    {%- else -%}
+        select * from {{ relation_list | join(', ') }}
+    {%- endif -%}
+
+{% endmacro %}
+
 {%- macro duckdb__XMLParse(relation_name,
     columnName,
     parsingMethod,
