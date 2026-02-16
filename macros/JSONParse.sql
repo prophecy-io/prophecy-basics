@@ -59,6 +59,29 @@
 
 {% endmacro %}
 
+{% macro snowflake__JSONParse(
+    relation_name,
+    columnName,
+    parsingMethod,
+    sampleRecord,
+    sampleSchema
+    ) %}
+
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+
+    {%- if columnName -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
+        select
+            *,
+            PARSE_JSON({{ quoted_col }}) as {{ alias_col }}
+        from {{ relation_list | join(', ') }}
+    {%- else -%}
+        select * from {{ relation_list | join(', ') }}
+    {%- endif -%}
+
+{% endmacro %}
+
 {# DuckDB: Simple JSON parsing using json_extract #}
 {%- macro duckdb__JSONParse(relation_name,
     columnName,

@@ -14,8 +14,8 @@ class XMLParse(MacroSpec):
     category: str = "Parse"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
-        ProviderTypeEnum.Databricks
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Databricks,
+        ProviderTypeEnum.Snowflake,
         # ProviderTypeEnum.BigQuery,
         # ProviderTypeEnum.ProphecyManaged,
     ]
@@ -26,7 +26,7 @@ class XMLParse(MacroSpec):
         # properties for the component with default values
         columnName: str = ""
         relation_name: List[str] = field(default_factory=list)
-        parsingMethod: str = "parseFromSampleRecord"
+        parsingMethod: str = ""
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
@@ -106,7 +106,11 @@ class XMLParse(MacroSpec):
                         )
                     )
                 )
-                .addElement(methodRadioGroup)
+                .addElement(
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("databricks"))
+                    .then(methodRadioGroup)
+                )
                 .addElement(
                     Condition()
                     .ifEqual(
@@ -176,47 +180,29 @@ class XMLParse(MacroSpec):
                     )
                 )
 
-        if (
-            component.properties.parsingMethod is None
-            or component.properties.parsingMethod == ""
-        ):
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.parsingMethod",
-                    "Please select a parsing method",
-                    SeverityLevelEnum.Error,
-                )
-            )
-        else:
-            if component.properties.parsingMethod == "parseFromSchema":
-                if (
-                    component.properties.sampleSchema is None
-                    or component.properties.sampleSchema == ""
-                ):
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.sampleSchema",
-                            "Please provide a valid SQL struct schema",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
-            elif component.properties.parsingMethod == "parseFromSampleRecord":
-                if (
-                    component.properties.sampleRecord is None
-                    or component.properties.sampleRecord == ""
-                ):
-                    diagnostics.append(
-                        Diagnostic(
-                            "component.properties.sampleRecord",
-                            "Please provide a valid sample xml record",
-                            SeverityLevelEnum.Error,
-                        )
-                    )
-            else:
+        # Validate parsingMethod-dependent fields (only for Databricks where parsingMethod is used)
+        # For Snowflake/BigQuery/DuckDB: parsingMethod may be empty - no validation needed for sample/schema
+        if component.properties.parsingMethod == "parseFromSchema":
+            if (
+                component.properties.sampleSchema is None
+                or component.properties.sampleSchema == ""
+            ):
                 diagnostics.append(
                     Diagnostic(
-                        "component.properties.parsingMethod",
-                        "Invalid Parsing method selected",
+                        "component.properties.sampleSchema",
+                        "Please provide a valid SQL struct schema",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+        elif component.properties.parsingMethod == "parseFromSampleRecord":
+            if (
+                component.properties.sampleRecord is None
+                or component.properties.sampleRecord == ""
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.sampleRecord",
+                        "Please provide a valid sample xml record",
                         SeverityLevelEnum.Error,
                     )
                 )

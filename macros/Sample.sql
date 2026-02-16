@@ -335,6 +335,145 @@
     {%- endif -%}
 
 {%- else -%}
+    SELECT 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' AS error_message
+{%- endif -%}
+
+{%- endmacro -%}
+
+{%- macro snowflake__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+
+{%- set seed_value = randomSeed | default(42) -%}
+{%- set sample_size = numberN | default(100) -%}
+
+{# Parse groupCols if string (e.g. from JSON) #}
+{%- if groupCols is string -%}
+    {%- set groupCols = fromjson(groupCols) -%}
+{%- endif -%}
+
+{# Normalize relation name #}
+{%- set relation_str = relation_name | join(', ') if (relation_name is iterable and relation_name is not string) else relation_name -%}
+
+{# Build quoted group columns list - Following CountRecords pattern #}
+{%- set quoted_cols = [] -%}
+{%- if groupCols and groupCols | length > 0 -%}
+    {% for col in groupCols %}
+        {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
+        {%- do quoted_cols.append(quoted_col) -%}
+    {% endfor %}
+{%- endif -%}
+{%- set quoted_group_cols = quoted_cols | join(', ') -%}
+
+{%- if groupCols | length > 0 -%}
+    {%- set innerQuery = "
+        select *,
+            row_number() over (partition by " ~ quoted_group_cols ~ " order by " ~ quoted_group_cols ~ ") as rn,
+            row_number() over (partition by " ~ quoted_group_cols ~ " order by random(" ~ seed_value ~ ")) as random_rn,
+            count(*) over (partition by " ~ quoted_group_cols ~ ") as group_rows,
+            count(*) over () as total_rows
+        from " ~ relation_str
+        -%}
+{%- else -%}
+    {%- set innerQuery = "
+        select *,
+            row_number() over (order by 1) as rn,
+            row_number() over (order by random(" ~ seed_value ~ ")) as random_rn,
+            count(*) over () as total_rows
+        from " ~ relation_str
+        -%}
+{%- endif -%}
+
+{%- if currentModeSelection == 'firstN' -%}
+    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    from (
+        {{ innerQuery }}
+    ) numbered_data
+    where rn <= {{ sample_size }}
+
+{%- elif currentModeSelection == 'lastN' -%}
+    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    from (
+        {{ innerQuery }}
+    ) numbered_data
+    where {%- if groupCols | length > 0 %} rn > greatest(0, group_rows - {{ sample_size }}) {%- else %} rn > greatest(0, total_rows - {{ sample_size }}) {%- endif %}
+    order by rn
+
+{%- elif currentModeSelection == 'skipN' -%}
+    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    from (
+        {{ innerQuery }}
+    ) numbered_data
+    where rn > {{ sample_size }}
+
+{%- elif currentModeSelection == 'oneOfN' -%}
+    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    from (
+        {{ innerQuery }}
+    ) numbered_data
+    where mod(rn - 1, greatest(1, {{ sample_size }})) = 0
+
+{%- elif currentModeSelection == 'oneInN' -%}
+    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    from (
+        {{ innerQuery }}
+    ) numbered_data
+    where mod(rn, greatest(1, {{ sample_size }})) = 0
+
+{%- elif currentModeSelection == 'randomN' -%}
+    {%- if groupCols | length > 0 -%}
+        select * exclude (rn, random_rn, total_rows, group_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where random_rn <= least({{ sample_size }}, group_rows)
+    {%- else -%}
+        select * exclude (rn, random_rn, total_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where random_rn <= least({{ sample_size }}, total_rows)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'nPercent' -%}
+    {% set percent_val = sample_size | default(10) %}
+    {% if percent_val > 100 %}
+        {% set percent_val = 100 %}
+    {% endif %}
+
+    {%- if groupCols | length > 0 -%}
+        select * exclude (rn, random_rn, total_rows, group_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where rn <= ceil(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        select * exclude (rn, random_rn, total_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where rn <= ceil(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- elif currentModeSelection == 'randomNPercent' -%}
+    {% set percent_val = sample_size | default(10) %}
+    {% if percent_val > 100 %}
+        {% set percent_val = 100 %}
+    {% endif %}
+
+    {%- if groupCols | length > 0 -%}
+        select * exclude (rn, random_rn, total_rows, group_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where random_rn <= ceil(group_rows * {{ percent_val }} / 100.0)
+    {%- else -%}
+        select * exclude (rn, random_rn, total_rows)
+        from (
+            {{ innerQuery }}
+        ) numbered_data
+        where random_rn <= ceil(total_rows * {{ percent_val }} / 100.0)
+    {%- endif -%}
+
+{%- else -%}
     select 'ERROR: Invalid currentModeSelection value. Valid options: firstN, lastN, skipN, oneOfN, oneInN, randomN, nPercent, randomNPercent' as error_message
 {%- endif -%}
 

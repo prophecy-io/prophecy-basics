@@ -14,7 +14,7 @@ class DataMasking(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
@@ -221,16 +221,31 @@ class DataMasking(MacroSpec):
                                             .addOption("mask", "mask")
                                         )
                                         .otherwise(
-                                            SelectBox("Select masking strategy")
-                                            .bindProperty("masking_method")
-                                            .withStyle({"width": "100%"})
-                                            .withDefault("")
-                                            .addOption("hash", "hash")
-                                            .addOption("sha", "sha")
-                                            .addOption("sha2", "sha2")
-                                            .addOption("md5", "md5")
-                                            .addOption("mask", "mask")
-                                            .addOption("crc32", "crc32")
+                                            Condition()
+                                            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
+                                            .then(
+                                                SelectBox("Select masking strategy")
+                                                .bindProperty("masking_method")
+                                                .withStyle({"width": "100%"})
+                                                .withDefault("")
+                                                .addOption("hash", "hash")
+                                                .addOption("sha", "sha")
+                                                .addOption("sha2", "sha2")
+                                                .addOption("md5", "md5")
+                                                .addOption("mask", "mask")
+                                            )
+                                            .otherwise(
+                                                SelectBox("Select masking strategy")
+                                                .bindProperty("masking_method")
+                                                .withStyle({"width": "100%"})
+                                                .withDefault("")
+                                                .addOption("hash", "hash")
+                                                .addOption("sha", "sha")
+                                                .addOption("sha2", "sha2")
+                                                .addOption("md5", "md5")
+                                                .addOption("mask", "mask")
+                                                .addOption("crc32", "crc32")
+                                            )
                                         )
                                     )
                             )

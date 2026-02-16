@@ -22,3 +22,7 @@
 {% macro bigquery__ToDo(diag_message) %}
     SELECT ERROR(CONCAT('ToDo: ', '{{ diag_message }}'))
 {% endmacro %}
+
+{% macro snowflake__ToDo(diag_message) %}
+    SELECT CAST('ToDo: {{ diag_message }}' AS INT) AS error_message
+{% endmacro %}

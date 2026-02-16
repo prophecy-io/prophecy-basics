@@ -168,6 +168,157 @@
 
 {%- endmacro -%}
 
+{%- macro snowflake__DataMasking(
+    relation_name,
+    column_names,
+    remaining_columns,
+    masking_method,
+    upper_char_substitute,
+    lower_char_substitute,
+    digit_char_substitute,
+    other_char_substitute,
+    sha2_bit_length,
+    masked_column_add_method,
+    prefix_suffix_opt,
+    prefix_suffix_val,
+    combined_hash_column_name
+) %}
+
+    {{ log("Applying Masking-specific column operations (Snowflake)", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {%- set withColumn_clause = [] -%}
+
+    {%- if masking_method == "mask" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {# Build nested REGEXP_REPLACE chain for masking #}
+            {%- set mask_expr = quoted_column -%}
+
+            {%- if upper_char_substitute != "NULL" -%}
+                {%- set upper_sub = upper_char_substitute if upper_char_substitute != "" else "X" -%}
+                {%- set mask_expr = "REGEXP_REPLACE(" ~ mask_expr ~ ", '[A-Z]', '" ~ upper_sub ~ "')" -%}
+            {%- endif -%}
+
+            {%- if lower_char_substitute != "NULL" -%}
+                {%- set lower_sub = lower_char_substitute if lower_char_substitute != "" else "x" -%}
+                {%- set mask_expr = "REGEXP_REPLACE(" ~ mask_expr ~ ", '[a-z]', '" ~ lower_sub ~ "')" -%}
+            {%- endif -%}
+
+            {%- if digit_char_substitute != "NULL" -%}
+                {%- set digit_sub = digit_char_substitute if digit_char_substitute != "" else "n" -%}
+                {%- set mask_expr = "REGEXP_REPLACE(" ~ mask_expr ~ ", '[0-9]', '" ~ digit_sub ~ "')" -%}
+            {%- endif -%}
+
+            {%- if other_char_substitute != "NULL" and other_char_substitute != "" -%}
+                {%- set mask_expr = "REGEXP_REPLACE(" ~ mask_expr ~ ", '[^A-Za-z0-9\\\\s]', '" ~ other_char_substitute ~ "')" -%}
+            {%- endif -%}
+
+            {%- set mask_expr = "CASE WHEN " ~ quoted_column ~ " IS NULL THEN NULL ELSE " ~ mask_expr ~ " END" -%}
+
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "hash" -%}
+        {%- if masked_column_add_method == "combinedHash_substitute" -%}
+            {%- set quoted_columns = [] -%}
+            {%- for column in column_names -%}
+                {%- do quoted_columns.append(prophecy_basics.quote_identifier(column)) -%}
+            {%- endfor -%}
+            {%- set arg_string = quoted_columns | join(', ') -%}
+            {%- do withColumn_clause.append("HASH(" ~ arg_string ~ ") AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
+        {%- else  -%}
+            {% for column in column_names %}
+                {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+                {%- if masked_column_add_method == "inplace_substitute" -%}
+                    {%- do withColumn_clause.append("HASH(" ~ quoted_column ~ ") AS " ~ prophecy_basics.quote_identifier(column)) -%}
+                {%- elif prefix_suffix_opt == "Prefix" -%}
+                    {%- do withColumn_clause.append("HASH(" ~ quoted_column ~ ") AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+                {%- else -%}
+                    {%- do withColumn_clause.append("HASH(" ~ quoted_column ~ ") AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- endif -%}
+            {% endfor %}
+        {%- endif -%}
+
+    {%- elif masking_method == "sha2" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append("SHA2(CAST(" ~ quoted_column ~ " AS VARCHAR), " ~ sha2_bit_length ~ ") AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append("SHA2(CAST(" ~ quoted_column ~ " AS VARCHAR), " ~ sha2_bit_length ~ ") AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append("SHA2(CAST(" ~ quoted_column ~ " AS VARCHAR), " ~ sha2_bit_length ~ ") AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "sha" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append("SHA1(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append("SHA1(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append("SHA1(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "md5" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append("MD5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append("MD5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append("MD5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- endif -%}
+
+    {%- set select_clause_sql = withColumn_clause | join(', ') -%}
+    {%- set quoted_remaining_columns_sql = prophecy_basics.quote_column_list(remaining_columns) -%}
+
+    {%- set select_cte_sql -%}
+        {%- if select_clause_sql == "" -%}
+            WITH final_cte AS (
+                SELECT *
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif (masked_column_add_method == "prefix_suffix_substitute") or (masking_method == "hash" and masked_column_add_method == "combinedHash_substitute") -%}
+            WITH final_cte AS (
+                SELECT *, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif remaining_columns == "" -%}
+            WITH final_cte AS (
+                SELECT {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- else -%}
+            WITH final_cte AS (
+                SELECT {{ quoted_remaining_columns_sql }}, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- endif -%}
+    {%- endset -%}
+
+    {%- set final_select_query = select_cte_sql ~ "\nSELECT * FROM final_cte" -%}
+
+    {{ log("final select query is -> ", info=True) }}
+    {{ log(final_select_query, info=True) }}
+
+    {{ return(final_select_query) }}
+
+{%- endmacro -%}
+
 {%- macro duckdb__DataMasking(
     relation_name,
     column_names,

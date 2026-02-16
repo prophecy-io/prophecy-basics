@@ -14,7 +14,7 @@ class DataEncoderDecoder(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
@@ -396,17 +396,31 @@ class DataEncoderDecoder(MacroSpec):
                                             .addOption("decode", "decode")
                                         )
                                         .otherwise(
-                                            SelectBox("Choose your encoding/decoding method")
-                                            .bindProperty("enc_dec_method")
-                                            .withStyle({"width": "100%"})
-                                            .withDefault("")
-                                            .addOption("base64", "base64")
-                                            .addOption("unbase64", "unbase64")
-                                            .addOption("hex", "hex")
-                                            .addOption("unhex", "unhex")
-                                            .addOption("encode", "encode")
-                                            .addOption("decode", "decode")
-                                            .addOption("aes_encrypt", "aes_encrypt")
+                                            Condition()
+                                            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
+                                            .then(
+                                                SelectBox("Choose your encoding/decoding method")
+                                                .bindProperty("enc_dec_method")
+                                                .withStyle({"width": "100%"})
+                                                .withDefault("")
+                                                .addOption("base64", "base64")
+                                                .addOption("unbase64", "unbase64")
+                                                .addOption("hex", "hex")
+                                                .addOption("unhex", "unhex")
+                                            )
+                                            .otherwise(
+                                                SelectBox("Choose your encoding/decoding method")
+                                                .bindProperty("enc_dec_method")
+                                                .withStyle({"width": "100%"})
+                                                .withDefault("")
+                                                .addOption("base64", "base64")
+                                                .addOption("unbase64", "unbase64")
+                                                .addOption("hex", "hex")
+                                                .addOption("unhex", "unhex")
+                                                .addOption("encode", "encode")
+                                                .addOption("decode", "decode")
+                                                .addOption("aes_encrypt", "aes_encrypt")
+                                            )
                                         )
                                     )
                             )
@@ -485,7 +499,7 @@ class DataEncoderDecoder(MacroSpec):
             try:
                 schema_js = json.loads(schema_str)
                 for js in schema_js:
-                    schema_columns.append(js["name"].lower())
+                    schema_columns.append(js["name"])
             except (json.JSONDecodeError, TypeError, KeyError):
                 diagnostics.append(
                     Diagnostic(
@@ -519,11 +533,11 @@ class DataEncoderDecoder(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        elif len(component.properties.column_names) > 0 and schema_columns:
+        if len(component.properties.column_names) > 0:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
-                if col.lower() not in schema_columns
+                if col not in schema_columns
             ]
             if missingKeyColumns:
                 diagnostics.append(
