@@ -1,4 +1,3 @@
-
 import dataclasses
 from dataclasses import dataclass, field
 import json
@@ -30,8 +29,8 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
 
@@ -93,6 +92,21 @@ class Regex(MacroSpec):
                                 )
                                 .addElement(
                                     Checkbox("Case Insensitive Matching").bindProperty("caseInsensitive")
+                                )
+                                .addElement(
+                                    Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                    .then(
+                                        AlertBox(
+                                            variant="warning",
+                                            _children=[
+                                                Markdown(
+                                                    "**BigQuery:** Regex is not supported with multiple capturing groups for BigQuery SQL dialects. "
+                                                    "Regex patterns having more than one capturing group don't work with BigQuery's REGEXP_EXTRACT_ALL function. "
+                                                )
+                                            ],
+                                        )
+                                    )
                                 )
                                 .addElement(
                                     AlertBox(
@@ -403,6 +417,33 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
+        # Helper: Check if output method is tokenize
+        is_tokenize = (hasattr(props, 'outputMethod') and props.outputMethod and
+                       props.outputMethod.lower() == 'tokenize')
+
+        # Helper: Check if regex expression exists
+        has_regex = (hasattr(props, 'regexExpression') and props.regexExpression)
+
+        # Helper: Get capturing groups count if regex exists
+        capturing_groups_count = 0
+        if has_regex:
+            capturing_groups = self.extract_capturing_groups(props.regexExpression)
+            capturing_groups_count = len(capturing_groups)
+
+        # Validate splitColumns with multiple capturing groups (splitRows case handled by AlertBox for BigQuery)
+        if is_tokenize and has_regex:
+            tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and
+                               props.tokenizeOutputMethod and
+                               props.tokenizeOutputMethod.lower())
+
+            if tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.outputMethod",
+                        f"splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work for BigQuery SQL dialect. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
+                        SeverityLevelEnum.Warning
+                    )
+                )
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
@@ -561,8 +602,6 @@ class Regex(MacroSpec):
     def apply(self, props: RegexProperties) -> str:
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         # Create JSON string - json.dumps() handles double quotes, but we need to escape
         # single quotes for SQL string literals. The safe_str() function will handle this.
         parse_columns_list = [
