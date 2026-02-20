@@ -30,8 +30,8 @@ class Regex(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
-        # ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.BigQuery, # Issues with multiple capturing groups
+        ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
 
@@ -95,104 +95,162 @@ class Regex(MacroSpec):
                                     Checkbox("Case Insensitive Matching").bindProperty("caseInsensitive")
                                 )
                                 .addElement(
-                                    AlertBox(
-                                        variant="success",
-                                        _children=[
-                                            Markdown(
-                                                "**Common Regex Pattern Examples:**"
-                                                "\n"
-                                                "- **Email extraction:**"
-                                                "\n"
-                                                "**Pattern:** `([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`"
-                                                "\n"
-                                                "Example: Extract user and domain from john.doe@company.com"
-                                                "\n"
-                                                "- **Phone number parsing:**"
-                                                "\n"
-                                                "**Pattern:** `(\d{3})-(\d{3})-(\d{4})`"
-                                                "\n"
-                                                "Example: Parse (555)-123-4567 into area code, exchange, number"
-                                                "\n"
-                                                "- **Date extraction (MM/DD/YYYY):**"
-                                                "\n"
-                                                "**Pattern:** `(\d{1,2})/(\d{1,2})/(\d{4})`"
-                                                "\n"
-                                                "Example: Extract 12/25/2023 into month, day, year"
-                                                "\n"
-                                                "- **Word tokenization:**"
-                                                "\n"
-                                                "**Pattern:** `([^\s]+)`"
-                                                "\n"
-                                                "Example: Split \"Hello World Example\" into individual words"
-                                                "\n"
-                                                "- **Comma-separated values:**"
-                                                "\n"
-                                                "**Pattern:** `([^,]+)`"
-                                                "\n"
-                                                "Example: Split \"Value1,Value2,Value3\" into separate values"
-                                                "\n"
-                                                "- **Extract numbers only:**"
-                                                "\n"
-                                                "**Pattern:** `(\d+)`"
-                                                "\n"
-                                                "Example: Extract 123 from \"Price: $123.45\""
-                                                "\n"
-                                                "- **URL components:**"
-                                                "\n"
-                                                "**Pattern:** `https?://([^/]+)(/.*)?`"
-                                                "\n"
-                                                "Example: Extract domain and path from URLs"
-                                                "\n"
-                                                "- **Remove special characters:**"
-                                                "\n"
-                                                "**Pattern:** `[^a-zA-Z0-9\s]`"
-                                                "\n"
-                                                "Example: Remove punctuation, keep letters, numbers, spaces"
-                                                "\n"
-                                                "- **Match uppercase words:**"
-                                                "\n"
-                                                "**Pattern:** `\b[A-Z]{2,}\b`"
-                                                "\n"
-                                                "Example: Find acronyms like \"USA\", \"API\", \"SQL\""
-                                                "\n"
-                                                "- **Extract text between quotes:**"
-                                                "\n"
-                                                "**Pattern:** `([^\"]*)`"
-                                                "\n"
-                                                "Example: Extract content from \"quoted text\""
-                                            )
-                                        ]
+                                    Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                    .then(
+                                        AlertBox(
+                                            variant="success",
+                                            _children=[
+                                                Markdown(
+                                                    "**BigQuery — Regex pattern examples (single capture group only):**"
+                                                    "\n\n"
+                                                    "**Note:** Multiple capture groups in a single regex are not permitted by BigQuery. Use at most one capturing group, or patterns without capturing parentheses."
+                                                    "\n\n"
+                                                    "- **Word tokenization:** `[^\\s]+` — Split \"Hello World Example\" into words (no capturing group)."
+                                                    "\n"
+                                                    "- **Comma-separated values:** `[^,]+` — Split \"Value1,Value2,Value3\" (no capturing group)."
+                                                    "\n"
+                                                    "- **Extract numbers only:** `(\\d+)` — Extract 123 from \"Price: $123.45\" (single group)."
+                                                    "\n"
+                                                    "- **Remove special characters:** `[^a-zA-Z0-9\\s]` — Remove punctuation (no group)."
+                                                    "\n"
+                                                    "- **Match uppercase words:** `\\b[A-Z]{2,}\\b` — Find acronyms like \"USA\", \"API\" (no group)."
+                                                    "\n"
+                                                    "- **Extract text between quotes:** `[^\"]*` — Extract content from \"quoted text\" (no group)."
+                                                    "\n"
+                                                    "- **Single group extraction:** Use one pair of parentheses, e.g. `([a-zA-Z0-9._%+-]+)` for the local part of an email."
+                                                )
+                                            ],
+                                        )
+                                    )
+                                    .otherwise(
+                                        AlertBox(
+                                            variant="success",
+                                            _children=[
+                                                Markdown(
+                                                    "**Common Regex Pattern Examples:**"
+                                                    "\n"
+                                                    "- **Email extraction:**"
+                                                    "\n"
+                                                    "**Pattern:** `([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})`"
+                                                    "\n"
+                                                    "Example: Extract user and domain from john.doe@company.com"
+                                                    "\n"
+                                                    "- **Phone number parsing:**"
+                                                    "\n"
+                                                    "**Pattern:** `(\\d{3})-(\\d{3})-(\\d{4})`"
+                                                    "\n"
+                                                    "Example: Parse (555)-123-4567 into area code, exchange, number"
+                                                    "\n"
+                                                    "- **Date extraction (MM/DD/YYYY):**"
+                                                    "\n"
+                                                    "**Pattern:** `(\\d{1,2})/(\\d{1,2})/(\\d{4})`"
+                                                    "\n"
+                                                    "Example: Extract 12/25/2023 into month, day, year"
+                                                    "\n"
+                                                    "- **Word tokenization:**"
+                                                    "\n"
+                                                    "**Pattern:** `([^\\s]+)`"
+                                                    "\n"
+                                                    "Example: Split \"Hello World Example\" into individual words"
+                                                    "\n"
+                                                    "- **Comma-separated values:**"
+                                                    "\n"
+                                                    "**Pattern:** `([^,]+)`"
+                                                    "\n"
+                                                    "Example: Split \"Value1,Value2,Value3\" into separate values"
+                                                    "\n"
+                                                    "- **Extract numbers only:**"
+                                                    "\n"
+                                                    "**Pattern:** `(\\d+)`"
+                                                    "\n"
+                                                    "Example: Extract 123 from \"Price: $123.45\""
+                                                    "\n"
+                                                    "- **URL components:**"
+                                                    "\n"
+                                                    "**Pattern:** `https?://([^/]+)(/.*)?`"
+                                                    "\n"
+                                                    "Example: Extract domain and path from URLs"
+                                                    "\n"
+                                                    "- **Remove special characters:**"
+                                                    "\n"
+                                                    "**Pattern:** `[^a-zA-Z0-9\\s]`"
+                                                    "\n"
+                                                    "Example: Remove punctuation, keep letters, numbers, spaces"
+                                                    "\n"
+                                                    "- **Match uppercase words:**"
+                                                    "\n"
+                                                    "**Pattern:** `\\b[A-Z]{2,}\\b`"
+                                                    "\n"
+                                                    "Example: Find acronyms like \"USA\", \"API\", \"SQL\""
+                                                    "\n"
+                                                    "- **Extract text between quotes:**"
+                                                    "\n"
+                                                    "**Pattern:** `([^\"]*)`"
+                                                    "\n"
+                                                    "Example: Extract content from \"quoted text\""
+                                                )
+                                            ],
+                                        )
                                     )
                                 )
                             )
                         )
-                        .addElement(
-                            RadioGroup("Output strategy")
-                            .addOption(
-                                "Replace",
-                                "replace",
-                                description=("Replace matched text with replacement text")
-                            )
-                            .addOption(
-                                "Tokenize",
-                                "tokenize",
-                                description=("Split the incoming data using a regular expression")
-                            )
-                            .addOption(
-                                "Parse",
-                                "parse",
-                                description=("Separate the value into new columns based on regex groups defined.")
-                            )
-                            .addOption(
-                                "Match",
-                                "match",
-                                description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
-                            )
-                            .setOptionType("button")
-                            .setVariant("medium")
-                            .setButtonStyle("solid")
-                            .bindProperty("outputMethod")
-                        )
+                                .addElement(
+                                    Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                    .then(
+                                        # BigQuery: Parse not supported (no multiple capturing groups)
+                                        RadioGroup("Output strategy")
+                                        .addOption(
+                                            "Replace",
+                                            "replace",
+                                            description=("Replace matched text with replacement text")
+                                        )
+                                        .addOption(
+                                            "Tokenize",
+                                            "tokenize",
+                                            description=("Split the incoming data using a regular expression")
+                                        )
+                                        .addOption(
+                                            "Match",
+                                            "match",
+                                            description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
+                                        )
+                                        .setOptionType("button")
+                                        .setVariant("medium")
+                                        .setButtonStyle("solid")
+                                        .bindProperty("outputMethod")
+                                    )
+                                    .otherwise(
+                                        # fullMenu: all options including Parse
+                                        RadioGroup("Output strategy")
+                                        .addOption(
+                                            "Replace",
+                                            "replace",
+                                            description=("Replace matched text with replacement text")
+                                        )
+                                        .addOption(
+                                            "Tokenize",
+                                            "tokenize",
+                                            description=("Split the incoming data using a regular expression")
+                                        )
+                                        .addOption(
+                                            "Parse",
+                                            "parse",
+                                            description=("Separate the value into new columns based on regex groups defined.")
+                                        )
+                                        .addOption(
+                                            "Match",
+                                            "match",
+                                            description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
+                                        )
+                                        .setOptionType("button")
+                                        .setVariant("medium")
+                                        .setButtonStyle("solid")
+                                        .bindProperty("outputMethod")
+                                    )
+                                )
                     )
                     .addElement(
                         StepContainer()
@@ -403,6 +461,33 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
+        # Helper: Check if output method is tokenize
+        is_tokenize = (hasattr(props, 'outputMethod') and props.outputMethod and 
+                      props.outputMethod.lower() == 'tokenize')
+        
+        # Helper: Check if regex expression exists
+        has_regex = (hasattr(props, 'regexExpression') and props.regexExpression)
+        
+        # Helper: Get capturing groups count if regex exists
+        capturing_groups_count = 0
+        if has_regex:
+            capturing_groups = self.extract_capturing_groups(props.regexExpression)
+            capturing_groups_count = len(capturing_groups)
+        
+        # Validate splitColumns with multiple capturing groups (splitRows case handled by AlertBox for BigQuery)
+        if is_tokenize and has_regex:
+            tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and 
+                             props.tokenizeOutputMethod and 
+                             props.tokenizeOutputMethod.lower())
+            
+            if tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.outputMethod",
+                        f"splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work for BigQuery SQL dialect. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
+                        SeverityLevelEnum.Warning
+                    )
+                )
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
@@ -561,8 +646,6 @@ class Regex(MacroSpec):
     def apply(self, props: RegexProperties) -> str:
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        # Get the Single Table Name
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         # Create JSON string - json.dumps() handles double quotes, but we need to escape
         # single quotes for SQL string literals. The safe_str() function will handle this.
         parse_columns_list = [
@@ -717,36 +800,44 @@ class Regex(MacroSpec):
         error_if_not_matched = self.props.errorIfNotMatched
         extra_columns_handling = self.props.extraColumnsHandling
 
+
+        # Build regex pattern with case sensitivity flag
         regex_pattern = regex_expression
         if case_insensitive:
             regex_pattern = f"(?i){regex_expression}"
 
         result_df = in0
-        val_if_not_found = None if allow_blank_tokens else lit("")
+        val_if_not_found = None if allow_blank_tokens else lit("")  
 
         if output_method == "replace":
+            # Replace matched text with replacement text
             replaced_col = regexp_replace(col(selected_column), regex_pattern, replacement_text)
             if copy_unmatched_text:
+                # Only replace if matched, otherwise keep original
                 replaced_col = when(
                     col(selected_column).rlike(regex_pattern),
                     replaced_col
                 ).otherwise(col(selected_column))
-
+            
             result_df = result_df.withColumn(
                 f"{selected_column}_replaced",
                 replaced_col
             )
 
         elif output_method == "parse":
+            # Parse into multiple columns based on capture groups
             if parse_columns and len(parse_columns) > 0:
                 idx = 0
                 for parse_col in parse_columns:
                     idx += 1
                     col_name = parse_col.columnName
                     col_type = parse_col.dataType
-
+                    
+                    # Extract the group
                     extracted = regexp_extract(col(selected_column), regex_pattern, idx)
-
+                    
+                    # Cast to appropriate type
+                    # For non-string types, always use None (not lit("")) to avoid casting errors
                     if col_type.lower() == "int" or col_type.lower() == "integer":
                         extracted = when(extracted != "", extracted).otherwise(None).cast(IntegerType())
                     elif col_type.lower() == "bigint":
@@ -760,20 +851,24 @@ class Regex(MacroSpec):
                     elif col_type.lower() == "datetime" or col_type.lower() == "timestamp":
                         extracted = when(extracted != "", to_timestamp(extracted)).otherwise(None)
                     else:
+                        # String type - use lit("") if allow_blank_tokens, otherwise None
                         val_if_not_found = lit("") if allow_blank_tokens else None
                         extracted = when(
-                            (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
-                            (extracted == ""),
-                            val_if_not_found
-                        ).otherwise(extracted)
-
+                                (regexp_extract(col(selected_column), regex_pattern, 0) == "") |
+                                (extracted == ""),
+                                val_if_not_found
+                            ).otherwise(extracted)
+                    
                     result_df = result_df.withColumn(col_name, extracted)
 
         elif output_method == "tokenize":
             if tokenize_output_method == "splitColumns":
+                # Split to columns
+                # Check if regex has capture groups
                 has_capture_groups = '(' in regex_expression
-
+                
                 if has_capture_groups:
+                    # Extract each group individually
                     for i in range(1, no_of_columns + 1):
                         extracted = regexp_extract(col(selected_column), regex_pattern, i)
                         if not allow_blank_tokens:
@@ -786,15 +881,17 @@ class Regex(MacroSpec):
                                 col(selected_column).rlike(regex_pattern),
                                 extracted
                             ).otherwise(lit(""))
-
+                        
                         result_df = result_df.withColumn(f"{output_root_name}{i}", extracted)
                 else:
+                    # Use regexp_extract_all for patterns without capture groups
                     extracted_array = regexp_extract_all(col(selected_column), regex_pattern)
                     array_size = size(extracted_array)
-
+                    
                     extra_handling_lower = extra_columns_handling.lower() if extra_columns_handling else "dropextrawithoutwarning"
-
+                    
                     if extra_handling_lower == "saveallremainingtext":
+                        # For columns 1 to (no_of_columns - 1), extract normally
                         val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns):
                             col_val = when(
@@ -807,9 +904,10 @@ class Regex(MacroSpec):
                                 extracted_array[i - 1] == "",
                                 val_for_empty
                             ).otherwise(extracted_array[i - 1])
-
+                            
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
+                        
+                        # Last column: concatenate all remaining matches from no_of_columns onwards
                         last_col_val = when(
                             array_size == 0,
                             None
@@ -818,18 +916,22 @@ class Regex(MacroSpec):
                             val_for_empty
                         ).when(
                             array_size > no_of_columns,
+                            # Concatenate remaining matches
+                            # slice is 1-based, so start at no_of_columns + 1 (which is index no_of_columns in 0-based)
                             concat_ws("", slice(extracted_array, no_of_columns + 1, array_size - no_of_columns))
                         ).when(
                             array_size == no_of_columns,
+                            # Exactly no_of_columns matches - return the last one
                             when(
                                 extracted_array[no_of_columns - 1] == "",
                                 val_if_not_found
                             ).otherwise(extracted_array[no_of_columns - 1])
                         ).otherwise(None)
-
+                        
                         result_df = result_df.withColumn(f"{output_root_name}{no_of_columns}", last_col_val)
-
+                    
                     elif extra_handling_lower == "dropextrawitherror":
+                        # Check for extra matches and raise error if found
                         val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns + 1):
                             col_val = when(
@@ -845,10 +947,11 @@ class Regex(MacroSpec):
                                 extracted_array[i - 1] == "",
                                 val_for_empty
                             ).otherwise(extracted_array[i - 1])
-
+                            
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
+                    
                     else:
+                        # dropExtraWithoutWarning: drop extra matches silently
                         val_for_empty = lit("") if allow_blank_tokens else None
                         for i in range(1, no_of_columns + 1):
                             col_val = when(
@@ -861,27 +964,36 @@ class Regex(MacroSpec):
                                 extracted_array[i - 1] == "",
                                 val_for_empty
                             ).otherwise(extracted_array[i - 1])
-
+                            
                             result_df = result_df.withColumn(f"{output_root_name}{i}", col_val)
-
+            
             elif tokenize_output_method == "splitRows":
+                # Split to rows
+                # First add the array column
                 all_columns = [col(c) for c in result_df.columns]
                 extracted_array = regexp_extract_all(col(selected_column), lit(regex_pattern))
                 result_df = result_df.withColumn("token_value_new", extracted_array)
-
+                
+                # Then explode the array to create multiple rows
+                # explode() preserves the order of elements in the array, so no window function needed
+                # Select all columns except the array column, then add the exploded column
+                # This avoids ambiguous reference errors
                 result_df = result_df.select(
                     *all_columns,
                     explode(col("token_value_new")).alias("token_value_new")
                 )
-
+                
+                # Rename token column
                 result_df = result_df.withColumnRenamed("token_value_new", output_root_name)
+                # Filter blank tokens if not allowed
                 if not allow_blank_tokens:
                     result_df = result_df.filter(
-                        (col(output_root_name) != "") &
+                        (col(output_root_name) != "") & 
                         (col(output_root_name).isNotNull())
                     )
 
         elif output_method == "match":
+            # Create match column with 1/0
             match_col = when(
                 col(selected_column).isNull(),
                 0
@@ -889,9 +1001,10 @@ class Regex(MacroSpec):
                 col(selected_column).rlike(regex_pattern),
                 1
             ).otherwise(0)
-
+            
             result_df = result_df.withColumn(match_column_name, match_col)
-
+            
+            # Filter if error_if_not_matched
             if error_if_not_matched:
                 result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
