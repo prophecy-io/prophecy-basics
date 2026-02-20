@@ -7,6 +7,7 @@ dbt_packages/
 target/
 models/*
 !models/README.md
+# Test models (e.g., test_generaterows_*.sql) are excluded via models/* above
 .prophecy/
 prophecy-sources/*
 !prophecy-sources/unreferencedSources.yml
@@ -15,10 +16,12 @@ prophecy-sources/*
 # dbt ignore files
 profiles.yml
 .user.yml
+.dbt/
 
 __pycache__/
 .conda/
 condaenv.*.requirements.txt
-tests/
 environment.yml
 requirements.txt
+scripts/
+tests/

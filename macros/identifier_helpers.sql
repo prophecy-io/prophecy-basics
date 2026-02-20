@@ -18,6 +18,20 @@
     {% endif %}
 {% endmacro %}
 
+{% macro bigquery__quote_identifier(identifier) %}
+    {% if identifier is string %}
+        {% set clean_identifier = identifier | trim %}
+        {% if ' ' in clean_identifier or clean_identifier.startswith('`') == false %}
+            {% set bt = "`" %}
+            {{ bt ~ clean_identifier ~ bt }}
+        {% else %}
+            {{ clean_identifier }}
+        {% endif %}
+    {% else %}
+        {{ identifier }}
+    {% endif %}
+{% endmacro %}
+
 {% macro duckdb__quote_identifier(identifier, quote_char='"') %}
     {%- if identifier is string -%}
         {# Single identifier - return quoted string #}
@@ -262,7 +276,7 @@
     {% set suffixes = [' ', '(', '.', ')', ',', '+', '-', '*', '/', '%', '=', '<', '>', '|', '&'] %}
     {% set col_len = plain_col | length %}
     {% set text_len = text | length %}
-
+    
     {# Step 1: Find all positions where column name appears in original text #}
     {# Use namespace to maintain state across loop iterations (Jinja2 limitation) #}
     {% set ns = namespace(positions=[], search_pos=0) %}
@@ -282,7 +296,7 @@
         {% endif %}
     {% endfor %}
     {% set positions = ns.positions %}
-
+    
     {# Step 2: Process each position and build result #}
     {% set result_parts = [] %}
     {% set ns2 = namespace(last_pos=0) %}
@@ -294,23 +308,23 @@
         {# If before_char is '.', it's a qualified column (e.g., payload.YMD) - don't replace #}
         {% set valid_before = match_pos == 0 or (before_char != '.' and before_char not in word_chars) %}
         {% set valid_after = after_pos >= text_len or after_char in suffixes or after_char not in word_chars %}
-
+        
         {# Add text before this match #}
         {% do result_parts.append(text[ns2.last_pos:match_pos]) %}
-
+        
         {# Replace if valid, otherwise keep original #}
         {% if valid_before and valid_after %}
             {% do result_parts.append(replacement) %}
         {% else %}
             {% do result_parts.append(plain_col) %}
         {% endif %}
-
+        
         {% set ns2.last_pos = after_pos %}
     {% endfor %}
-
+    
     {# Add remaining text after last match #}
     {% do result_parts.append(text[ns2.last_pos:]) %}
-
+    
     {% set result = result_parts | join('') %}
     {% if result == '' %}
         {% set result = text %}
@@ -325,7 +339,7 @@
     {% set doubleq_col = '"' ~ unquoted_col ~ '"' %}
     {% set singleq_col = "'" ~ unquoted_col ~ "'" %}
     {% set plain_col = unquoted_col %}
-
+    
     {# Replace quoted variants first (before plain replacement to avoid conflicts) #}
     {% set result = text | replace(backtick_col, replacement) %}
     {% set result = result | replace(q_by_adapter, replacement) %}
@@ -405,7 +419,8 @@
     {% elif expr_trimmed | length == 10 and expr_trimmed[4] == '-' and expr_trimmed[7] == '-' %}
         {% set looks_like_date = true %}
     {% endif %}
-
+    
+    {# Only cast if it looks like a date AND doesnt contain expression operators #}
     {% if looks_like_date %}
         {% set has_operators = '(' in expr_trimmed or ')' in expr_trimmed or '+' in expr_trimmed or '*' in expr_trimmed or '/' in expr_trimmed or 'payload.' in expr_trimmed %}
         {% if not expr_trimmed.startswith("'") and not expr_trimmed.startswith('"') %}
@@ -413,7 +428,7 @@
                 {% set has_operators = true %}
             {% endif %}
         {% endif %}
-
+        
         {% if not has_operators %}
             {% set is_date_string = true %}
             {% if expr_trimmed.startswith("'") or expr_trimmed.startswith('"') %}
@@ -423,7 +438,7 @@
             {% endif %}
         {% endif %}
     {% endif %}
-
+    
     {% if is_date_string %}
         {{ return('CAST(' ~ date_str_to_cast ~ ' AS DATE)') }}
     {% else %}
@@ -435,16 +450,16 @@
     {% if expr is none or expr == '' %}
         {{ return(expr) }}
     {% endif %}
-
+    
     {% set expr_trimmed = expr | trim %}
     {% set is_timestamp_string = false %}
     {% set timestamp_str_to_cast = expr %}
-
+    
     {# First check if it matches timestamp pattern (YYYY-MM-DD HH:MM:SS) #}
     {% set looks_like_timestamp = false %}
     {% set inner_timestamp_str = expr_trimmed %}
     {% set is_quoted = false %}
-
+    
     {# Extract inner string if quoted #}
     {% if expr_trimmed.startswith("'") and expr_trimmed.endswith("'") %}
         {% set inner_timestamp_str = expr_trimmed[1:-1] | trim %}
@@ -455,10 +470,11 @@
     {% else %}
         {% set inner_timestamp_str = expr_trimmed | trim %}
     {% endif %}
-
+    
     {# Check if inner string matches timestamp pattern (19 chars: YYYY-MM-DD HH:MM:SS) #}
     {% if inner_timestamp_str | length == 19 %}
         {% if inner_timestamp_str[4] == '-' and inner_timestamp_str[7] == '-' and inner_timestamp_str[10] == ' ' and inner_timestamp_str[13] == ':' and inner_timestamp_str[16] == ':' %}
+            {# Verify its actually digits and valid format #}
             {% set is_valid = true %}
             {% for i in [0,1,2,3,5,6,8,9,11,12,14,15,17,18] %}
                 {% if inner_timestamp_str[i] not in '0123456789' %}
@@ -471,7 +487,8 @@
             {% endif %}
         {% endif %}
     {% endif %}
-
+    
+    {# Only cast if it looks like a timestamp AND doesnt contain expression operators #}
     {% if looks_like_timestamp %}
         {% set has_operators = '(' in expr_trimmed or ')' in expr_trimmed or '+' in expr_trimmed or '*' in expr_trimmed or '/' in expr_trimmed or 'payload.' in expr_trimmed %}
         {% if not expr_trimmed.startswith("'") and not expr_trimmed.startswith('"') %}
@@ -480,7 +497,7 @@
                 {% set has_operators = true %}
             {% endif %}
         {% endif %}
-
+        
         {% if not has_operators %}
             {% set is_timestamp_string = true %}
             {% if is_quoted %}
@@ -492,10 +509,11 @@
             {% endif %}
         {% endif %}
     {% endif %}
-
+    
     {% if is_timestamp_string %}
         {{ return('CAST(' ~ timestamp_str_to_cast ~ ' AS TIMESTAMP)') }}
     {% else %}
+        {# If not a timestamp, check if its a date-only pattern #}
         {% set date_result = prophecy_basics.cast_date_if_needed(expr) %}
         {{ return(date_result) }}
     {% endif %}

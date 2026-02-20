@@ -1,6 +1,4 @@
-{# cast_timestamp_if_needed and replace_column_in_expression live in identifier_helpers.sql #}
-
-{# column_names_match lives in identifier_helpers.sql (adapter-dispatched) #}
+{# Helper macros for schema-related operations #}
 
 {% macro column_exists_in_schema(schema, column_name) %}
     {# Check if a column exists in the provided schema #}
@@ -9,7 +7,7 @@
     {% if schema is none or schema == '' or schema == '[]' or schema == "''" or schema is undefined %}
         {{ return(false) }}
     {% endif %}
-
+    
     {# Parse the JSON schema string into a list of objects #}
     {# Only parse if schema is a string (not already parsed) #}
     {% set schema_parsed = [] %}
@@ -21,7 +19,7 @@
     {% else %}
         {{ return(false) }}
     {% endif %}
-
+    
     {# Check if parsing was successful and result is iterable #}
     {% if schema_parsed is none %}
         {{ return(false) }}
