@@ -181,33 +181,61 @@ class Regex(MacroSpec):
                                 )
                             )
                         )
-                        .addElement(
-                            RadioGroup("Output strategy")
-                            .addOption(
-                                "Replace",
-                                "replace",
-                                description=("Replace matched text with replacement text")
-                            )
-                            .addOption(
-                                "Tokenize",
-                                "tokenize",
-                                description=("Split the incoming data using a regular expression")
-                            )
-                            .addOption(
-                                "Parse",
-                                "parse",
-                                description=("Separate the value into new columns based on regex groups defined.")
-                            )
-                            .addOption(
-                                "Match",
-                                "match",
-                                description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
-                            )
-                            .setOptionType("button")
-                            .setVariant("medium")
-                            .setButtonStyle("solid")
-                            .bindProperty("outputMethod")
-                        )
+                                .addElement(
+                                    Condition()
+                                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                    .then(
+                                        # BigQuery: Parse not supported (no multiple capturing groups)
+                                        RadioGroup("Output strategy")
+                                        .addOption(
+                                            "Replace",
+                                            "replace",
+                                            description=("Replace matched text with replacement text")
+                                        )
+                                        .addOption(
+                                            "Tokenize",
+                                            "tokenize",
+                                            description=("Split the incoming data using a regular expression")
+                                        )
+                                        .addOption(
+                                            "Match",
+                                            "match",
+                                            description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
+                                        )
+                                        .setOptionType("button")
+                                        .setVariant("medium")
+                                        .setButtonStyle("solid")
+                                        .bindProperty("outputMethod")
+                                    )
+                                    .otherwise(
+                                        # fullMenu: all options including Parse
+                                        RadioGroup("Output strategy")
+                                        .addOption(
+                                            "Replace",
+                                            "replace",
+                                            description=("Replace matched text with replacement text")
+                                        )
+                                        .addOption(
+                                            "Tokenize",
+                                            "tokenize",
+                                            description=("Split the incoming data using a regular expression")
+                                        )
+                                        .addOption(
+                                            "Parse",
+                                            "parse",
+                                            description=("Separate the value into new columns based on regex groups defined.")
+                                        )
+                                        .addOption(
+                                            "Match",
+                                            "match",
+                                            description=("Create new column with 1/0 value, based on the column value matching the regex expression.")
+                                        )
+                                        .setOptionType("button")
+                                        .setVariant("medium")
+                                        .setButtonStyle("solid")
+                                        .bindProperty("outputMethod")
+                                    )
+                                )
                     )
                     .addElement(
                         StepContainer()
