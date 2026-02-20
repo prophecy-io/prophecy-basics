@@ -31,7 +31,7 @@ class DataMasking(MacroSpec):
         lower_char_substitute: str = ""
         digit_char_substitute: str = ""
         other_char_substitute: str = ""
-        sha2_bit_length: str = ""
+        sha2_bit_length: str = "256"
         prefix_suffix_option: str = "Prefix"
         prefix_suffix_added: str = ""
         combined_hash_column_name: str = ""
