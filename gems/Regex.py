@@ -104,6 +104,7 @@ class Regex(MacroSpec):
                                                 Markdown(
                                                     "**BigQuery:** Regex is not supported with multiple capturing groups for BigQuery SQL dialects. "
                                                     "Regex patterns having more than one capturing group don't work with BigQuery's REGEXP_EXTRACT_ALL function. "
+                                                    "Instead of ([^\s]+) use [^\s]+, for example -> Capture group paranthesis should be removed"
                                                 )
                                             ],
                                         )
