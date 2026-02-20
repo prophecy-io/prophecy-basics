@@ -709,10 +709,7 @@
         {# For tokenize/splitColumns: #}
         {# - If pattern has 1 capturing group: use REGEXP_EXTRACT_ALL to get all matches #}
         {# - If pattern has multiple capturing groups: REGEXP_EXTRACT_ALL will fail in BigQuery #}
-        {#   For patterns with multiple capturing groups, consider using the 'parse' output method instead #}
-        {#   which uses REGEXP_EXTRACT with group indices from parseColumns #}
         {# BigQuery REGEXP_EXTRACT_ALL only supports patterns with at most 1 capturing group #}
-        {# For single group patterns, wrap in capturing group and use REGEXP_EXTRACT_ALL #}
         {%- set extract_pattern = '(' ~ regex_pattern ~ ')' -%}
         with extracted_array as (
             select
@@ -738,14 +735,10 @@
                 case
                     when ARRAY_LENGTH(regex_matches) = 0 then CAST(NULL AS STRING)
                     when ARRAY_LENGTH(regex_matches) < {{ noOfColumns }} then
-                        {# Not enough matches - return null or empty based on allowBlankTokens #}
                         case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
                     when ARRAY_LENGTH(regex_matches) > {{ noOfColumns }} then
-                        {# Concatenate remaining matches - ensure GENERATE_ARRAY range is valid #}
-                        {# Only use GENERATE_ARRAY if end >= start (i.e., ARRAY_LENGTH - 1 >= noOfColumns) #}
                         ARRAY_TO_STRING(ARRAY(SELECT regex_matches[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns }}, GREATEST({{ noOfColumns }}, ARRAY_LENGTH(regex_matches) - 1))) AS i), '')
                     when ARRAY_LENGTH(regex_matches) = {{ noOfColumns }} then
-                        {# Exactly noOfColumns matches - return the last one #}
                         case
                             when regex_matches[OFFSET({{ noOfColumns - 1 }})] = '' then
                                 case when {{ allowBlankTokens }} then '' else CAST(NULL AS STRING) end
@@ -787,13 +780,8 @@
                 {%- endfor %}
             from extracted_array
         {%- endif -%}
-        {# Note: This uses REGEXP_EXTRACT_ALL with wrapped pattern to extract all matches. #}
-        {# For patterns with multiple capturing groups, this extracts the full match each time. #}
-        {# For single capturing group patterns, this extracts all occurrences of that group. #}
 
     {%- elif tokenize_method_lower == 'splitrows' -%}
-        {# BigQuery REGEXP_EXTRACT_ALL only supports patterns with at most 1 capturing group #}
-        {# So we wrap the pattern in a capturing group to extract the full match #}
         {%- set extract_pattern = '(' ~ regex_pattern ~ ')' -%}
         with regex_matches as (
             select
