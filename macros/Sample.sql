@@ -154,12 +154,29 @@
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
 
+{%- if groupCols is string -%}
+    {%- set groupCols = fromjson(groupCols) -%}
+{%- endif -%}
+
+{%- set bt = "`" -%}
+{%- set ns = namespace(quoted_group_cols='') -%}
+{%- if groupCols and groupCols | length > 0 -%}
+    {%- for col in groupCols -%}
+        {%- if loop.first -%}
+            {%- set ns.quoted_group_cols = bt ~ col ~ bt -%}
+        {%- else -%}
+            {%- set ns.quoted_group_cols = ns.quoted_group_cols ~ ', ' ~ bt ~ col ~ bt -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+{%- set quoted_group_cols = ns.quoted_group_cols -%}
+
 {%- if currentModeSelection == 'firstN' -%}
     {%- if groupCols | length > 0 -%}
         select * except (rn)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
             from {{ relation_name }}
         ) numbered_data
         where rn <= {{ sample_size }}
@@ -178,8 +195,8 @@
         select * except (rn, group_rows, total_rows)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
-                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
+                count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
             from {{ relation_name }}
         ) numbered_data
@@ -202,7 +219,7 @@
         select * except (rn)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
             from {{ relation_name }}
         ) numbered_data
         where rn > {{ sample_size }}
@@ -221,7 +238,7 @@
         select * except (rn)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
             from {{ relation_name }}
         ) numbered_data
         where MOD(rn - 1, greatest(1, {{ sample_size }})) = 0
@@ -240,7 +257,7 @@
         select * except (rn)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
             from {{ relation_name }}
         ) numbered_data
         where MOD(rn, greatest(1, {{ sample_size }})) = 0
@@ -259,9 +276,9 @@
         select * except (rn, random_rn, group_rows, total_rows)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
-                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
+                row_number() over (partition by {{ quoted_group_cols }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
             from {{ relation_name }} as t
         ) numbered_data
@@ -288,8 +305,8 @@
         select * except (rn, group_rows, total_rows)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
-                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
+                count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
             from {{ relation_name }}
         ) numbered_data
@@ -315,9 +332,9 @@
         select * except (rn, random_rn, group_rows, total_rows)
         from (
             select *,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by {{ groupCols | join(', ') }}) as rn,
-                row_number() over (partition by {{ groupCols | join(', ') }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
-                count(*) over (partition by {{ groupCols | join(', ') }}) as group_rows,
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
+                row_number() over (partition by {{ quoted_group_cols }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
+                count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
             from {{ relation_name }} as t
         ) numbered_data
