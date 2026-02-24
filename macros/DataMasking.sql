@@ -352,27 +352,6 @@
             {%- endif -%}
         {% endfor %}
 
-    {%- elif masking_method == "hash" -%}
-        {%- if masked_column_add_method == "combinedHash_substitute" -%}
-            {%- set quoted_columns = [] -%}
-            {%- for column in column_names -%}
-                {%- do quoted_columns.append(prophecy_basics.quote_identifier(column)) -%}
-            {%- endfor -%}
-            {%- set concat_expression = quoted_columns | join(' || ') -%}
-            {%- do withColumn_clause.append("md5(CAST(" ~ concat_expression ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
-        {%- else  -%}
-            {% for column in column_names %}
-                {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-                {%- if masked_column_add_method == "inplace_substitute" -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column)) -%}
-                {%- elif prefix_suffix_opt == "Prefix" -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
-                {%- else -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
-                {%- endif -%}
-            {% endfor %}
-        {%- endif -%}
-
     {%- elif masking_method == "sha2" -%}
         {%- if sha2_bit_length != "256" -%}
             {{ exceptions.raise_compiler_error("DuckDB only supports SHA2 with 256-bit length. sha2_bit_length=" ~ sha2_bit_length ~ " is not supported. Please use sha2_bit_length=256.") }}
