@@ -106,13 +106,13 @@
     {%- endfor -%}
 
     with union_query as (
-        {{ selects | join('\nunion all\n') }}
+    {{ selects | join('\nunion all\n') }}
     )
     select
-    {%- for norm in final_columns -%}
+    {% for norm in final_columns %}
         cast({{ prophecy_basics.quote_identifier(norm_to_original[norm]) }} as {{ norm_to_dtype[norm] }})
           as {{ prophecy_basics.quote_identifier(norm_to_original[norm]) }}{% if not loop.last %},{% endif %}
-    {%- endfor %}
+    {% endfor %}
     from union_query
 
 {%- endmacro %}
