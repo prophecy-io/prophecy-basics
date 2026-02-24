@@ -342,39 +342,38 @@
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
             {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-            {%- set mask_expression = "CASE " -%}
-            {%- set mask_expression = mask_expression ~ "WHEN " ~ quoted_column ~ " IS NULL THEN NULL " -%}
-            {%- set mask_expression = mask_expression ~ "ELSE regexp_replace(" ~ quoted_column ~ ", '[A-Z]', '" ~ (upper_char_substitute if upper_char_substitute != "NULL" else "X") ~ "', 'g')" -%}
-            {%- set mask_expression = mask_expression ~ "END" -%}
+            {# Build nested regexp_replace chain for masking (same logic as Snowflake) #}
+            {%- set mask_expr = quoted_column -%}
+
+            {%- if upper_char_substitute != "NULL" -%}
+                {%- set upper_sub = upper_char_substitute if upper_char_substitute != "" else "X" -%}
+                {%- set mask_expr = "regexp_replace(" ~ mask_expr ~ ", '[A-Z]', '" ~ upper_sub ~ "', 'g')" -%}
+            {%- endif -%}
+
+            {%- if lower_char_substitute != "NULL" -%}
+                {%- set lower_sub = lower_char_substitute if lower_char_substitute != "" else "x" -%}
+                {%- set mask_expr = "regexp_replace(" ~ mask_expr ~ ", '[a-z]', '" ~ lower_sub ~ "', 'g')" -%}
+            {%- endif -%}
+
+            {%- if digit_char_substitute != "NULL" -%}
+                {%- set digit_sub = digit_char_substitute if digit_char_substitute != "" else "n" -%}
+                {%- set mask_expr = "regexp_replace(" ~ mask_expr ~ ", '[0-9]', '" ~ digit_sub ~ "', 'g')" -%}
+            {%- endif -%}
+
+            {%- if other_char_substitute != "NULL" and other_char_substitute != "" -%}
+                {%- set mask_expr = "regexp_replace(" ~ mask_expr ~ ", '[^A-Za-z0-9\\\\s]', '" ~ other_char_substitute ~ "', 'g')" -%}
+            {%- endif -%}
+
+            {%- set mask_expr = "CASE WHEN " ~ quoted_column ~ " IS NULL THEN NULL ELSE " ~ mask_expr ~ " END" -%}
+
             {%- if masked_column_add_method == "inplace_substitute" -%}
-                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
             {%- else -%}
-                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- do withColumn_clause.append(mask_expr ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
             {%- endif -%}
         {% endfor %}
-
-    {%- elif masking_method == "hash" -%}
-        {%- if masked_column_add_method == "combinedHash_substitute" -%}
-            {%- set quoted_columns = [] -%}
-            {%- for column in column_names -%}
-                {%- do quoted_columns.append(prophecy_basics.quote_identifier(column)) -%}
-            {%- endfor -%}
-            {%- set concat_expression = quoted_columns | join(' || ') -%}
-            {%- do withColumn_clause.append("md5(CAST(" ~ concat_expression ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
-        {%- else  -%}
-            {% for column in column_names %}
-                {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-                {%- if masked_column_add_method == "inplace_substitute" -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column)) -%}
-                {%- elif prefix_suffix_opt == "Prefix" -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
-                {%- else -%}
-                    {%- do withColumn_clause.append("md5(CAST(" ~ quoted_column ~ " AS VARCHAR)) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
-                {%- endif -%}
-            {% endfor %}
-        {%- endif -%}
 
     {%- elif masking_method == "sha2" -%}
         {%- if sha2_bit_length != "256" -%}

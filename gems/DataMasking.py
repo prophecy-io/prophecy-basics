@@ -201,10 +201,10 @@ class DataMasking(MacroSpec):
                                         .bindProperty("masking_method")
                                         .withStyle({"width": "100%"})
                                         .withDefault("")
-                                        .addOption("hash", "hash")
-                                        .addOption("sha", "sha")
+                                        .addOption("sha", "sha") # .addOption("hash", "hash")
                                         .addOption("sha2", "sha2")
                                         .addOption("md5", "md5")
+                                        .addOption("mask", "mask")
                                     )
                                     .otherwise(
                                         Condition()
