@@ -8,14 +8,12 @@
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
 
-    {# Step 1: Normalize relation list #}
     {%- if relation_names is string -%}
         {%- set relations = relation_names.split(',') | map('trim') | list -%}
     {%- else -%}
         {%- set relations = relation_names | list -%}
     {%- endif -%}
 
-    {# Step 2: Capture column names per schema #}
     {%- set columns_per_relation = [] -%}
     {%- for schema_blob in schemas -%}
         {%- if schema_blob is string -%}
@@ -31,7 +29,6 @@
         {%- do columns_per_relation.append(col_list) -%}
     {%- endfor -%}
 
-    {# Step 3: Normalize column names and preserve original for final SELECT #}
     {%- set norm_to_original = {} -%}
     {%- set final_columns = [] -%}
     {%- for col in columns_per_relation[0] -%}
@@ -42,7 +39,6 @@
         {%- endif -%}
     {%- endfor -%}
 
-    {# Step 4: Merge schema column names #}
     {%- if missingColumnOps == 'allowMissingColumns' -%}
         {%- for other_cols in columns_per_relation[1:] -%}
             {%- for c in other_cols -%}
@@ -78,7 +74,6 @@
         {{ exceptions.raise_compiler_error("Unsupported missingColumnOps value: " ~ missingColumnOps) }}
     {%- endif -%}
 
-    {# Step 5: Build SELECTs with proper quoting #}
     {%- set selects = [] -%}
     {%- for idx in range(relations | length) -%}
         {%- set cur_cols = columns_per_relation[idx] -%}
@@ -99,11 +94,26 @@
         {%- do selects.append("select " ~ parts | join(', ') ~ " from " ~ relations[idx]) -%}
     {%- endfor -%}
 
-    {# Step 6: Union all together #}
+    {%- set norm_to_dtype = {} -%}
+    {%- for schema_blob in schemas -%}
+        {%- set parsed = fromjson(schema_blob) if schema_blob is string else schema_blob -%}
+        {%- for f in parsed -%}
+            {%- set norm = f.name | lower -%}
+            {%- if norm not in norm_to_dtype -%}
+                {%- do norm_to_dtype.update({ norm: f.dataType }) -%}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endfor -%}
+
     with union_query as (
         {{ selects | join('\nunion all\n') }}
     )
-    select * from union_query
+    select
+    {%- for norm in final_columns -%}
+        cast({{ prophecy_basics.quote_identifier(norm_to_original[norm]) }} as {{ norm_to_dtype[norm] }})
+          as {{ prophecy_basics.quote_identifier(norm_to_original[norm]) }}{% if not loop.last %},{% endif %}
+    {%- endfor %}
+    from union_query
 
 {%- endmacro %}
 
