@@ -193,6 +193,7 @@ class DataMasking(MacroSpec):
                                         .addOption("sha", "sha") # .addOption("hash", "hash")
                                         .addOption("sha2", "sha2")
                                         .addOption("md5", "md5")
+                                        .addOption("mask", "mask")
                                     )
                                     .otherwise(
                                         Condition()
