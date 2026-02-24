@@ -15,3 +15,11 @@ profiles.yml
 .user.yml
 
 __pycache__/
+
+.conda/
+.cursor/
+environment.yml
+requirements.txt
+scripts/
+tests/bigquery_expected/
+tests/expected/
