@@ -19,20 +19,10 @@ profiles.yml
 .dbt/
 
 __pycache__/
-<<<<<<< HEAD
-.conda/
-condaenv.*.requirements.txt
-environment.yml
-requirements.txt
-scripts/
-tests/
-=======
 
 .conda/
 .cursor/
 environment.yml
 requirements.txt
 scripts/
-tests/bigquery_expected/
-tests/expected/
->>>>>>> 59cc01e50e96e46e52fe83b2108d909e90c3cbc0
+tests/
