@@ -1133,8 +1133,4 @@
 
 {%- endif -%}
 
-<<<<<<< HEAD
 {% endmacro %}
-=======
-{% endmacro %}
->>>>>>> 59cc01e50e96e46e52fe83b2108d909e90c3cbc0
