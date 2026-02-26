@@ -1,0 +1,448 @@
+name: Prophecy Basics Test Suite
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'pyspark'
+        type: choice
+        options:
+          - pyspark
+          - snowflake_sql
+          - databricks_sql
+          - duckdb_sql
+          - all
+      snowflake_account:
+        description: 'Snowflake account (e.g. xy12345.us-east-1)'
+        required: false
+        type: string
+      snowflake_user:
+        description: 'Snowflake username'
+        required: false
+        type: string
+      snowflake_database:
+        description: 'Snowflake database'
+        required: false
+        type: string
+      snowflake_warehouse:
+        description: 'Snowflake warehouse'
+        required: false
+        type: string
+      snowflake_schema:
+        description: 'Snowflake schema (default: PUBLIC)'
+        required: false
+        type: string
+      databricks_host:
+        description: 'Databricks host (e.g. adb-123.4.azuredatabricks.net)'
+        required: false
+        type: string
+      databricks_http_path:
+        description: 'Databricks SQL warehouse HTTP path'
+        required: false
+        type: string
+      databricks_catalog:
+        description: 'Databricks catalog (default: hive_metastore)'
+        required: false
+        type: string
+      databricks_schema:
+        description: 'Databricks schema (default: default)'
+        required: false
+        type: string
+
+# NOTE: Sensitive values (SNOWFLAKE_PASSWORD, DATABRICKS_TOKEN) must be
+# configured as repo secrets — they should never be entered as workflow
+# inputs since inputs are visible in workflow run logs.
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Job to determine which test suites to run
+  determine-tests:
+    name: Determine Test Suites
+    runs-on: ubuntu-latest
+    outputs:
+      pyspark: ${{ steps.set-matrix.outputs.pyspark }}
+      snowflake_sql: ${{ steps.set-matrix.outputs.snowflake_sql }}
+      databricks_sql: ${{ steps.set-matrix.outputs.databricks_sql }}
+      duckdb_sql: ${{ steps.set-matrix.outputs.duckdb_sql }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Determine test matrix
+        id: set-matrix
+        run: |
+          TEST_TYPE="${{ github.event.inputs.test_type || 'auto' }}"
+          
+          has_tests() {
+            local dir="prophecy_tests/$1"
+            if [ -d "$dir" ]; then
+              find "$dir" -type f \( -name "test_*.py" -o -name "test_*.sql" \) | grep -q . && echo "true" || echo "false"
+            else
+              echo "false"
+            fi
+          }
+          
+          if [ "$TEST_TYPE" = "all" ]; then
+            echo "pyspark=$(has_tests pyspark)" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$(has_tests snowflake_sql)" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$(has_tests databricks_sql)" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
+          elif [ "$TEST_TYPE" = "auto" ]; then
+            echo "pyspark=$(has_tests pyspark)" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$(has_tests snowflake_sql)" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$(has_tests databricks_sql)" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
+          else
+            echo "pyspark=$( [ '$TEST_TYPE' = 'pyspark' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$( [ '$TEST_TYPE' = 'snowflake_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$( [ '$TEST_TYPE' = 'databricks_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$( [ '$TEST_TYPE' = 'duckdb_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+          fi
+
+  # PySpark Tests
+  test-pyspark:
+    name: 🔥 PySpark Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.pyspark == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Set up Java (required for PySpark)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      
+      - name: Cache PySpark dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pyspark-${{ hashFiles('prophecy_tests/pyspark/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-pyspark-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/pyspark/requirements.txt
+      
+      - name: Add gems to PYTHONPATH
+        run: |
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/gems:$PYTHONPATH" >> $GITHUB_ENV
+      
+      - name: Run PySpark tests
+        run: |
+          cd prophecy_tests/pyspark
+          pytest -v \
+            --tb=short \
+            --junit-xml=../../test-results/pyspark-results.xml \
+            --html=../../test-results/pyspark-report.html \
+            --self-contained-html
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyspark-test-results
+          path: |
+            test-results/pyspark-*.xml
+            test-results/pyspark-*.html
+      
+
+  # Snowflake SQL Tests
+  # Config inputs (workflow UI) + password (repo secret)
+  test-snowflake-sql:
+    name: ❄️ Snowflake SQL Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.snowflake_sql == 'true'
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ github.event.inputs.snowflake_account || secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ github.event.inputs.snowflake_user || secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_DATABASE: ${{ github.event.inputs.snowflake_database || secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_WAREHOUSE: ${{ github.event.inputs.snowflake_warehouse || secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_SCHEMA: ${{ github.event.inputs.snowflake_schema || secrets.SNOWFLAKE_SCHEMA || 'PUBLIC' }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE || 'ACCOUNTADMIN' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Snowflake credentials
+        run: |
+          missing=""
+          [ -z "$SNOWFLAKE_ACCOUNT" ]   && missing="$missing SNOWFLAKE_ACCOUNT"
+          [ -z "$SNOWFLAKE_USER" ]      && missing="$missing SNOWFLAKE_USER"
+          [ -z "$SNOWFLAKE_PASSWORD" ]  && missing="$missing SNOWFLAKE_PASSWORD(secret)"
+          [ -z "$SNOWFLAKE_DATABASE" ]  && missing="$missing SNOWFLAKE_DATABASE"
+          [ -z "$SNOWFLAKE_WAREHOUSE" ] && missing="$missing SNOWFLAKE_WAREHOUSE"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing Snowflake credentials:$missing"
+            echo "Provide config via workflow inputs (manual run) and set SNOWFLAKE_PASSWORD as a repo secret."
+            exit 1
+          fi
+          echo "✅ Snowflake credentials OK (account=$SNOWFLAKE_ACCOUNT, schema=$SNOWFLAKE_SCHEMA)"
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dbt dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/snowflake_sql/requirements.txt
+
+      - name: Move test files to tests/ directory
+        run: |
+          mkdir -p tests/snowflake_sql
+          find prophecy_tests/snowflake_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/snowflake_sql/ \;
+
+      - name: Create dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          prophecy-default:
+            target: dev
+            outputs:
+              dev:
+                type: snowflake
+                account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+                user: "{{ env_var('SNOWFLAKE_USER') }}"
+                password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+                role: "{{ env_var('SNOWFLAKE_ROLE', 'ACCOUNTADMIN') }}"
+                database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+                warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+                schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'PUBLIC') }}"
+                threads: 1
+          EOF
+
+      - name: Run Snowflake SQL tests
+        run: |
+          cd prophecy_tests/snowflake_sql
+          dbt test --project-dir ../..
+
+      - name: Generate HTML test report
+        if: always()
+        run: python .github/scripts/dbt_report.py target/run_results.json target/test-report.html "Snowflake SQL"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snowflake-test-results
+          path: |
+            target/test-report.html
+            target/run_results.json
+            logs/*.log
+
+  # Databricks SQL Tests
+  # Config inputs (workflow UI) + token (repo secret)
+  test-databricks-sql:
+    name: 🧱 Databricks SQL Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.databricks_sql == 'true'
+
+    env:
+      DATABRICKS_HOST: ${{ github.event.inputs.databricks_host || secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_HTTP_PATH: ${{ github.event.inputs.databricks_http_path || secrets.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CATALOG: ${{ github.event.inputs.databricks_catalog || secrets.DATABRICKS_CATALOG || 'hive_metastore' }}
+      DATABRICKS_SCHEMA: ${{ github.event.inputs.databricks_schema || secrets.DATABRICKS_SCHEMA || 'default' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Databricks credentials
+        run: |
+          missing=""
+          [ -z "$DATABRICKS_HOST" ]      && missing="$missing DATABRICKS_HOST"
+          [ -z "$DATABRICKS_TOKEN" ]     && missing="$missing DATABRICKS_TOKEN(secret)"
+          [ -z "$DATABRICKS_HTTP_PATH" ] && missing="$missing DATABRICKS_HTTP_PATH"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing Databricks credentials:$missing"
+            echo "Provide config via workflow inputs (manual run) and set DATABRICKS_TOKEN as a repo secret."
+            exit 1
+          fi
+          echo "✅ Databricks credentials OK (host=$DATABRICKS_HOST, catalog=$DATABRICKS_CATALOG, schema=$DATABRICKS_SCHEMA)"
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dbt dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/databricks_sql/requirements.txt
+
+      - name: Move test files to tests/ directory
+        run: |
+          mkdir -p tests/databricks_sql
+          find prophecy_tests/databricks_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/databricks_sql/ \;
+
+      - name: Create dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          prophecy-default:
+            target: dev
+            outputs:
+              dev:
+                type: databricks
+                host: "{{ env_var('DATABRICKS_HOST') }}"
+                http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+                token: "{{ env_var('DATABRICKS_TOKEN') }}"
+                catalog: "{{ env_var('DATABRICKS_CATALOG', 'hive_metastore') }}"
+                schema: "{{ env_var('DATABRICKS_SCHEMA', 'default') }}"
+                threads: 1
+          EOF
+
+      - name: Run Databricks SQL tests
+        run: |
+          cd prophecy_tests/databricks_sql
+          dbt test --project-dir ../..
+
+      - name: Generate HTML test report
+        if: always()
+        run: python .github/scripts/dbt_report.py target/run_results.json target/test-report.html "Databricks SQL"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: databricks-test-results
+          path: |
+            target/test-report.html
+            target/run_results.json
+            logs/*.log
+
+  # DuckDB SQL Tests
+  test-duckdb-sql:
+    name: 🦆 DuckDB SQL Tests
+    runs-on: ubuntu-latest
+    needs: determine-tests
+    if: needs.determine-tests.outputs.duckdb_sql == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dbt dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r prophecy_tests/duckdb_sql/requirements.txt
+      
+      - name: Move test files to tests/ directory
+        run: |
+          mkdir -p tests/duckdb_sql
+          find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
+      
+      - name: Create DuckDB profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          prophecy-default:
+            target: dev
+            outputs:
+              dev:
+                type: duckdb
+                path: ':memory:'
+                threads: 1
+          EOF
+          echo "Created profiles.yml:"
+          cat ~/.dbt/profiles.yml
+      
+      - name: Run DuckDB tests
+        run: |
+          cd prophecy_tests/duckdb_sql
+          dbt test --project-dir ../..
+
+      - name: Generate HTML test report
+        if: always()
+        run: python .github/scripts/dbt_report.py target/run_results.json target/test-report.html "DuckDB SQL"
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-test-results
+          path: |
+            target/test-report.html
+            target/run_results.json
+            logs/*.log
+
+  # Final summary job
+  test-summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    needs: [determine-tests, test-pyspark, test-duckdb-sql, test-snowflake-sql, test-databricks-sql]
+    if: always()
+    
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results
+      
+      - name: Display test summary
+        run: |
+          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.test-pyspark.result }}" != "skipped" ]; then
+            echo "| 🔥 PySpark | ${{ needs.test-pyspark.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.test-duckdb-sql.result }}" != "skipped" ]; then
+            echo "| 🦆 DuckDB SQL | ${{ needs.test-duckdb-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.test-snowflake-sql.result }}" != "skipped" ]; then
+            echo "| ❄️ Snowflake SQL | ${{ needs.test-snowflake-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.test-databricks-sql.result }}" != "skipped" ]; then
+            echo "| 🧱 Databricks SQL | ${{ needs.test-databricks-sql.result }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Trigger: ${{ github.event_name }}*" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event.inputs.test_type }}" != "" ]; then
+            echo "*Test Type: ${{ github.event.inputs.test_type }}*" >> $GITHUB_STEP_SUMMARY
+          fi
