@@ -447,7 +447,7 @@ class FindDuplicates(MacroSpec):
         schema_columns = []
         schema_js = json.loads(props.schema)
         for js in schema_js:
-            schema_columns.append(js["name"].lower())
+            schema_columns.append(js["name"])
 
         order_rules: List[dict] = [
             {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
