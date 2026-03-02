@@ -333,13 +333,13 @@
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- if not selectedColumnName or selectedColumnName == '' -%}
     {{ log("ERROR: selectedColumnName parameter is required and cannot be empty", info=True) }}
-    SELECT 'ERROR: selectedColumnName parameter is required' AS error_message
+    select 'ERROR: selectedColumnName parameter is required' as error_message
 {%- elif not regexExpression or regexExpression == '' -%}
     {{ log("ERROR: regexExpression parameter is required and cannot be empty", info=True) }}
-    SELECT 'ERROR: regexExpression parameter is required' AS error_message
+    select 'ERROR: regexExpression parameter is required' as error_message
 {%- elif not relation_list or relation_list == '' -%}
     {{ log("ERROR: relation_name parameter is required and cannot be empty", info=True) }}
-    SELECT 'ERROR: relation_name parameter is required' AS error_message
+    select 'ERROR: relation_name parameter is required' as error_message
 {%- else -%}
 
 {# Parse parseColumns if its a string #}
@@ -564,9 +564,14 @@
 
 {% endmacro %}
 
+<<<<<<< HEAD
+{# ============================================ #}
+{# BIGQUERY Implementation                     #}
+=======
 
 {# ============================================ #}
 {# BigQuery Implementation                    #}
+>>>>>>> 59cc01e50e96e46e52fe83b2108d909e90c3cbc0
 {# ============================================ #}
 {% macro bigquery__Regex(
     relation_name,

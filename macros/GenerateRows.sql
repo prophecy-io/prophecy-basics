@@ -49,7 +49,7 @@
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
-
+    
     {# Check if column exists in source schema #}
     {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 
@@ -172,17 +172,17 @@
     {# Extract init value - evaluate init_expr by replacing column_name with 1 #}
     {% set init_expr_eval = init_expr | replace(column_name, '1') | trim %}
     {% set init_value = init_expr_eval | int %}
-
+    
     {# Extract step value - evaluate loop_expr by replacing column_name with 0 #}
     {% set step_expr = loop_expr | replace(column_name, '0') | trim %}
     {% set step_value = step_expr | int %}
-
+    
     {# Use GENERATE_ARRAY with step - always use array element alias #}
     {% set computed_expr = array_elem_alias %}
     {% set condition_expr_sql = condition_expr | replace(column_name, array_elem_alias) %}
     {% set use_step = true %}
     {% set array_step = step_value %}
-
+    
     {% if relation_tables %}
         {# With source table: generate sequence for each input row #}
         with source_data as (
@@ -255,7 +255,7 @@
     {# Use provided helper to unquote the provided column name #}
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
     {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
-
+    
     {# Check if column exists in source schema #}
     {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
 

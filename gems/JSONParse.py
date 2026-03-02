@@ -16,7 +16,7 @@ class JSONParse(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         # ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
@@ -26,7 +26,7 @@ class JSONParse(MacroSpec):
         # properties for the component with default values
         columnName: str = ""
         relation_name: List[str] = field(default_factory=list)
-        parsingMethod: str = "parseFromSampleRecord"
+        parsingMethod: str = ""
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
@@ -50,6 +50,8 @@ class JSONParse(MacroSpec):
         return relation_name
 
     def dialog(self) -> Dialog:
+        # Standard parsing method radio group (for Databricks and other providers)
+        # Parsing method radio group (only shown for Databricks)
         methodRadioGroup = (
             RadioGroup("Parsing method")
             .addOption(
@@ -91,104 +93,68 @@ class JSONParse(MacroSpec):
             )
         )
         return Dialog("ColumnParser").addElement(
-            Condition()
-            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
-            .then(
-                ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(
-                    Ports(),
-                    "content"
+            ColumnsLayout(gap="1rem", height="100%")
+            .addColumn(Ports(), "content")
+            .addColumn(
+                StackLayout(height="100%")
+                .addElement(TitleElement("Select Column to Parse"))
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%").addElement(
+                                SchemaColumnsDropdown("", appearance="minimal")
+                                .bindSchema("component.ports.inputs[0].schema")
+                                .bindProperty("columnName")
+                                .showErrorsFor("columnName")
+                            )
+                        )
+                    )
                 )
-                .addColumn(
-                    StackLayout(height="100%")
-                        .addElement(
-                            StepContainer()
-                            .addElement(
-                                Step()
-                                .addElement(
-                                    StackLayout(height="100%")
-                                    .addElement(
-                                        SchemaColumnsDropdown("Select columns to parse",
-                                                                appearance="minimal")
-                                        .bindSchema("component.ports.inputs[0].schema")
-                                        .bindProperty("columnName")
-                                        .showErrorsFor("columnName")
-                                    )
-                                )
-                            )
-                        )
-                        .addElement(
-                            AlertBox(
-                                variant="success",
-                                _children=[
-                                    Markdown(
-                                        "For the column processed using **`JSONParse`**, a new column is created with the suffix **`_parsed`**\n"
-                                    )
-                                ]
-                            )
-                        )
-                )                
-            )
-            .otherwise(
-                ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
-                    StackLayout(height="100%")
-                    .addElement(TitleElement("Select Column to Parse"))
-                    .addElement(
-                        StepContainer().addElement(
-                            Step().addElement(
-                                StackLayout(height="100%").addElement(
-                                    SchemaColumnsDropdown("", appearance="minimal")
-                                    .bindSchema("component.ports.inputs[0].schema")
-                                    .bindProperty("columnName")
-                                    .showErrorsFor("columnName")
-                                )
-                            )
-                        )
+                .addElement(
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("databricks"))
+                    .then(methodRadioGroup)
+                )
+                .addElement(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSampleRecord"),
                     )
-                    .addElement(methodRadioGroup)
-                    .addElement(
-                        Condition()
-                        .ifEqual(
-                            PropExpr("component.properties.parsingMethod"),
-                            StringExpr("parseFromSampleRecord"),
-                        )
-                        .then(sampleRecordTextJSON)
+                    .then(sampleRecordTextJSON)
+                )
+                .addElement(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSchema"),
                     )
-                    .addElement(
-                        Condition()
-                        .ifEqual(
-                            PropExpr("component.properties.parsingMethod"),
-                            StringExpr("parseFromSchema"),
-                        )
-                        .then(
-                            TextArea("Schema struct to parse the column", 20)
-                            .bindProperty("sampleSchema")
-                            .bindPlaceholder(
-                                """STRUCT<
-    root: STRUCT<
-        person: STRUCT<
-        id: INT,
-        name: STRUCT<
-            first: STRING,
-            last: STRING
-        >,
-        address: STRUCT<
-            street: STRING,
-            city: STRING,
-            zip: INT
-        >
-        >
+                    .then(
+                        TextArea("Schema struct to parse the column", 20)
+                        .bindProperty("sampleSchema")
+                        .bindPlaceholder(
+                            """STRUCT<
+  root: STRUCT<
+    person: STRUCT<
+      id: INT,
+      name: STRUCT<
+        first: STRING,
+        last: STRING
+      >,
+      address: STRUCT<
+        street: STRING,
+        city: STRING,
+        zip: INT
+      >
     >
-    >"""
-                            )
+  >
+>"""
                         )
-                    ),
-                    "1fr",
-                )                
+                    )
+                ),
+                "1fr",
+            )
         )
-    )
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(JSONParse, self).validate(context, component)
@@ -217,10 +183,8 @@ class JSONParse(MacroSpec):
                         SeverityLevelEnum.Error,
                     )
                 )
-        
-        # TODO: Removed null check validation as writing snowflake specific validation code is not possible in the current macro framework
-        # ParseFromSchema and ParseFromSampleRecord are not applicable for snowflake
 
+        # Validate parsingMethod-dependent fields (only for Databricks where parsingMethod is used)
         if component.properties.parsingMethod == "parseFromSchema":
             if (
                 component.properties.sampleSchema is None
@@ -233,19 +197,19 @@ class JSONParse(MacroSpec):
                         SeverityLevelEnum.Error,
                     )
                 )
-        # TODO: Removed null check validation as writing snowflake specific validation code is not possible in the current macro framework
-        # if component.properties.parsingMethod == "parseFromSampleRecord":
-        #     if (
-        #         component.properties.sampleRecord is None
-        #         or component.properties.sampleRecord == ""
-        #     ):
-        #         diagnostics.append(
-        #             Diagnostic(
-        #                 "component.properties.sampleRecord",
-        #                 "Please provide a valid sample json record",
-        #                 SeverityLevelEnum.Error,
-        #             )
-        #         )
+        elif component.properties.parsingMethod == "parseFromSampleRecord":
+            if (
+                component.properties.sampleRecord is None
+                or component.properties.sampleRecord == ""
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.sampleRecord",
+                        "Please provide a valid sample json record",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+        # For BigQuery/DuckDB: parsingMethod is None/empty - no validation needed
 
         return diagnostics
 

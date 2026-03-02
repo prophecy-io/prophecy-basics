@@ -1,3 +1,5 @@
+{# Helper macros for schema-related operations #}
+
 {% macro column_exists_in_schema(schema, column_name) %}
     {# Check if a column exists in the provided schema #}
     {# Schema is a JSON array of objects with 'name' and 'dataType' keys #}
@@ -5,7 +7,7 @@
     {% if schema is none or schema == '' or schema == '[]' or schema == "''" or schema is undefined %}
         {{ return(false) }}
     {% endif %}
-
+    
     {# Parse the JSON schema string into a list of objects #}
     {# Only parse if schema is a string (not already parsed) #}
     {% set schema_parsed = [] %}
@@ -17,7 +19,7 @@
     {% else %}
         {{ return(false) }}
     {% endif %}
-
+    
     {# Check if parsing was successful and result is iterable #}
     {% if schema_parsed is none %}
         {{ return(false) }}
@@ -31,8 +33,8 @@
 
     {# Iterate through schema objects and check if column name matches (using adapter-specific case sensitivity) #}
     {% for c in schema_parsed %}
-        {# Each c should be an object with 'name' and 'dataType' keys #}
-        {% set schema_col_name = c.name | trim %}
+        {# Each c is a dict with 'name' and 'dataType' keys; use bracket access #}
+        {% set schema_col_name = (c['name'] if c is mapping else c.name) | default("") | trim %}
         {% if prophecy_basics.column_names_match(schema_col_name, unquoted_col) %}
             {{ return(true) }}
         {% endif %}
