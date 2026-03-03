@@ -1,11 +1,13 @@
 {% macro RunningTotal(relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix) -%}
+        outputPrefix,
+        orderByColumns= []) -%}
     {{ return(adapter.dispatch('RunningTotal', 'prophecy_basics')(relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix)) }}
+        outputPrefix,
+        orderByColumns)) }}
 {% endmacro %}
 
 
@@ -13,10 +15,27 @@
         relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix
+        outputPrefix,
+        orderByColumns= []
 ) -%}
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{%- set order_parts = [] -%}
+{%- for r in orderByColumns %}
+  {% if r.expression.expression | trim != '' %}
+    {% set part %}
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
+      {% else                               %} desc
+      {% endif %}
+    {% endset %}
+    {%- do order_parts.append(part | trim) -%}
+  {% endif %}
+{%- endfor %}
+{%- set order_by_clause = order_parts | join(', ') -%}
+{%- set has_order = order_by_clause | length > 0 -%}
 {%- set has_group = groupByColumnNames | length > 0 -%}
 
 {%- set quoted_group_columns = [] -%}
@@ -25,9 +44,17 @@
 {%- endfor -%}
 
 {%- if has_group -%}
-    {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+    {%- endif -%}
 {%- else -%}
-    {%- set window_over = "order by 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "order by " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "order by 1" -%}
+    {%- endif -%}
 {%- endif -%}
 
 {%- set run_tot_select_parts = [] -%}
@@ -54,10 +81,27 @@ from base
         relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix
+        outputPrefix,
+        orderByColumns= []
 ) -%}
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{%- set order_parts = [] -%}
+{%- for r in orderByColumns %}
+  {% if r.expression.expression | trim != '' %}
+    {% set part %}
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} ASC
+      {% elif r.sortType == 'asc_nulls_last'    %} ASC NULLS LAST
+      {% elif r.sortType == 'desc_nulls_first'  %} DESC NULLS FIRST
+      {% else                               %} DESC
+      {% endif %}
+    {% endset %}
+    {%- do order_parts.append(part | trim) -%}
+  {% endif %}
+{%- endfor %}
+{%- set order_by_clause = order_parts | join(', ') -%}
+{%- set has_order = order_by_clause | length > 0 -%}
 {%- set has_group = groupByColumnNames | length > 0 -%}
 
 {%- set quoted_group_columns = [] -%}
@@ -66,9 +110,17 @@ from base
 {%- endfor -%}
 
 {%- if has_group -%}
-    {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+    {%- endif -%}
 {%- else -%}
-    {%- set window_over = "ORDER BY 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "ORDER BY 1" -%}
+    {%- endif -%}
 {%- endif -%}
 
 {%- set run_tot_select_parts = [] -%}
@@ -95,10 +147,27 @@ FROM base
         relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix
+        outputPrefix,
+        orderByColumns= []
 ) -%}
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{%- set order_parts = [] -%}
+{%- for r in orderByColumns %}
+  {% if r.expression.expression | trim != '' %}
+    {% set part %}
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} ASC
+      {% elif r.sortType == 'asc_nulls_last'    %} ASC NULLS LAST
+      {% elif r.sortType == 'desc_nulls_first'  %} DESC NULLS FIRST
+      {% else                               %} DESC
+      {% endif %}
+    {% endset %}
+    {%- do order_parts.append(part | trim) -%}
+  {% endif %}
+{%- endfor %}
+{%- set order_by_clause = order_parts | join(', ') -%}
+{%- set has_order = order_by_clause | length > 0 -%}
 {%- set has_group = groupByColumnNames | length > 0 -%}
 
 {%- set quoted_group_columns = [] -%}
@@ -107,9 +176,17 @@ FROM base
 {%- endfor -%}
 
 {%- if has_group -%}
-    {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+    {%- endif -%}
 {%- else -%}
-    {%- set window_over = "ORDER BY 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "ORDER BY 1" -%}
+    {%- endif -%}
 {%- endif -%}
 
 {%- set run_tot_select_parts = [] -%}
@@ -136,10 +213,27 @@ FROM base
         relation_name,
         groupByColumnNames,
         runningTotalColumnNames,
-        outputPrefix
+        outputPrefix,
+        orderByColumns= []
 ) -%}
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{%- set order_parts = [] -%}
+{%- for r in orderByColumns %}
+  {% if r.expression.expression | trim != '' %}
+    {% set part %}
+      {{ r.expression.expression }}
+      {% if   r.sortType == 'asc'               %} asc
+      {% elif r.sortType == 'asc_nulls_last'    %} asc nulls last
+      {% elif r.sortType == 'desc_nulls_first'  %} desc nulls first
+      {% else                               %} desc
+      {% endif %}
+    {% endset %}
+    {%- do order_parts.append(part | trim) -%}
+  {% endif %}
+{%- endfor %}
+{%- set order_by_clause = order_parts | join(', ') -%}
+{%- set has_order = order_by_clause | length > 0 -%}
 {%- set has_group = groupByColumnNames | length > 0 -%}
 
 {%- set quoted_group_columns = [] -%}
@@ -148,9 +242,17 @@ FROM base
 {%- endfor -%}
 
 {%- if has_group -%}
-    {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+    {%- endif -%}
 {%- else -%}
-    {%- set window_over = "order by 1" -%}
+    {%- if has_order -%}
+        {%- set window_over = "order by " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "order by 1" -%}
+    {%- endif -%}
 {%- endif -%}
 
 {%- set run_tot_select_parts = [] -%}
