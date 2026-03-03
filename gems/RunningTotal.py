@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, Window, DataFrame
-from pyspark.sql.functions import sum as spark_sum, col, lit
+from pyspark.sql.functions import sum as spark_sum, col, lit, coalesce
 
 
 class RunningTotal(MacroSpec):
@@ -56,6 +56,11 @@ class RunningTotal(MacroSpec):
                                 .withMultipleSelection()
                                 .bindSchema("component.ports.inputs[0].schema")
                                 .bindProperty("runningTotalColumnNames")
+                            )
+                            .addElement(
+                                TextBox("Output Prefix (Optional)")
+                                .bindPlaceholder("RunTot_")
+                                .bindProperty("outputPrefix")
                             )
                         )
                     )
@@ -159,11 +164,12 @@ class RunningTotal(MacroSpec):
                 return str(val)
             return f"'{val}'"
 
+        prefix = (props.outputPrefix or "").strip() or "RunTot_"
         arguments = [
             str(props.relation_name),
             safe_str(props.groupByColumnNames),
             safe_str(props.runningTotalColumnNames),
-            safe_str(props.outputPrefix),
+            safe_str(prefix),
         ]
 
         params = ",".join(arguments)
@@ -180,7 +186,7 @@ class RunningTotal(MacroSpec):
             runningTotalColumnNames=json.loads(
                 parametersMap.get("runningTotalColumnNames").replace("'", '"')
             ),
-            outputPrefix=parametersMap.get("outputPrefix").lstrip("'").rstrip("'"),
+            outputPrefix=(parametersMap.get("outputPrefix") or "''").lstrip("'").rstrip("'") or "RunTot_",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -218,7 +224,7 @@ class RunningTotal(MacroSpec):
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         group_cols = self.props.groupByColumnNames
         running_total_cols = self.props.runningTotalColumnNames
-        output_prefix = self.props.outputPrefix
+        output_prefix = (self.props.outputPrefix or "").strip() or "RunTot_"
 
         if group_cols:
             window_spec = Window.partitionBy(*[col(c) for c in group_cols]).orderBy(lit(1))
@@ -230,7 +236,7 @@ class RunningTotal(MacroSpec):
             run_tot_col = output_prefix + col_name
             result = result.withColumn(
                 run_tot_col,
-                spark_sum(col(col_name)).over(window_spec)
+                spark_sum(coalesce(col(col_name), lit(0))).over(window_spec)
             )
 
         return result

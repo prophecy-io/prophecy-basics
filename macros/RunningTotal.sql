@@ -34,7 +34,7 @@
 {%- for column in runningTotalColumnNames -%}
     {%- set quoted_col = prophecy_basics.quote_identifier(column) -%}
     {%- set out_col = prophecy_basics.quote_identifier(outputPrefix ~ column) -%}
-    {%- set expr = "sum(" ~ quoted_col ~ ") over (" ~ window_over ~ ") as " ~ out_col -%}
+    {%- set expr = "sum(coalesce(" ~ quoted_col ~ ", 0)) over (" ~ window_over ~ ") as " ~ out_col -%}
     {%- do run_tot_select_parts.append(expr) -%}
 {%- endfor -%}
 
