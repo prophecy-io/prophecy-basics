@@ -425,9 +425,6 @@ macros:
       - name: "outputPrefix"
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
-      - name: "orderByColumns"
-        type: "value"
-        description: "{\"ProphecyType\": \"value\"}"
     macroType: "query"
   - name: "Regex"
     arguments:
