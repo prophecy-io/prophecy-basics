@@ -29,7 +29,7 @@ class RunningTotal(MacroSpec):
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
-        ProviderTypeEnum.ProphecyManaged
+        ProviderTypeEnum.ProphecyManaged,
     ]
     dependsOnUpstreamSchema: bool = True
 
@@ -54,7 +54,7 @@ class RunningTotal(MacroSpec):
                     .bindPlaceholders()
                     .withSchemaSuggestions()
                     .bindLanguage("${record.expression.format}"),
-                ),
+                    ),
                 Column(
                     "Sort strategy",
                     "sortType",
@@ -64,7 +64,7 @@ class RunningTotal(MacroSpec):
                     .addOption("descending nulls first", "desc_nulls_first")
                     .addOption("descending nulls last", "desc"),
                     width="25%",
-                ),
+                    ),
             ],
         )
 
@@ -77,9 +77,21 @@ class RunningTotal(MacroSpec):
                     StepContainer().addElement(
                         Step().addElement(
                             StackLayout(height="100%")
+                            .addElement(TitleElement("Columns for running total"))
                             .addElement(
-                                TitleElement("Group By (Optional)")
+                                SchemaColumnsDropdown("")
+                                .withMultipleSelection()
+                                .bindSchema("component.ports.inputs[0].schema")
+                                .bindProperty("runningTotalColumnNames")
                             )
+                        )
+                    )
+                )
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%")
+                            .addElement(TitleElement("Partition by (optional)"))
                             .addElement(
                                 SchemaColumnsDropdown("")
                                 .withMultipleSelection()
@@ -87,22 +99,17 @@ class RunningTotal(MacroSpec):
                                 .bindProperty("groupByColumnNames")
                             )
                             .addElement(
-                                TitleElement("Create Running Total")
+                                TitleElement("Order rows for calculation (optional)")
                             )
-                            .addElement(
-                                SchemaColumnsDropdown("")
-                                .withMultipleSelection()
-                                .bindSchema("component.ports.inputs[0].schema")
-                                .bindProperty("runningTotalColumnNames")
-                            )
-                            .addElement(
-                                TitleElement("Sort By (Optional)")
-                            )
-                            .addElement(
-                                order_by_table.bindProperty("orderByColumns")
-                            )
-                            .addElement(
-                                TextBox("Output Prefix (Optional)")
+                            .addElement(order_by_table.bindProperty("orderByColumns"))
+                        )
+                    )
+                )
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%").addElement(
+                                TextBox("Output column prefix (optional)")
                                 .bindPlaceholder("RunTot_")
                                 .bindProperty("outputPrefix")
                             )
@@ -213,7 +220,10 @@ class RunningTotal(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         order_rules: List[dict] = [
-            {"expression": {"expression": e, "format": r.expression.format}, "sortType": r.sortType}
+            {
+                "expression": {"expression": e, "format": r.expression.format},
+                "sortType": r.sortType,
+            }
             for r in props.orderByColumns
             for e in [(r.expression.expression or "").strip()]
             if e
@@ -241,7 +251,9 @@ class RunningTotal(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
         return RunningTotal.RunningTotalProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=json.loads(
+                parametersMap.get("relation_name").replace("'", '"')
+            ),
             schema=parametersMap.get("schema"),
             groupByColumnNames=json.loads(
                 parametersMap.get("groupByColumnNames").replace("'", '"')
@@ -252,8 +264,11 @@ class RunningTotal(MacroSpec):
             orderByColumns=json.loads(
                 parametersMap.get("orderByColumns", "[]").replace("'", '"')
             ),
-            outputPrefix=(parametersMap.get("outputPrefix") or "''").lstrip("'").rstrip("'") or "RunTot_",
-        )
+            outputPrefix=(parametersMap.get("outputPrefix") or "''")
+                         .lstrip("'")
+                         .rstrip("'")
+                         or "RunTot_",
+                         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         return BasicMacroProperties(
@@ -266,7 +281,8 @@ class RunningTotal(MacroSpec):
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
                 MacroParameter(
-                    "runningTotalColumnNames", json.dumps(properties.runningTotalColumnNames)
+                    "runningTotalColumnNames",
+                    json.dumps(properties.runningTotalColumnNames),
                 ),
                 MacroParameter("orderByColumns", json.dumps(properties.orderByColumns)),
                 MacroParameter("outputPrefix", str(properties.outputPrefix)),
@@ -311,7 +327,9 @@ class RunningTotal(MacroSpec):
             order_cols = [lit(1)]
 
         if group_cols:
-            window_spec = Window.partitionBy(*[col(c) for c in group_cols]).orderBy(*order_cols)
+            window_spec = Window.partitionBy(*[col(c) for c in group_cols]).orderBy(
+                *order_cols
+            )
         else:
             window_spec = Window.orderBy(*order_cols)
 
@@ -320,7 +338,7 @@ class RunningTotal(MacroSpec):
             run_tot_col = output_prefix + col_name
             result = result.withColumn(
                 run_tot_col,
-                spark_sum(coalesce(col(col_name), lit(0))).over(window_spec)
+                spark_sum(coalesce(col(col_name), lit(0))).over(window_spec),
             )
 
         return result
