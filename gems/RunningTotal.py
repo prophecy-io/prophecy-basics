@@ -79,7 +79,7 @@ class RunningTotal(MacroSpec):
                             StackLayout(height="100%")
                             .addElement(TitleElement("Columns for running total"))
                             .addElement(
-                                SchemaColumnsDropdown("")
+                                SchemaColumnsDropdown("", appearance="minimal")
                                 .withMultipleSelection()
                                 .bindSchema("component.ports.inputs[0].schema")
                                 .bindProperty("runningTotalColumnNames")
@@ -93,7 +93,7 @@ class RunningTotal(MacroSpec):
                             StackLayout(height="100%")
                             .addElement(TitleElement("Partition by (optional)"))
                             .addElement(
-                                SchemaColumnsDropdown("")
+                                SchemaColumnsDropdown("", appearance="minimal")
                                 .withMultipleSelection()
                                 .bindSchema("component.ports.inputs[0].schema")
                                 .bindProperty("groupByColumnNames")
