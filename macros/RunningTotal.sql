@@ -47,13 +47,13 @@
     {%- if has_order -%}
         {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by monotonically_increasing_id()" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
         {%- set window_over = "order by " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "order by 1" -%}
+        {%- set window_over = "order by monotonically_increasing_id()" -%}
     {%- endif -%}
 {%- endif -%}
 
@@ -85,6 +85,8 @@ from base
         orderByColumns= []
 ) -%}
 
+{# ⚠️ BigQuery: no stable row id — results are non-deterministic without orderByColumns #}
+
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
 {%- for r in orderByColumns %}
@@ -113,13 +115,13 @@ from base
     {%- if has_order -%}
         {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
         {%- set window_over = "ORDER BY " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "ORDER BY 1" -%}
+        {%- set window_over = "" -%}
     {%- endif -%}
 {%- endif -%}
 
@@ -179,11 +181,13 @@ FROM base
     {%- if has_order -%}
         {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY seq4()" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
         {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+    {%- else -%}
+        {%- set window_over = "ORDER BY seq4()" -%}
     {%- endif -%}
 {%- endif -%}
 
@@ -243,13 +247,13 @@ FROM base
     {%- if has_order -%}
         {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by rowid" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
         {%- set window_over = "order by " ~ order_by_clause -%}
     {%- else -%}
-        {%- set window_over = "order by 1" -%}
+        {%- set window_over = "order by rowid" -%}
     {%- endif -%}
 {%- endif -%}
 
