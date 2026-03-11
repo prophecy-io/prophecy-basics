@@ -77,7 +77,10 @@ class RunningTotal(MacroSpec):
                     StepContainer().addElement(
                         Step().addElement(
                             StackLayout(height="100%")
-                            .addElement(TitleElement("Columns for running total"))
+                            .addElement(TitleElement("Columns for cumulative sum (running total)"))
+                            .addElement(
+                                TitleElement("Cumulative sum per row — not a simple sum across all rows.")
+                            )
                             .addElement(
                                 SchemaColumnsDropdown("", appearance="minimal")
                                 .withMultipleSelection()
@@ -127,6 +130,20 @@ class RunningTotal(MacroSpec):
                 Diagnostic(
                     "properties.runningTotalColumnNames",
                     "Select at least one column to create running total.",
+                    SeverityLevelEnum.Error,
+                )
+            )
+
+        has_group_by = len(component.properties.groupByColumnNames) > 0
+        has_order_by = any(
+            (r.expression.expression or "").strip() != ""
+            for r in component.properties.orderByColumns
+        )
+        if not has_group_by and not has_order_by:
+            diagnostics.append(
+                Diagnostic(
+                    "properties.orderByColumns",
+                    "Order By is required when Group By is not specified.",
                     SeverityLevelEnum.Error,
                 )
             )

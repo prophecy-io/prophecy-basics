@@ -43,20 +43,24 @@
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
 
+{# row_id equivalent for deterministic ordering when no order or when order has duplicates #}
+{%- set row_id_expr = "row_number() over (order by monotonically_increasing_id())" -%}
+
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by base._rn" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "order by " ~ order_by_clause -%}
+        {%- set window_over = "order by " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "order by 1" -%}
+        {%- set window_over = "order by base._rn" -%}
     {%- endif -%}
 {%- endif -%}
 
+{# Cumulative sum: with ORDER BY, default frame is start-of-partition to current row in standard SQL and supported adapters #}
 {%- set run_tot_select_parts = [] -%}
 {%- for column in runningTotalColumnNames -%}
     {%- set quoted_col = prophecy_basics.quote_identifier(column) -%}
@@ -66,11 +70,11 @@
 {%- endfor -%}
 
 with base as (
-    select *
+    select *, {{ row_id_expr }} as _rn
     from {{ relation_list | join(', ') }}
 )
 select
-    base.*,
+    base.* except (_rn),
     {{ run_tot_select_parts | join(',\n    ') }}
 from base
 
@@ -109,20 +113,24 @@ from base
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
 
+{# row_id equivalent for deterministic ordering when no order or when order has duplicates #}
+{%- set row_id_expr = "ROW_NUMBER() OVER (ORDER BY (SELECT NULL))" -%}
+
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY base._rn" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "ORDER BY 1" -%}
+        {%- set window_over = "ORDER BY base._rn" -%}
     {%- endif -%}
 {%- endif -%}
 
+{# Cumulative sum: with ORDER BY, default frame is start-of-partition to current row in BigQuery #}
 {%- set run_tot_select_parts = [] -%}
 {%- for column in runningTotalColumnNames -%}
     {%- set quoted_col = prophecy_basics.quote_identifier(column) -%}
@@ -132,11 +140,11 @@ from base
 {%- endfor -%}
 
 WITH base AS (
-    SELECT *
+    SELECT *, {{ row_id_expr }} AS _rn
     FROM {{ relation_list | join(', ') }}
 )
 SELECT
-    base.*,
+    base.* EXCEPT (_rn),
     {{ run_tot_select_parts | join(',\n    ') }}
 FROM base
 
@@ -175,20 +183,24 @@ FROM base
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
 
+{# row_id equivalent for deterministic ordering when no order or when order has duplicates #}
+{%- set row_id_expr = "ROW_NUMBER() OVER (ORDER BY (SELECT NULL))" -%}
+
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY 1" -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY base._rn" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "ORDER BY 1" -%}
+        {%- set window_over = "ORDER BY base._rn" -%}
     {%- endif -%}
 {%- endif -%}
 
+{# Cumulative sum: with ORDER BY, default frame is start-of-partition to current row in Snowflake #}
 {%- set run_tot_select_parts = [] -%}
 {%- for column in runningTotalColumnNames -%}
     {%- set quoted_col = prophecy_basics.quote_identifier(column) -%}
@@ -198,11 +210,11 @@ FROM base
 {%- endfor -%}
 
 WITH base AS (
-    SELECT *
+    SELECT *, {{ row_id_expr }} AS _rn
     FROM {{ relation_list | join(', ') }}
 )
 SELECT
-    base.*,
+    base.* EXCLUDE (_rn),
     {{ run_tot_select_parts | join(',\n    ') }}
 FROM base
 
@@ -241,20 +253,24 @@ FROM base
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
 
+{# row_id equivalent for deterministic ordering when no order or when order has duplicates #}
+{%- set row_id_expr = "row_number() over (order by (select null))" -%}
+
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by 1" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by base._rn" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "order by " ~ order_by_clause -%}
+        {%- set window_over = "order by " ~ order_by_clause ~ ", base._rn" -%}
     {%- else -%}
-        {%- set window_over = "order by 1" -%}
+        {%- set window_over = "order by base._rn" -%}
     {%- endif -%}
 {%- endif -%}
 
+{# Cumulative sum: with ORDER BY, default frame is start-of-partition to current row in DuckDB #}
 {%- set run_tot_select_parts = [] -%}
 {%- for column in runningTotalColumnNames -%}
     {%- set quoted_col = prophecy_basics.quote_identifier(column) -%}
@@ -264,11 +280,11 @@ FROM base
 {%- endfor -%}
 
 with base as (
-    select *
+    select *, {{ row_id_expr }} as _rn
     from {{ relation_list | join(', ') }}
 )
 select
-    base.*,
+    base.* exclude (_rn),
     {{ run_tot_select_parts | join(',\n    ') }}
 from base
 
