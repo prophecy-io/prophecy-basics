@@ -5,7 +5,14 @@ from dataclasses import dataclass, field
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, Window, DataFrame
-from pyspark.sql.functions import sum as spark_sum, col, lit, coalesce, expr
+from pyspark.sql.functions import (
+    sum as spark_sum,
+    col,
+    lit,
+    coalesce,
+    expr,
+    monotonically_increasing_id,
+)
 
 
 @dataclass(frozen=True)
@@ -346,14 +353,18 @@ class RunningTotal(MacroSpec):
                     order_cols.append(e.desc())
 
         if not order_cols:
-            order_cols = [lit(1)]
+            order_cols = [monotonically_increasing_id().asc()]
 
         if group_cols:
-            window_spec = Window.partitionBy(*[col(c) for c in group_cols]).orderBy(
-                *order_cols
+            window_spec = (
+                Window.partitionBy(*[col(c) for c in group_cols])
+                .orderBy(*order_cols)
+                .rowsBetween(Window.unboundedPreceding, Window.currentRow)
             )
         else:
-            window_spec = Window.orderBy(*order_cols)
+            window_spec = Window.orderBy(*order_cols).rowsBetween(
+                Window.unboundedPreceding, Window.currentRow
+            )
 
         result = in0
         for col_name in running_total_cols:
