@@ -40,7 +40,7 @@ class RunningTotal(MacroSpec):
         groupByColumnNames: List[str] = field(default_factory=list)
         runningTotalColumnNames: List[str] = field(default_factory=list)
         orderByColumns: List[OrderByRule] = field(default_factory=list)
-        outputPrefix: str = "RunTot_"
+        outputPrefix: Optional[str] = None
 
     def dialog(self) -> Dialog:
         order_by_table = BasicTable(
@@ -110,7 +110,7 @@ class RunningTotal(MacroSpec):
                         Step().addElement(
                             StackLayout(height="100%").addElement(
                                 TextBox("Output column prefix (optional)")
-                                .bindPlaceholder("RunTot_")
+                                .bindPlaceholder("running_total_")
                                 .bindProperty("outputPrefix")
                             )
                         )
