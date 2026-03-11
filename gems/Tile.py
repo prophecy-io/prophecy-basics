@@ -50,12 +50,12 @@ class Tile(MacroSpec):
     def dialog(self) -> Dialog:
         select_tiling_radio_box = (RadioGroup("")
                                    .addOption("Equal Sum", "equal_sum_tile",
-                                              description=("This option assigns tiles to cover a range of values where each tile has the same total of the Sum field based on the sort order of the incoming records"))
+                                              description=("This option assigns tiles to cover a range of values where each tile has the same total of the sum field based on the sort order of the incoming records"))
                                    .addOption("Equal Records", "equal_records_tile",
                                               description="Input records are divided into the specified amount of tiles so that each tile is assigned the same amount of records"
                                               )
                                    .addOption("Smart Tile", "smart_tile",
-                                              description="This option creates tiles based on the Standard Deviation of the values in the specified field. The tiles assigned indicate whether the record's value falls within the average range (=0), above the average (1), or below the average (-1)"
+                                              description="This option creates tiles based on the standard deviation of the values in the specified field. The tiles assigned indicate whether the record's value falls within the average range (=0), above the average (1), or below the average (-1)"
                                               )
                                    .addOption("Unique Value", "unique_value_tile",
                                               description="This option assign a unique tile for every unique value in a specified field or fields. If multiple fields are specified, a tile is assigned based on that combination of values"
