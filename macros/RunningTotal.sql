@@ -45,15 +45,15 @@
 
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by monotonically_increasing_id()" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by monotonically_increasing_id() rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "order by " ~ order_by_clause -%}
+        {%- set window_over = "order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "order by monotonically_increasing_id()" -%}
+        {%- set window_over = "order by monotonically_increasing_id() rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- endif -%}
 
@@ -86,6 +86,7 @@ from base
 ) -%}
 
 {# ⚠️ BigQuery: no stable row id — results are non-deterministic without orderByColumns #}
+{# ⚠️ BigQuery: ROWS frame clause only added when ORDER BY is present; BQ errors if frame is used without ORDER BY #}
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {%- set order_parts = [] -%}
@@ -113,13 +114,13 @@ from base
 
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause ~ " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- else -%}
         {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause ~ " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- else -%}
         {%- set window_over = "" -%}
     {%- endif -%}
@@ -179,15 +180,15 @@ FROM base
 
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY " ~ order_by_clause ~ " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- else -%}
-        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY seq4()" -%}
+        {%- set window_over = "PARTITION BY " ~ (quoted_group_columns | join(', ')) ~ " ORDER BY seq4() ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "ORDER BY " ~ order_by_clause -%}
+        {%- set window_over = "ORDER BY " ~ order_by_clause ~ " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- else -%}
-        {%- set window_over = "ORDER BY seq4()" -%}
+        {%- set window_over = "ORDER BY seq4() ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" -%}
     {%- endif -%}
 {%- endif -%}
 
@@ -245,15 +246,15 @@ FROM base
 
 {%- if has_group -%}
     {%- if has_order -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by rowid" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by rowid rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
-        {%- set window_over = "order by " ~ order_by_clause -%}
+        {%- set window_over = "order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "order by rowid" -%}
+        {%- set window_over = "order by rowid rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- endif -%}
 
