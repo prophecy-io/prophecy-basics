@@ -19,8 +19,8 @@ class OrderByRule:
 
 class Tile(MacroSpec):
     name: str = "Tile"
-    projectName: str = "DatabricksSqlBasics"
-    category: str = "Transform"
+    projectName: str = "prophecy_basics"
+    category: str = "Prepare"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
