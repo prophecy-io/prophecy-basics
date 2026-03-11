@@ -105,6 +105,20 @@ class RunningTotal(MacroSpec):
                                 TitleElement("Order rows for calculation (optional)")
                             )
                             .addElement(order_by_table.bindProperty("orderByColumns"))
+                            .addElement(
+                                Condition()
+                                .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                .then(
+                                    AlertBox(
+                                        variant="warning",
+                                        _children=[
+                                            Markdown(
+                                                "**BigQuery:** BigQuery has no stable row identifier. Without **Order rows for calculation**, running total results will be non-deterministic."
+                                            )
+                                        ],
+                                    )
+                                )
+                            )
                         )
                     )
                 )
@@ -130,20 +144,6 @@ class RunningTotal(MacroSpec):
                 Diagnostic(
                     "properties.runningTotalColumnNames",
                     "Select at least one column to create running total.",
-                    SeverityLevelEnum.Error,
-                )
-            )
-
-        has_group_by = len(component.properties.groupByColumnNames) > 0
-        has_order_by = any(
-            (r.expression.expression or "").strip() != ""
-            for r in component.properties.orderByColumns
-        )
-        if not has_group_by and not has_order_by:
-            diagnostics.append(
-                Diagnostic(
-                    "properties.orderByColumns",
-                    "Order By is required when Group By is not specified.",
                     SeverityLevelEnum.Error,
                 )
             )
@@ -219,11 +219,14 @@ class RunningTotal(MacroSpec):
     def onChange(
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        try:
+            schema = json.loads(str(newState.ports.inputs[0].schema or "{}").replace("'", '"'))
+            fields_array = [
+                {"name": field["name"], "dataType": field["dataType"]["type"]}
+                for field in schema.get("fields", [])
+            ]
+        except Exception:
+            fields_array = []
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -267,25 +270,24 @@ class RunningTotal(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def safe_json(key: str, default: str = "[]") -> list:
+            raw = parametersMap.get(key)
+            if raw is None:
+                return json.loads(default)
+            return json.loads(str(raw).replace("'", '"'))
+
         return RunningTotal.RunningTotalProperties(
-            relation_name=json.loads(
-                parametersMap.get("relation_name").replace("'", '"')
-            ),
-            schema=parametersMap.get("schema"),
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames").replace("'", '"')
-            ),
-            runningTotalColumnNames=json.loads(
-                parametersMap.get("runningTotalColumnNames").replace("'", '"')
-            ),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns", "[]").replace("'", '"')
-            ),
+            relation_name=safe_json("relation_name", "[]"),
+            schema=parametersMap.get("schema") or "",
+            groupByColumnNames=safe_json("groupByColumnNames"),
+            runningTotalColumnNames=safe_json("runningTotalColumnNames"),
+            orderByColumns=safe_json("orderByColumns", "[]"),
             outputPrefix=(parametersMap.get("outputPrefix") or "''")
-                         .lstrip("'")
-                         .rstrip("'")
-                         or "RunTot_",
-                         )
+                .lstrip("'")
+                .rstrip("'")
+                or "RunTot_",
+        )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         return BasicMacroProperties(
@@ -307,11 +309,14 @@ class RunningTotal(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        try:
+            schema = json.loads(str(component.ports.inputs[0].schema or "{}").replace("'", '"'))
+            fields_array = [
+                {"name": field["name"], "dataType": field["dataType"]["type"]}
+                for field in schema.get("fields", [])
+            ]
+        except Exception:
+            fields_array = []
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
