@@ -145,11 +145,17 @@ class RunningTotal(MacroSpec):
                 )
             )
 
-        try:
-            schema_js = json.loads(component.properties.schema or "[]")
-        except Exception:
-            schema_js = []
+        schema_js = json.loads(component.properties.schema or "[]")
         schema_cols_lower = set(f["name"].lower() for f in schema_js)
+
+        diagnostics.append(
+                Diagnostic(
+                    "properties.groupByColumnNames",
+                    f"schema_cols_lower = {schema_cols_lower} ",
+                    SeverityLevelEnum.Info,
+                )
+                )
+
 
         if len(component.properties.groupByColumnNames) > 0:
             missingKeyColumns = [
@@ -216,14 +222,11 @@ class RunningTotal(MacroSpec):
     def onChange(
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
-        try:
-            schema = json.loads(str(newState.ports.inputs[0].schema or "{}").replace("'", '"'))
-            fields_array = [
-                {"name": field["name"], "dataType": field["dataType"]["type"]}
-                for field in schema.get("fields", [])
-            ]
-        except Exception:
-            fields_array = []
+        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -267,19 +270,20 @@ class RunningTotal(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
-
-        def safe_json(key: str, default: str = "[]") -> list:
-            raw = parametersMap.get(key)
-            if raw is None:
-                return json.loads(default)
-            return json.loads(str(raw).replace("'", '"'))
-
         return RunningTotal.RunningTotalProperties(
-            relation_name=safe_json("relation_name", "[]"),
-            schema=parametersMap.get("schema") or "",
-            groupByColumnNames=safe_json("groupByColumnNames"),
-            runningTotalColumnNames=safe_json("runningTotalColumnNames"),
-            orderByColumns=safe_json("orderByColumns", "[]"),
+            relation_name=json.loads(
+                parametersMap.get("relation_name").replace("'", '"')
+            ),
+            schema=parametersMap.get("schema"),
+            groupByColumnNames=json.loads(
+                parametersMap.get("groupByColumnNames").replace("'", '"')
+            ),
+            runningTotalColumnNames=json.loads(
+                parametersMap.get("runningTotalColumnNames").replace("'", '"')
+            ),
+            orderByColumns=json.loads(
+                parametersMap.get("orderByColumns", "[]").replace("'", '"')
+            ),
             outputPrefix=(parametersMap.get("outputPrefix") or "''")
                 .lstrip("'")
                 .rstrip("'")
@@ -306,14 +310,11 @@ class RunningTotal(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        try:
-            schema = json.loads(str(component.ports.inputs[0].schema or "{}").replace("'", '"'))
-            fields_array = [
-                {"name": field["name"], "dataType": field["dataType"]["type"]}
-                for field in schema.get("fields", [])
-            ]
-        except Exception:
-            fields_array = []
+        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
