@@ -34,7 +34,7 @@ class RunningTotal(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        ProviderTypeEnum.Snowflake,
+        # ProviderTypeEnum.Snowflake, -> Need to get Expression Table expressions' quoting sorted.
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged,
     ]
