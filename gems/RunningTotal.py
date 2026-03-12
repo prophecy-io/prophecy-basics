@@ -148,15 +148,6 @@ class RunningTotal(MacroSpec):
         schema_js = json.loads(component.properties.schema or "[]")
         schema_cols_lower = set(f["name"].lower() for f in schema_js)
 
-        diagnostics.append(
-                Diagnostic(
-                    "properties.groupByColumnNames",
-                    f"schema_cols_lower = {schema_cols_lower} ",
-                    SeverityLevelEnum.Warning,
-                )
-                )
-
-
         if len(component.properties.groupByColumnNames) > 0:
             missingKeyColumns = [
                 c
