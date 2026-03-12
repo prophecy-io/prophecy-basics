@@ -248,13 +248,13 @@ FROM base
     {%- if has_order -%}
         {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by rowid rows between unbounded preceding and current row" -%}
+        {%- set window_over = "partition by " ~ (quoted_group_columns | join(', ')) ~ " order by (select 1) rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- else -%}
     {%- if has_order -%}
         {%- set window_over = "order by " ~ order_by_clause ~ " rows between unbounded preceding and current row" -%}
     {%- else -%}
-        {%- set window_over = "order by rowid rows between unbounded preceding and current row" -%}
+        {%- set window_over = "order by (select 1) rows between unbounded preceding and current row" -%}
     {%- endif -%}
 {%- endif -%}
 
