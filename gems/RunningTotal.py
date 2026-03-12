@@ -5,14 +5,7 @@ from dataclasses import dataclass, field
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, Window, DataFrame
-from pyspark.sql.functions import (
-    sum as spark_sum,
-    col,
-    lit,
-    coalesce,
-    expr,
-    monotonically_increasing_id,
-)
+
 
 
 @dataclass(frozen=True)
@@ -331,6 +324,7 @@ class RunningTotal(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        from pyspark.sql.functions import sum as spark_sum, col, lit, coalesce, expr, monotonically_increasing_id 
         group_cols = self.props.groupByColumnNames
         running_total_cols = self.props.runningTotalColumnNames
         order_rules = self.props.orderByColumns
