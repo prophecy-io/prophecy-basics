@@ -84,10 +84,7 @@ class RunningTotal(MacroSpec):
                     StepContainer().addElement(
                         Step().addElement(
                             StackLayout(height="100%")
-                            .addElement(TitleElement("Columns for cumulative sum (running total)"))
-                            .addElement(
-                                TitleElement("Cumulative sum per row — not a simple sum across all rows.")
-                            )
+                            .addElement(TitleElement("Columns for running total"))
                             .addElement(
                                 SchemaColumnsDropdown("", appearance="minimal")
                                 .withMultipleSelection()
