@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, Window, DataFrame
-
+from pyspark.sql import functions as F
 
 
 @dataclass(frozen=True)
@@ -324,8 +324,8 @@ class RunningTotal(MacroSpec):
 
         order_cols = []
         for r in order_rules:
-            if (r.expression.expression or "").strip():
-                e = expr(r.expression.expression)
+            if (r.expression.expression):
+                e = expr(r.expression.expression.strip())
                 if r.sortType == "asc":
                     order_cols.append(e.asc())
                 elif r.sortType == "asc_nulls_last":
@@ -339,8 +339,9 @@ class RunningTotal(MacroSpec):
             order_cols = [monotonically_increasing_id().asc()]
 
         if group_cols:
+            col_group_cols = [col(c) for c in group_cols]
             window_spec = (
-                Window.partitionBy(*[col(c) for c in group_cols])
+                Window.partitionBy(*col_group_cols)
                 .orderBy(*order_cols)
                 .rowsBetween(Window.unboundedPreceding, Window.currentRow)
             )
