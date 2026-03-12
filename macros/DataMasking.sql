@@ -1,3 +1,4 @@
+{# Reference implementation: default__DataMasking (Databricks). DuckDB and BigQuery follow same structure and use prophecy_basics.quote_identifier throughout. #}
 {% macro DataMasking(relation_name,
     column_names,
     remaining_columns,
@@ -45,6 +46,7 @@
 
     {{ log("Applying Masking-specific column operations", info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -144,14 +146,14 @@
                 SELECT *, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
-        {%- elif remaining_columns == "" -%}
+        {%- elif remaining_columns_quoted == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
@@ -335,6 +337,7 @@
 
     {{ log("Applying Masking-specific column operations", info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -430,14 +433,14 @@
                 SELECT *, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
-        {%- elif remaining_columns == "" -%}
+        {%- elif remaining_columns_quoted == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
@@ -450,4 +453,151 @@
 
     {{ return(final_select_query) }}
 
+{%- endmacro -%}
+
+{# CRC32 & Certain SHA2 variants (SHA224, SHA384, SHA512) are not available in BigQuery #}
+{%- macro bigquery__DataMasking(
+    relation_name,
+    column_names,
+    remaining_columns,
+    masking_method,
+    upper_char_substitute,
+    lower_char_substitute,
+    digit_char_substitute,
+    other_char_substitute,
+    sha2_bit_length,
+    masked_column_add_method,
+    prefix_suffix_opt,
+    prefix_suffix_val,
+    combined_hash_column_name
+) -%}
+    {{ log("Applying BigQuery Masking-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
+    {%- set withColumn_clause = [] -%}
+
+    {%- if masking_method == "mask" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- set mask_expression -%}
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                {{ quoted_column }},
+                                '[A-Z]',
+                                {{ prophecy_basics.mask_replacement_sql(upper_char_substitute) }}
+                            ),
+                            '[a-z]',
+                            {{ prophecy_basics.mask_replacement_sql(lower_char_substitute) }}
+                        ),
+                        '[0-9]',
+                        {{ prophecy_basics.mask_replacement_sql(digit_char_substitute) }}
+                    ),
+                    '[^A-Za-z0-9]',
+                    {{ prophecy_basics.mask_replacement_sql(other_char_substitute) }}
+                )
+            {%- endset -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "hash" -%}
+        {%- if masked_column_add_method == "combinedHash_substitute" -%}
+            {%- set concat_parts = [] -%}
+            {%- for column in column_names -%}
+                {%- do concat_parts.append("COALESCE(CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING), '')") -%}
+            {%- endfor -%}
+            {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(CONCAT(" ~ concat_parts | join(", ") ~ ") AS BYTES))) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
+        {%- else -%}
+            {% for column in column_names %}
+                {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+                {%- if masked_column_add_method == "inplace_substitute" -%}
+                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+                {%- elif prefix_suffix_opt == "Prefix" -%}
+                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+                {%- else -%}
+                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- endif -%}
+            {% endfor %}
+        {%- endif -%}
+
+    {%- elif masking_method == "sha" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "sha2" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if sha2_bit_length == "256" -%}
+                {%- set sha2_function = "TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
+            {%- elif sha2_bit_length == "512" -%}
+                {%- set sha2_function = "TO_HEX(SHA512(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
+            {%- else -%}
+                {{ exceptions.raise_compiler_error("BigQuery only supports SHA2 with 256 or 512 bit length. sha2_bit_length=" ~ sha2_bit_length ~ " is not supported. Use 256 or 512.") }}
+            {%- endif -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "md5" -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- endif -%}
+
+    {%- set select_clause_sql = withColumn_clause | join(', ') -%}
+    {%- set select_cte_sql -%}
+        {%- if select_clause_sql == "" -%}
+            WITH final_cte AS (
+                SELECT *
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif (masked_column_add_method == "prefix_suffix_substitute") or (masking_method == "hash" and masked_column_add_method == "combinedHash_substitute") -%}
+            WITH final_cte AS (
+                SELECT *, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif remaining_columns_quoted == "" -%}
+            WITH final_cte AS (
+                SELECT {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- else -%}
+            WITH final_cte AS (
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- endif -%}
+    {%- endset -%}
+    {%- set final_select_query = select_cte_sql ~ "\nSELECT * FROM final_cte" -%}
+    {{ log("final select query is -> ", info=True) }}
+    {{ log(final_select_query, info=True) }}
+    {{ return(final_select_query) }}
 {%- endmacro -%}

@@ -26,7 +26,7 @@ class XMLParse(MacroSpec):
         # properties for the component with default values
         columnName: str = ""
         relation_name: List[str] = field(default_factory=list)
-        parsingMethod: str = "parseFromSampleRecord"
+        parsingMethod: str = ""
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
 
@@ -89,82 +89,47 @@ class XMLParse(MacroSpec):
             )
         )
         return Dialog("ColumnParser").addElement(
-            Condition()
-            .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
-            .then(
-                ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(
-                    Ports(),
-                    "content"
-                )
-                .addColumn(
-                    StackLayout(height="100%")
-                        .addElement(
-                            StepContainer()
-                            .addElement(
-                                Step()
-                                .addElement(
-                                    StackLayout(height="100%")
-                                    .addElement(
-                                        SchemaColumnsDropdown("Select columns to parse",
-                                                                appearance="minimal")
-                                        .bindSchema("component.ports.inputs[0].schema")
-                                        .bindProperty("columnName")
-                                        .showErrorsFor("columnName")
-                                    )
-                                )
-                            )
-                        )
-                        .addElement(
-                            AlertBox(
-                                variant="success",
-                                _children=[
-                                    Markdown(
-                                        "For the column processed using **`XMLParse`**, a new column is created with the suffix **`_parsed`**\n"
-                                    )
-                                ]
-                            )
-                        )
-                )
-            )
-            .otherwise(
-                ColumnsLayout(gap="1rem", height="100%")
-                .addColumn(Ports(), "content")
-                .addColumn(
-                    StackLayout(height="100%")
-                    .addElement(TitleElement("Select Column to Parse"))
-                    .addElement(
-                        StepContainer().addElement(
-                            Step().addElement(
-                                StackLayout(height="100%").addElement(
-                                    SchemaColumnsDropdown("", appearance="minimal")
-                                    .bindSchema("component.ports.inputs[0].schema")
-                                    .bindProperty("columnName")
-                                    .showErrorsFor("columnName")
-                                )
+            ColumnsLayout(gap="1rem", height="100%")
+            .addColumn(Ports(), "content")
+            .addColumn(
+                StackLayout(height="100%")
+                .addElement(TitleElement("Select Column to Parse"))
+                .addElement(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%").addElement(
+                                SchemaColumnsDropdown("", appearance="minimal")
+                                .bindSchema("component.ports.inputs[0].schema")
+                                .bindProperty("columnName")
+                                .showErrorsFor("columnName")
                             )
                         )
                     )
-                    .addElement(methodRadioGroup)
-                    .addElement(
-                        Condition()
-                        .ifEqual(
-                            PropExpr("component.properties.parsingMethod"),
-                            StringExpr("parseFromSampleRecord"),
-                        )
-                        .then(sampleRecordTextXML)
+                )
+                .addElement(
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("databricks"))
+                    .then(methodRadioGroup)
+                )
+                .addElement(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSampleRecord"),
                     )
-                    .addElement(
-                        Condition()
-                        .ifEqual(
-                            PropExpr("component.properties.parsingMethod"),
-                            StringExpr("parseFromSchema"),
-                        )
-                        .then(
-                            TextArea("Schema struct to parse the column", 20)
-                            .bindProperty("sampleSchema")
-                            .bindPlaceholder(
-                                """STRUCT<
+                    .then(sampleRecordTextXML)
+                )
+                .addElement(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.parsingMethod"),
+                        StringExpr("parseFromSchema"),
+                    )
+                    .then(
+                        TextArea("Schema struct to parse the column", 20)
+                        .bindProperty("sampleSchema")
+                        .bindPlaceholder(
+                            """STRUCT<
   root: STRUCT<
     person: STRUCT<
       id: INT,
@@ -180,11 +145,10 @@ class XMLParse(MacroSpec):
     >
   >
 >"""
-                            )
                         )
-                    ),
-                    "1fr",
-                )
+                    )
+                ),
+                "1fr",
             )
         )
 
@@ -216,9 +180,8 @@ class XMLParse(MacroSpec):
                     )
                 )
 
-        # TODO: Removed null check validation as writing snowflake specific validation code is not possible in the current macro framework
-        # ParseFromSchema and ParseFromSampleRecord are not applicable for snowflake
-
+        # Validate parsingMethod-dependent fields (only for Databricks where parsingMethod is used)
+        # For Snowflake/BigQuery/DuckDB: parsingMethod may be empty - no validation needed for sample/schema
         if component.properties.parsingMethod == "parseFromSchema":
             if (
                 component.properties.sampleSchema is None
@@ -231,19 +194,18 @@ class XMLParse(MacroSpec):
                         SeverityLevelEnum.Error,
                     )
                 )
-        # TODO: Removed null check validation as writing snowflake specific validation code is not possible in the current macro framework
-        # if component.properties.parsingMethod == "parseFromSampleRecord":
-        #     if (
-        #         component.properties.sampleRecord is None
-        #         or component.properties.sampleRecord == ""
-        #     ):
-        #         diagnostics.append(
-        #             Diagnostic(
-        #                 "component.properties.sampleRecord",
-        #                 "Please provide a valid sample xml record",
-        #                 SeverityLevelEnum.Error,
-        #             )
-        #         )
+        elif component.properties.parsingMethod == "parseFromSampleRecord":
+            if (
+                component.properties.sampleRecord is None
+                or component.properties.sampleRecord == ""
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.sampleRecord",
+                        "Please provide a valid sample xml record",
+                        SeverityLevelEnum.Error,
+                    )
+                )
 
         return diagnostics
 

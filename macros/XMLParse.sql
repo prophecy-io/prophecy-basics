@@ -32,8 +32,8 @@
         select * from {{ relation_list | join(', ') }}
 
     {%- else -%}
-        {%- set quoted_col = "`" ~ columnName ~ "`" -%}
-        {%- set alias_col = "`" ~ columnName ~ "_parsed`" -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
@@ -70,9 +70,11 @@
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if columnName -%}
+        {%- set quoted_col = prophecy_basics.quote_identifier(columnName) | trim -%}
+        {%- set alias_col = prophecy_basics.quote_identifier(columnName ~ '_parsed') | trim -%}
         select
             *,
-            PARSE_XML({{ '"' ~ columnName ~ '"' }}) as {{ '"' ~ columnName ~ '_parsed"' }}
+            PARSE_XML({{ quoted_col }}) as {{ alias_col }}
         from {{ relation_list | join(', ') }}
     {%- else -%}
         select * from {{ relation_list | join(', ') }}
