@@ -152,7 +152,7 @@ class RunningTotal(MacroSpec):
                 Diagnostic(
                     "properties.groupByColumnNames",
                     f"schema_cols_lower = {schema_cols_lower} ",
-                    SeverityLevelEnum.Info,
+                    SeverityLevelEnum.Warning,
                 )
                 )
 
