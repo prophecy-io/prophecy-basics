@@ -320,8 +320,7 @@ class RunningTotal(MacroSpec):
         group_cols = self.props.groupByColumnNames
         running_total_cols = self.props.runningTotalColumnNames
         order_rules = self.props.orderByColumns
-        output_prefix = (self.props.outputPrefix or "").strip() or "RunTot_"
-
+        
         order_cols = []
         for r in order_rules:
             if (r.expression.expression):
@@ -352,7 +351,7 @@ class RunningTotal(MacroSpec):
 
         result = in0
         for col_name in running_total_cols:
-            run_tot_col = output_prefix + col_name
+            run_tot_col = str(self.props.outputPrefix) + col_name
             result = result.withColumn(
                 run_tot_col,
                 spark_sum(coalesce(col(col_name), lit(0))).over(window_spec),
