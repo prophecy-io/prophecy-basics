@@ -1,4 +1,5 @@
-{% macro Imputation(relation_name,
+{% macro Imputation(
+    relation_name,
     schema,
     columnNames,
     replaceIncomingType,
@@ -60,44 +61,63 @@ WITH base AS (
 
 {# ── Per-column stat CTEs ── #}
 {% for col_name in columnNames %}
+    {% set col_type = col_type_map.get(col_name, 'string') %}
     {% set qcol = bt ~ col_name ~ bt %}
+
+    {# Change 2: proper literal quoting #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+        {% set user_lit = prophecy_basics.cast_timestamp_if_needed(replaceWithUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+        {% set user_lit = replaceWithUserValue | string %}
+    {% endif %}
 
     {# Condition: which rows to EXCLUDE from the aggregate #}
     {% if replaceIncomingType == 'null_val' %}
         {% set filter_agg = qcol ~ ' IS NOT NULL' %}
     {% else %}
-        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ (incomingUserValue | string) ~ ')' %}
+        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ incoming_lit ~ ')' %}
     {% endif %}
 
-    {# Aggregate expression for the replacement value #}
+    {# Change 4: aggregate expression with CAST for integer types #}
     {% if replaceWithType == 'average' %}
-        {% set rep_expr %}AVG(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'median' %}
-        {% set rep_expr %}PERCENTILE_APPROX(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END, 0.5){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(PERCENTILE_APPROX(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END, 0.5) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'PERCENTILE_APPROX(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END, 0.5)' %}
+        {% endif %}
     {% elif replaceWithType == 'mode' %}
-        {#
-          Mode via a subquery that returns the most-frequent non-excluded value.
-          We SELECT the value directly (no table-alias column reference) to avoid
-          the broken `_m.`col`` pattern.
-        #}
-        {% set rep_expr %}(
-            SELECT {{ qcol }}
-            FROM base
-            WHERE {{ filter_agg }}
-            GROUP BY {{ qcol }}
-            ORDER BY COUNT(*) DESC
-            LIMIT 1
-        ){% endset %}
+        {# Change 4: CAST mode select col for integer types; Change 5: deterministic tie-breaking #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set mode_select = 'CAST(' ~ qcol ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set mode_select = qcol %}
+        {% endif %}
+        {% set rep_expr = '(' ~
+            'SELECT ' ~ mode_select ~
+            ' FROM base' ~
+            ' WHERE ' ~ filter_agg ~
+            ' GROUP BY ' ~ qcol ~
+            ' ORDER BY COUNT(*) DESC, ' ~ qcol ~ ' ASC' ~
+            ' LIMIT 1)' %}
     {% else %}
-        {# replaceWithType == 'user' #}
-        {% set rep_expr = replaceWithUserValue | string %}
+        {# replaceWithType == 'user'; Change 4: CAST for integer types #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(' ~ user_lit ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = user_lit %}
+        {% endif %}
     {% endif %}
 
     , stat_{{ loop.index0 }} AS (
-        {% if replaceWithType == 'user' %}
-            SELECT {{ rep_expr }} AS rep_val
-        {% elif replaceWithType == 'mode' %}
-            {# Mode subquery is already scalar; wrap it #}
+        {% if replaceWithType in ('user', 'mode') %}
             SELECT {{ rep_expr }} AS rep_val
         {% else %}
             SELECT {{ rep_expr }} AS rep_val FROM base
@@ -105,68 +125,60 @@ WITH base AS (
     )
 {% endfor %}
 
-{# ── Consolidate all stats into one row ── #}
-, stats AS (
-    SELECT
-    {% for col_name in columnNames %}
-        (SELECT rep_val FROM stat_{{ loop.index0 }}) AS rep_{{ loop.index0 }}
-        {%- if not loop.last %},{% endif %}
-    {% endfor %}
-)
-
-{# ── Final SELECT ── #}
-SELECT
+{# ── Final SELECT — flat list approach (Change 7) ── #}
+{% set select_cols = [] %}
 {% for c in schema %}
     {% set col_name = c.name %}
-    {% set key = col_name | upper %}
+    {% set col_type = col_type_map.get(col_name, '') %}
+    {% set quoted_col = bt ~ col_name ~ bt %}
 
-    {# Resolve whether this column is in the impute list #}
-    {% set in_impute_list = false %}
+    {# Change 2: quoting for is_imputed_cond in final SELECT #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+    {% endif %}
+
+    {# Change 3: use column_names_match for impute list lookup #}
     {% set impute_idx = -1 %}
     {% for impute_col in columnNames %}
-        {% if (impute_col | upper) == key %}
-            {% set in_impute_list = true %}
+        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
             {% set impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if not in_impute_list %}
-        {# Pass-through column #}
-        {{ bt ~ col_name ~ bt }}
+    {% if impute_idx == -1 %}
+        {% do select_cols.append(quoted_col) %}
     {% else %}
-        {% set qcol = bt ~ col_name ~ bt %}
+        {% set qcol = quoted_col %}
+        {% set quoted_imputed_col = bt ~ col_name ~ '_ImputedValue' ~ bt %}
+        {% set quoted_indicator_col = bt ~ col_name ~ '_Indicator' ~ bt %}
 
-        {# Condition that identifies a row as "needs imputation" #}
+        {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
         {% else %}
-            {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
-        {% endif %}
-
-        {# Replacement expression — simplified COALESCE for null_val, CASE for user #}
-        {% if replaceIncomingType == 'null_val' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_' ~ impute_idx ~ ' FROM stats))' %}
-        {% else %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_' ~ impute_idx ~ ' FROM stats) ELSE ' ~ qcol ~ ' END' %}
+            {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
-            {{ qcol }},
-            {{ replace_expr }} AS {{ bt ~ col_name ~ '_ImputedValue' ~ bt }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ bt ~ col_name ~ '_Indicator' ~ bt }}
-            {% endif %}
+            {% do select_cols.append(qcol) %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ quoted_imputed_col) %}
         {% else %}
-            {{ replace_expr }} AS {{ qcol }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ bt ~ col_name ~ '_Indicator' ~ bt }}
-            {% endif %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ qcol) %}
+        {% endif %}
+        {% if includeImputedIndicator %}
+            {% set indicator_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN 1 ELSE 0 END' %}
+            {% do select_cols.append(indicator_expr ~ ' AS ' ~ quoted_indicator_col) %}
         {% endif %}
     {% endif %}
-    {%- if not loop.last %},{% endif %}
 {% endfor %}
+
+SELECT
+    {{ select_cols | join(',\n    ') }}
 FROM base
-CROSS JOIN stats
 
 {% endif %}
 {% endmacro %}
@@ -177,6 +189,7 @@ CROSS JOIN stats
    - Quoting  : double-quotes via prophecy_basics.quote_identifier
    - Median   : MEDIAN() native aggregate
    - Mode     : MODE() native aggregate
+   - Filter   : <> instead of !=
    ============================================================ #}
 {% macro duckdb__Imputation(
     relation_name,
@@ -206,22 +219,52 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
+    {% set col_type = col_type_map[col_name] %}
     {% set qcol = prophecy_basics.quote_identifier(col_name) %}
 
+    {# Change 2: proper literal quoting #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+        {% set user_lit = prophecy_basics.cast_timestamp_if_needed(replaceWithUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+        {% set user_lit = replaceWithUserValue | string %}
+    {% endif %}
+
+    {# DuckDB keeps <> for filter condition #}
     {% if replaceIncomingType == 'null_val' %}
         {% set filter_agg = qcol ~ ' IS NOT NULL' %}
     {% else %}
-        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' <> ' ~ (incomingUserValue | string) ~ ')' %}
+        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' <> ' ~ incoming_lit ~ ')' %}
     {% endif %}
 
+    {# Change 4: aggregate expression with CAST for integer types #}
+    {# DuckDB keeps MODE() and MEDIAN() as native aggregates (no subquery / ORDER BY tie-break) #}
     {% if replaceWithType == 'average' %}
-        {% set rep_expr %}AVG(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'median' %}
-        {% set rep_expr %}MEDIAN(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(MEDIAN(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'MEDIAN(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'mode' %}
-        {% set rep_expr %}MODE(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(MODE(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'MODE(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% else %}
-        {% set rep_expr = replaceWithUserValue | string %}
+        {# replaceWithType == 'user'; Change 4: CAST for integer types #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(' ~ user_lit ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = user_lit %}
+        {% endif %}
     {% endif %}
 
     , stat_{{ loop.index0 }} AS (
@@ -233,57 +276,61 @@ WITH base AS (
     )
 {% endfor %}
 
-, stats AS (
-    SELECT
-    {% for col_name in columnNames %}
-        (SELECT rep_val FROM stat_{{ loop.index0 }}) AS rep_{{ loop.index0 }}
-        {%- if not loop.last %},{% endif %}
-    {% endfor %}
-)
-
-SELECT
+{# ── Final SELECT — flat list approach (Change 7) ── #}
+{% set select_cols = [] %}
 {% for c in schema %}
     {% set col_name = c.name %}
-    {% set key = col_name | upper %}
-    {% set in_impute_list = false %}
+    {% set col_type = col_type_map.get(col_name, '') %}
+    {% set quoted_col = prophecy_basics.quote_identifier(col_name) %}
+
+    {# Change 2: quoting for is_imputed_cond in final SELECT #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+    {% endif %}
+
+    {# Change 3: use column_names_match for impute list lookup #}
     {% set impute_idx = -1 %}
     {% for impute_col in columnNames %}
-        {% if (impute_col | upper) == key %}
-            {% set in_impute_list = true %}
+        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
             {% set impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if not in_impute_list %}
-        {{ prophecy_basics.quote_identifier(col_name) }}
+    {% if impute_idx == -1 %}
+        {% do select_cols.append(quoted_col) %}
     {% else %}
-        {% set qcol = prophecy_basics.quote_identifier(col_name) %}
+        {% set qcol = quoted_col %}
+        {% set quoted_imputed_col = prophecy_basics.quote_identifier(col_name ~ '_ImputedValue') %}
+        {% set quoted_indicator_col = prophecy_basics.quote_identifier(col_name ~ '_Indicator') %}
 
+        {# Change 6: inline scalar subqueries, no stats CTE reference #}
+        {# DuckDB keeps <> in is_imputed_cond filter #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_' ~ impute_idx ~ ' FROM stats))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
         {% else %}
-            {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_' ~ impute_idx ~ ' FROM stats) ELSE ' ~ qcol ~ ' END' %}
+            {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
-            {{ qcol }},
-            {{ replace_expr }} AS {{ prophecy_basics.quote_identifier(col_name ~ '_ImputedValue') }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ prophecy_basics.quote_identifier(col_name ~ '_Indicator') }}
-            {% endif %}
+            {% do select_cols.append(qcol) %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ quoted_imputed_col) %}
         {% else %}
-            {{ replace_expr }} AS {{ qcol }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ prophecy_basics.quote_identifier(col_name ~ '_Indicator') }}
-            {% endif %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ qcol) %}
+        {% endif %}
+        {% if includeImputedIndicator %}
+            {% set indicator_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN 1 ELSE 0 END' %}
+            {% do select_cols.append(indicator_expr ~ ' AS ' ~ quoted_indicator_col) %}
         {% endif %}
     {% endif %}
-    {%- if not loop.last %},{% endif %}
 {% endfor %}
+
+SELECT
+    {{ select_cols | join(',\n    ') }}
 FROM base
-CROSS JOIN stats
 
 {% endif %}
 {% endmacro %}
@@ -293,7 +340,7 @@ CROSS JOIN stats
    BIGQUERY  (bigquery__)
    - Quoting  : backticks
    - Median   : APPROX_QUANTILES(..., 100)[OFFSET(50)]
-   - Mode     : ORDER BY COUNT(*) DESC LIMIT 1 subquery
+   - Mode     : ORDER BY COUNT(*) DESC, col ASC LIMIT 1 subquery
    - Indicator: IF() instead of CASE WHEN
    ============================================================ #}
 {% macro bigquery__Imputation(
@@ -325,35 +372,62 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
+    {% set col_type = col_type_map[col_name] %}
     {% set qcol = bt ~ col_name ~ bt %}
+
+    {# Change 2: proper literal quoting #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+        {% set user_lit = prophecy_basics.cast_timestamp_if_needed(replaceWithUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+        {% set user_lit = replaceWithUserValue | string %}
+    {% endif %}
 
     {% if replaceIncomingType == 'null_val' %}
         {% set filter_agg = qcol ~ ' IS NOT NULL' %}
     {% else %}
-        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ (incomingUserValue | string) ~ ')' %}
+        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ incoming_lit ~ ')' %}
     {% endif %}
 
+    {# Change 4: aggregate expression with CAST for integer types #}
     {% if replaceWithType == 'average' %}
-        {% set rep_expr %}AVG(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'median' %}
-        {% set rep_expr %}APPROX_QUANTILES(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END, 100)[OFFSET(50)]{% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(APPROX_QUANTILES(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END, 100)[OFFSET(50)] AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'APPROX_QUANTILES(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END, 100)[OFFSET(50)]' %}
+        {% endif %}
     {% elif replaceWithType == 'mode' %}
-        {% set rep_expr %}(
-            SELECT {{ qcol }}
-            FROM base
-            WHERE {{ filter_agg }}
-            GROUP BY {{ qcol }}
-            ORDER BY COUNT(*) DESC
-            LIMIT 1
-        ){% endset %}
+        {# Change 4: CAST mode select col for integer types; Change 5: deterministic tie-breaking #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set mode_select = 'CAST(' ~ qcol ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set mode_select = qcol %}
+        {% endif %}
+        {% set rep_expr = '(' ~
+            'SELECT ' ~ mode_select ~
+            ' FROM base' ~
+            ' WHERE ' ~ filter_agg ~
+            ' GROUP BY ' ~ qcol ~
+            ' ORDER BY COUNT(*) DESC, ' ~ qcol ~ ' ASC' ~
+            ' LIMIT 1)' %}
     {% else %}
-        {% set rep_expr = replaceWithUserValue | string %}
+        {# replaceWithType == 'user'; Change 4: CAST for integer types #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(' ~ user_lit ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = user_lit %}
+        {% endif %}
     {% endif %}
 
     , stat_{{ loop.index0 }} AS (
-        {% if replaceWithType == 'user' %}
-            SELECT {{ rep_expr }} AS rep_val
-        {% elif replaceWithType == 'mode' %}
+        {% if replaceWithType in ('user', 'mode') %}
             SELECT {{ rep_expr }} AS rep_val
         {% else %}
             SELECT {{ rep_expr }} AS rep_val FROM base
@@ -361,57 +435,61 @@ WITH base AS (
     )
 {% endfor %}
 
-, stats AS (
-    SELECT
-    {% for col_name in columnNames %}
-        (SELECT rep_val FROM stat_{{ loop.index0 }}) AS rep_{{ loop.index0 }}
-        {%- if not loop.last %},{% endif %}
-    {% endfor %}
-)
-
-SELECT
+{# ── Final SELECT — flat list approach (Change 7) ── #}
+{% set select_cols = [] %}
 {% for c in schema %}
     {% set col_name = c.name %}
-    {% set key = col_name | upper %}
-    {% set in_impute_list = false %}
+    {% set col_type = col_type_map.get(col_name, '') %}
+    {% set quoted_col = bt ~ col_name ~ bt %}
+
+    {# Change 2: quoting for is_imputed_cond in final SELECT #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+    {% endif %}
+
+    {# Change 3: use column_names_match for impute list lookup #}
     {% set impute_idx = -1 %}
     {% for impute_col in columnNames %}
-        {% if (impute_col | upper) == key %}
-            {% set in_impute_list = true %}
+        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
             {% set impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if not in_impute_list %}
-        {{ bt ~ col_name ~ bt }}
+    {% if impute_idx == -1 %}
+        {% do select_cols.append(quoted_col) %}
     {% else %}
-        {% set qcol = bt ~ col_name ~ bt %}
+        {% set qcol = quoted_col %}
+        {% set quoted_imputed_col = bt ~ col_name ~ '_ImputedValue' ~ bt %}
+        {% set quoted_indicator_col = bt ~ col_name ~ '_Indicator' ~ bt %}
 
+        {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_' ~ impute_idx ~ ' FROM stats))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
         {% else %}
-            {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_' ~ impute_idx ~ ' FROM stats) ELSE ' ~ qcol ~ ' END' %}
+            {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
-            {{ qcol }},
-            {{ replace_expr }} AS {{ bt ~ col_name ~ '_ImputedValue' ~ bt }}
-            {% if includeImputedIndicator %},
-            IF({{ is_imputed_cond }}, 1, 0) AS {{ bt ~ col_name ~ '_Indicator' ~ bt }}
-            {% endif %}
+            {% do select_cols.append(qcol) %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ quoted_imputed_col) %}
         {% else %}
-            {{ replace_expr }} AS {{ qcol }}
-            {% if includeImputedIndicator %},
-            IF({{ is_imputed_cond }}, 1, 0) AS {{ bt ~ col_name ~ '_Indicator' ~ bt }}
-            {% endif %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ qcol) %}
+        {% endif %}
+        {% if includeImputedIndicator %}
+            {# BigQuery keeps IF() for the indicator #}
+            {% set indicator_expr = 'IF(' ~ is_imputed_cond ~ ', 1, 0)' %}
+            {% do select_cols.append(indicator_expr ~ ' AS ' ~ quoted_indicator_col) %}
         {% endif %}
     {% endif %}
-    {%- if not loop.last %},{% endif %}
 {% endfor %}
+
+SELECT
+    {{ select_cols | join(',\n    ') }}
 FROM base
-CROSS JOIN stats
 
 {% endif %}
 {% endmacro %}
@@ -421,7 +499,7 @@ CROSS JOIN stats
    SNOWFLAKE  (snowflake__)
    - Quoting  : double-quotes via prophecy_basics.quote_identifier
    - Median   : MEDIAN() native aggregate
-   - Mode     : ORDER BY COUNT(*) DESC LIMIT 1 subquery
+   - Mode     : ORDER BY COUNT(*) DESC, col ASC LIMIT 1 subquery
                 (Snowflake has no MODE() aggregate)
    ============================================================ #}
 {% macro snowflake__Imputation(
@@ -452,36 +530,63 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
+    {% set col_type = col_type_map[col_name] %}
     {% set qcol = prophecy_basics.quote_identifier(col_name) %}
+
+    {# Change 2: proper literal quoting #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+        {% set user_lit = prophecy_basics.cast_timestamp_if_needed(replaceWithUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+        {% set user_lit = replaceWithUserValue | string %}
+    {% endif %}
 
     {% if replaceIncomingType == 'null_val' %}
         {% set filter_agg = qcol ~ ' IS NOT NULL' %}
     {% else %}
-        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ (incomingUserValue | string) ~ ')' %}
+        {% set filter_agg = '(' ~ qcol ~ ' IS NULL OR ' ~ qcol ~ ' != ' ~ incoming_lit ~ ')' %}
     {% endif %}
 
+    {# Change 4: aggregate expression with CAST for integer types #}
+    {# Snowflake keeps MEDIAN() as a native aggregate #}
     {% if replaceWithType == 'average' %}
-        {% set rep_expr %}AVG(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'AVG(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'median' %}
-        {% set rep_expr %}MEDIAN(CASE WHEN {{ filter_agg }} THEN {{ qcol }} END){% endset %}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(MEDIAN(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END) AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = 'MEDIAN(CASE WHEN ' ~ filter_agg ~ ' THEN ' ~ qcol ~ ' END)' %}
+        {% endif %}
     {% elif replaceWithType == 'mode' %}
-        {# Snowflake has no MODE() — use ORDER BY COUNT(*) DESC LIMIT 1 #}
-        {% set rep_expr %}(
-            SELECT {{ qcol }}
-            FROM base
-            WHERE {{ filter_agg }}
-            GROUP BY {{ qcol }}
-            ORDER BY COUNT(*) DESC
-            LIMIT 1
-        ){% endset %}
+        {# Change 4: CAST mode select col for integer types; Change 5: deterministic tie-breaking #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set mode_select = 'CAST(' ~ qcol ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set mode_select = qcol %}
+        {% endif %}
+        {% set rep_expr = '(' ~
+            'SELECT ' ~ mode_select ~
+            ' FROM base' ~
+            ' WHERE ' ~ filter_agg ~
+            ' GROUP BY ' ~ qcol ~
+            ' ORDER BY COUNT(*) DESC, ' ~ qcol ~ ' ASC' ~
+            ' LIMIT 1)' %}
     {% else %}
-        {% set rep_expr = replaceWithUserValue | string %}
+        {# replaceWithType == 'user'; Change 4: CAST for integer types #}
+        {% if prophecy_basics.is_integer_type(col_type) == 'true' %}
+            {% set rep_expr = 'CAST(' ~ user_lit ~ ' AS BIGINT)' %}
+        {% else %}
+            {% set rep_expr = user_lit %}
+        {% endif %}
     {% endif %}
 
     , stat_{{ loop.index0 }} AS (
-        {% if replaceWithType == 'user' %}
-            SELECT {{ rep_expr }} AS rep_val
-        {% elif replaceWithType == 'mode' %}
+        {% if replaceWithType in ('user', 'mode') %}
             SELECT {{ rep_expr }} AS rep_val
         {% else %}
             SELECT {{ rep_expr }} AS rep_val FROM base
@@ -489,57 +594,60 @@ WITH base AS (
     )
 {% endfor %}
 
-, stats AS (
-    SELECT
-    {% for col_name in columnNames %}
-        (SELECT rep_val FROM stat_{{ loop.index0 }}) AS rep_{{ loop.index0 }}
-        {%- if not loop.last %},{% endif %}
-    {% endfor %}
-)
-
-SELECT
+{# ── Final SELECT — flat list approach (Change 7) ── #}
+{% set select_cols = [] %}
 {% for c in schema %}
     {% set col_name = c.name %}
-    {% set key = col_name | upper %}
-    {% set in_impute_list = false %}
+    {% set col_type = col_type_map.get(col_name, '') %}
+    {% set quoted_col = prophecy_basics.quote_identifier(col_name) %}
+
+    {# Change 2: quoting for is_imputed_cond in final SELECT #}
+    {% if prophecy_basics.is_string_type(col_type) == 'true' %}
+        {% set incoming_lit = prophecy_basics.cast_timestamp_if_needed(incomingUserValue) %}
+    {% else %}
+        {% set incoming_lit = incomingUserValue | string %}
+    {% endif %}
+
+    {# Change 3: use column_names_match for impute list lookup #}
     {% set impute_idx = -1 %}
     {% for impute_col in columnNames %}
-        {% if (impute_col | upper) == key %}
-            {% set in_impute_list = true %}
+        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
             {% set impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if not in_impute_list %}
-        {{ prophecy_basics.quote_identifier(col_name) }}
+    {% if impute_idx == -1 %}
+        {% do select_cols.append(quoted_col) %}
     {% else %}
-        {% set qcol = prophecy_basics.quote_identifier(col_name) %}
+        {% set qcol = quoted_col %}
+        {% set quoted_imputed_col = prophecy_basics.quote_identifier(col_name ~ '_ImputedValue') %}
+        {% set quoted_indicator_col = prophecy_basics.quote_identifier(col_name ~ '_Indicator') %}
 
+        {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_' ~ impute_idx ~ ' FROM stats))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
         {% else %}
-            {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_' ~ impute_idx ~ ' FROM stats) ELSE ' ~ qcol ~ ' END' %}
+            {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
-            {{ qcol }},
-            {{ replace_expr }} AS {{ prophecy_basics.quote_identifier(col_name ~ '_ImputedValue') }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ prophecy_basics.quote_identifier(col_name ~ '_Indicator') }}
-            {% endif %}
+            {% do select_cols.append(qcol) %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ quoted_imputed_col) %}
         {% else %}
-            {{ replace_expr }} AS {{ qcol }}
-            {% if includeImputedIndicator %},
-            CASE WHEN {{ is_imputed_cond }} THEN 1 ELSE 0 END AS {{ prophecy_basics.quote_identifier(col_name ~ '_Indicator') }}
-            {% endif %}
+            {% do select_cols.append(replace_expr ~ ' AS ' ~ qcol) %}
+        {% endif %}
+        {% if includeImputedIndicator %}
+            {% set indicator_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN 1 ELSE 0 END' %}
+            {% do select_cols.append(indicator_expr ~ ' AS ' ~ quoted_indicator_col) %}
         {% endif %}
     {% endif %}
-    {%- if not loop.last %},{% endif %}
 {% endfor %}
+
+SELECT
+    {{ select_cols | join(',\n    ') }}
 FROM base
-CROSS JOIN stats
 
 {% endif %}
 {% endmacro %}
