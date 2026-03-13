@@ -6,7 +6,7 @@ from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
-
+        
 
 class Imputation(MacroSpec):
     name: str = "Imputation"
@@ -286,7 +286,7 @@ class Imputation(MacroSpec):
         replace_with_user_value = self.props.replaceWithUserValue
         include_indicator = self.props.includeImputedIndicator
         output_separate = self.props.outputImputedAsSeparateField
-
+        from pyspark.sql.functions import col, lit, when
         if not column_names:
             return in0
 
