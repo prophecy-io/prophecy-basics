@@ -15,9 +15,9 @@ class Imputation(MacroSpec):
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        ProviderTypeEnum.Snowflake,
-        ProviderTypeEnum.BigQuery,
-        ProviderTypeEnum.ProphecyManaged
+        # ProviderTypeEnum.Snowflake,
+        # ProviderTypeEnum.BigQuery,
+        # ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
 
