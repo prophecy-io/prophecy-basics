@@ -24,27 +24,24 @@
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0) as " ~ quoted_output -%}
-
-with base as (
-    select *
-    from {{ relation_list | join(', ') }}
-)
 {%- if has_group -%}
 {%- set quoted_group_columns = [] -%}
 {%- for column in groupByColumnNames -%}
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
-select
-    {{ quoted_group_columns | join(', ') }},
-    {{ weighted_avg_expr }}
-from base
-group by {{ quoted_group_columns | join(', ') }}
+{%- set partition_clause = "partition by " ~ (quoted_group_columns | join(', ')) -%}
+{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") over (" ~ partition_clause ~ ") / nullif(sum(" ~ quoted_weight ~ ") over (" ~ partition_clause ~ "), 0) as " ~ quoted_output -%}
 {%- else -%}
-select
+{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") over () / nullif(sum(" ~ quoted_weight ~ ") over (), 0) as " ~ quoted_output -%}
+{%- endif -%}
+
+with base as (
+    select *
+    from {{ relation_list | join(', ') }}
+)
+select *,
     {{ weighted_avg_expr }}
 from base
-{%- endif -%}
 
 {%- endmacro -%}
 
@@ -62,27 +59,24 @@ from base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0) AS " ~ quoted_output -%}
-
-WITH base AS (
-    SELECT *
-    FROM {{ relation_list | join(', ') }}
-)
 {%- if has_group -%}
 {%- set quoted_group_columns = [] -%}
 {%- for column in groupByColumnNames -%}
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
-SELECT
-    {{ quoted_group_columns | join(', ') }},
-    {{ weighted_avg_expr }}
-FROM base
-GROUP BY {{ quoted_group_columns | join(', ') }}
+{%- set partition_clause = "PARTITION BY " ~ (quoted_group_columns | join(', ')) -%}
+{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") OVER (" ~ partition_clause ~ ") / NULLIF(SUM(" ~ quoted_weight ~ ") OVER (" ~ partition_clause ~ "), 0) AS " ~ quoted_output -%}
 {%- else -%}
-SELECT
+{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") OVER () / NULLIF(SUM(" ~ quoted_weight ~ ") OVER (), 0) AS " ~ quoted_output -%}
+{%- endif -%}
+
+WITH base AS (
+    SELECT *
+    FROM {{ relation_list | join(', ') }}
+)
+SELECT *,
     {{ weighted_avg_expr }}
 FROM base
-{%- endif -%}
 
 {%- endmacro -%}
 
@@ -100,27 +94,24 @@ FROM base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0) AS " ~ quoted_output -%}
-
-WITH base AS (
-    SELECT *
-    FROM {{ relation_list | join(', ') }}
-)
 {%- if has_group -%}
 {%- set quoted_group_columns = [] -%}
 {%- for column in groupByColumnNames -%}
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
-SELECT
-    {{ quoted_group_columns | join(', ') }},
-    {{ weighted_avg_expr }}
-FROM base
-GROUP BY {{ quoted_group_columns | join(', ') }}
+{%- set partition_clause = "PARTITION BY " ~ (quoted_group_columns | join(', ')) -%}
+{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") OVER (" ~ partition_clause ~ ") / NULLIF(SUM(" ~ quoted_weight ~ ") OVER (" ~ partition_clause ~ "), 0) AS " ~ quoted_output -%}
 {%- else -%}
-SELECT
+{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") OVER () / NULLIF(SUM(" ~ quoted_weight ~ ") OVER (), 0) AS " ~ quoted_output -%}
+{%- endif -%}
+
+WITH base AS (
+    SELECT *
+    FROM {{ relation_list | join(', ') }}
+)
+SELECT *,
     {{ weighted_avg_expr }}
 FROM base
-{%- endif -%}
 
 {%- endmacro -%}
 
@@ -138,26 +129,23 @@ FROM base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0) as " ~ quoted_output -%}
-
-with base as (
-    select *
-    from {{ relation_list | join(', ') }}
-)
 {%- if has_group -%}
 {%- set quoted_group_columns = [] -%}
 {%- for column in groupByColumnNames -%}
     {%- do quoted_group_columns.append(prophecy_basics.quote_identifier(column)) -%}
 {%- endfor -%}
-select
-    {{ quoted_group_columns | join(', ') }},
-    {{ weighted_avg_expr }}
-from base
-group by {{ quoted_group_columns | join(', ') }}
+{%- set partition_clause = "partition by " ~ (quoted_group_columns | join(', ')) -%}
+{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") over (" ~ partition_clause ~ ") / nullif(sum(" ~ quoted_weight ~ ") over (" ~ partition_clause ~ "), 0) as " ~ quoted_output -%}
 {%- else -%}
-select
+{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") over () / nullif(sum(" ~ quoted_weight ~ ") over (), 0) as " ~ quoted_output -%}
+{%- endif -%}
+
+with base as (
+    select *
+    from {{ relation_list | join(', ') }}
+)
+select *,
     {{ weighted_avg_expr }}
 from base
-{%- endif -%}
 
 {%- endmacro -%}
