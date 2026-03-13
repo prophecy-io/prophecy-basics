@@ -261,42 +261,68 @@ class RunningTotal(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = json.loads((raw or "[]").replace("'", '"'))
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
+        raw_rel = parametersMap.get("relation_name") or "[]"
+        raw_group = parametersMap.get("groupByColumnNames") or "[]"
+        raw_running = parametersMap.get("runningTotalColumnNames") or "[]"
+        raw_order = parametersMap.get("orderByColumns") or "[]"
+
+        output_prefix_raw = (parametersMap.get("outputPrefix") or "''").lstrip("'").rstrip("'")
+        output_prefix = output_prefix_raw if output_prefix_raw and output_prefix_raw != "None" else "RunTot_"
+
         return RunningTotal.RunningTotalProperties(
-            relation_name=json.loads(
-                parametersMap.get("relation_name").replace("'", '"')
-            ),
-            schema=parametersMap.get("schema"),
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames").replace("'", '"')
-            ),
-            runningTotalColumnNames=json.loads(
-                parametersMap.get("runningTotalColumnNames").replace("'", '"')
-            ),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns", "[]").replace("'", '"')
-            ),
-            outputPrefix=(parametersMap.get("outputPrefix") or "''")
-                .lstrip("'")
-                .rstrip("'")
-                or "RunTot_",
+            relation_name=json.loads(raw_rel.replace("'", '"')),
+            schema=parametersMap.get("schema") or "",
+            groupByColumnNames=json.loads(raw_group.replace("'", '"')),
+            runningTotalColumnNames=json.loads(raw_running.replace("'", '"')),
+            orderByColumns=_parse_order_columns(raw_order),
+            outputPrefix=output_prefix,
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("schema", str(properties.schema)),
+                MacroParameter("schema", str(properties.schema or "")),
                 MacroParameter(
-                    "groupByColumnNames", json.dumps(properties.groupByColumnNames)
+                    "groupByColumnNames", json.dumps(properties.groupByColumnNames or [])
                 ),
                 MacroParameter(
                     "runningTotalColumnNames",
-                    json.dumps(properties.runningTotalColumnNames),
+                    json.dumps(properties.runningTotalColumnNames or []),
                 ),
-                MacroParameter("orderByColumns", json.dumps(properties.orderByColumns)),
-                MacroParameter("outputPrefix", str(properties.outputPrefix)),
+                MacroParameter("orderByColumns", order_by_json),
+                MacroParameter(
+                    "outputPrefix",
+                    str(properties.outputPrefix or "RunTot_"),
+                ),
             ],
         )
 
