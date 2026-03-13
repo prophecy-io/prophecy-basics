@@ -6,7 +6,6 @@ from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import sum as spark_sum, col, when, lit
-from pyspark.sql.window import Window
 
 
 class WeightedAverage(MacroSpec):
@@ -252,9 +251,11 @@ class WeightedAverage(MacroSpec):
         output_col = (self.props.outputFieldName or "").strip() or "WeightedAverage"
         group_cols = self.props.groupByColumnNames
 
-        window_spec = Window.partitionBy(*group_cols) if group_cols else Window.partitionBy()
-        sum_val_weight = spark_sum(col(value_col) * col(weight_col)).over(window_spec)
-        sum_weight = spark_sum(col(weight_col)).over(window_spec)
+        sum_val_weight = spark_sum(col(value_col) * col(weight_col))
+        sum_weight = spark_sum(col(weight_col))
         weighted_avg_expr = when(sum_weight != 0, sum_val_weight / sum_weight).otherwise(lit(None)).alias(output_col)
 
-        return in0.withColumn(output_col, weighted_avg_expr)
+        if group_cols:
+            return in0.groupBy(*[col(c) for c in group_cols]).agg(weighted_avg_expr)
+        else:
+            return in0.agg(weighted_avg_expr)
