@@ -267,6 +267,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/Sample.py
     createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/Imputation:
+    name: Imputation
+    macroType: query
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/Imputation.sql
+      - .prophecy/ide/macros/Imputation.json
+      - macros/macros.yml
+      - gems/Imputation.py
+    createdAt: '2025-10-13 04:59:45'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
