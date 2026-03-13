@@ -21,5 +21,4 @@ __pycache__/
 environment.yml
 requirements.txt
 scripts/
-tests/bigquery_expected/
-tests/expected/
+tests/
