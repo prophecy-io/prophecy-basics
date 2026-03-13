@@ -139,15 +139,15 @@ WITH base AS (
         {% set incoming_lit = incomingUserValue | string %}
     {% endif %}
 
-    {# Change 3: use column_names_match for impute list lookup #}
-    {% set impute_idx = -1 %}
+    {# Use namespace so impute_idx assignment inside the loop escapes loop scope #}
+    {% set ns = namespace(impute_idx=-1) %}
     {% for impute_col in columnNames %}
-        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
-            {% set impute_idx = loop.index0 %}
+        {% if (impute_col | upper) == (col_name | upper) %}
+            {% set ns.impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if impute_idx == -1 %}
+    {% if ns.impute_idx == -1 %}
         {% do select_cols.append(quoted_col) %}
     {% else %}
         {% set qcol = quoted_col %}
@@ -157,10 +157,10 @@ WITH base AS (
         {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ '))' %}
         {% else %}
             {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
@@ -290,15 +290,15 @@ WITH base AS (
         {% set incoming_lit = incomingUserValue | string %}
     {% endif %}
 
-    {# Change 3: use column_names_match for impute list lookup #}
-    {% set impute_idx = -1 %}
+    {# Use namespace so impute_idx assignment inside the loop escapes loop scope #}
+    {% set ns = namespace(impute_idx=-1) %}
     {% for impute_col in columnNames %}
-        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
-            {% set impute_idx = loop.index0 %}
+        {% if (impute_col | upper) == (col_name | upper) %}
+            {% set ns.impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if impute_idx == -1 %}
+    {% if ns.impute_idx == -1 %}
         {% do select_cols.append(quoted_col) %}
     {% else %}
         {% set qcol = quoted_col %}
@@ -309,10 +309,10 @@ WITH base AS (
         {# DuckDB keeps <> in is_imputed_cond filter #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ '))' %}
         {% else %}
             {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
@@ -449,15 +449,15 @@ WITH base AS (
         {% set incoming_lit = incomingUserValue | string %}
     {% endif %}
 
-    {# Change 3: use column_names_match for impute list lookup #}
-    {% set impute_idx = -1 %}
+    {# Use namespace so impute_idx assignment inside the loop escapes loop scope #}
+    {% set ns = namespace(impute_idx=-1) %}
     {% for impute_col in columnNames %}
-        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
-            {% set impute_idx = loop.index0 %}
+        {% if (impute_col | upper) == (col_name | upper) %}
+            {% set ns.impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if impute_idx == -1 %}
+    {% if ns.impute_idx == -1 %}
         {% do select_cols.append(quoted_col) %}
     {% else %}
         {% set qcol = quoted_col %}
@@ -467,10 +467,10 @@ WITH base AS (
         {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ '))' %}
         {% else %}
             {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
@@ -608,15 +608,15 @@ WITH base AS (
         {% set incoming_lit = incomingUserValue | string %}
     {% endif %}
 
-    {# Change 3: use column_names_match for impute list lookup #}
-    {% set impute_idx = -1 %}
+    {# Use namespace so impute_idx assignment inside the loop escapes loop scope #}
+    {% set ns = namespace(impute_idx=-1) %}
     {% for impute_col in columnNames %}
-        {% if prophecy_basics.column_names_match(impute_col, col_name) %}
-            {% set impute_idx = loop.index0 %}
+        {% if (impute_col | upper) == (col_name | upper) %}
+            {% set ns.impute_idx = loop.index0 %}
         {% endif %}
     {% endfor %}
 
-    {% if impute_idx == -1 %}
+    {% if ns.impute_idx == -1 %}
         {% do select_cols.append(quoted_col) %}
     {% else %}
         {% set qcol = quoted_col %}
@@ -626,10 +626,10 @@ WITH base AS (
         {# Change 6: inline scalar subqueries, no stats CTE reference #}
         {% if replaceIncomingType == 'null_val' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
-            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ impute_idx ~ '))' %}
+            {% set replace_expr = 'COALESCE(' ~ qcol ~ ', (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ '))' %}
         {% else %}
             {% set is_imputed_cond = qcol ~ ' = ' ~ incoming_lit %}
-            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
+            {% set replace_expr = 'CASE WHEN ' ~ is_imputed_cond ~ ' THEN (SELECT rep_val FROM stat_' ~ ns.impute_idx ~ ') ELSE ' ~ qcol ~ ' END' %}
         {% endif %}
 
         {% if outputImputedAsSeparateField %}
