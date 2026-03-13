@@ -62,7 +62,7 @@ class Imputation(MacroSpec):
 
         incomingSelect = (
             SelectBox("Incoming value to replace")
-            .addOption("Null()", "null_val")
+            .addOption("Null", "null_val")
             .addOption("User specified value", "user")
             .bindProperty("replaceIncomingType")
         )

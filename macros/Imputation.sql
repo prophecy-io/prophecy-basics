@@ -67,12 +67,13 @@
             {% set rep_expr = (replaceWithUserValue | string) %}
         {% endif %}
 
-        {% if loop.index0 > 0 %},{% endif %}
+        , stat_{{ loop.index0 }} AS (
         {% if replaceWithType == 'user' %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val)
+            SELECT {{ rep_expr }} AS rep_val
         {% else %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val FROM base)
+            SELECT {{ rep_expr }} AS rep_val FROM base
         {% endif %}
+        )
     {% endfor %}
     , stats AS (
         SELECT
@@ -164,12 +165,13 @@
             {% set rep_expr = (replaceWithUserValue | string) %}
         {% endif %}
 
-        {% if loop.index0 > 0 %},{% endif %}
+        , stat_{{ loop.index0 }} AS (
         {% if replaceWithType == 'user' %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val)
+            SELECT {{ rep_expr }} AS rep_val
         {% else %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val FROM base)
+            SELECT {{ rep_expr }} AS rep_val FROM base
         {% endif %}
+        )
     {% endfor %}
     , stats AS (
         SELECT
@@ -262,12 +264,13 @@
             {% set rep_expr = (replaceWithUserValue | string) %}
         {% endif %}
 
-        {% if loop.index0 > 0 %},{% endif %}
+        , stat_{{ loop.index0 }} AS (
         {% if replaceWithType == 'user' %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val)
+            SELECT {{ rep_expr }} AS rep_val
         {% else %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val FROM base)
+            SELECT {{ rep_expr }} AS rep_val FROM base
         {% endif %}
+        )
     {% endfor %}
     , stats AS (
         SELECT
@@ -359,12 +362,13 @@
             {% set rep_expr = (replaceWithUserValue | string) %}
         {% endif %}
 
-        {% if loop.index0 > 0 %},{% endif %}
+        , stat_{{ loop.index0 }} AS (
         {% if replaceWithType == 'user' %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val)
+            SELECT {{ rep_expr }} AS rep_val
         {% else %}
-            stat_{{ loop.index0 }} AS (SELECT {{ rep_expr }} AS rep_val FROM base)
+            SELECT {{ rep_expr }} AS rep_val FROM base
         {% endif %}
+        )
     {% endfor %}
     , stats AS (
         SELECT
