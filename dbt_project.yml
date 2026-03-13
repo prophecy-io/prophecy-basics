@@ -23,5 +23,7 @@ model-paths:
 - "prophecy-sources"
 macro-paths:
 - "macros"
+test-paths:
+- "tests/generic"
 target-path: "target"
 
