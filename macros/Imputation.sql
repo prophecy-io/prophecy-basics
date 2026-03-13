@@ -36,7 +36,7 @@
     {% else %}
 
     {# Build filter for "values to include in aggregate" (exclude incoming value to replace) #}
-    {# replaceIncomingType: 'null' = replace NULLs, so aggregate over non-nulls. 'user' = replace user value, so exclude that value. #}
+    {# replaceIncomingType: 'null_val' = replace NULLs, so aggregate over non-nulls. 'user' = replace user value, so exclude that value. #}
     {% set numeric_types = ["bigint","decimal","double","float","integer","smallint","tinyint","long","short"] %}
     {% set col_type_map = {} %}
     {% for c in schema %}
@@ -49,7 +49,7 @@
     {% for col_name in columnNames %}
         {% set dtype = col_type_map.get(col_name) %}
         {% set qcol = bt ~ col_name ~ bt %}
-        {% if replaceIncomingType == 'null' %}
+        {% if replaceIncomingType == 'null_val' %}
             {% set filter_agg = qcol ~ ' IS NOT NULL' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
         {% else %}
@@ -98,7 +98,7 @@
             {{ prophecy_basics.quote_identifier(col_name) }}
         {% else %}
             {% set qcol = prophecy_basics.quote_identifier(col_name) %}
-            {% if replaceIncomingType == 'null' %}
+            {% if replaceIncomingType == 'null_val' %}
                 {% set is_imputed_cond = qcol ~ ' IS NULL' %}
             {% else %}
                 {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
@@ -146,7 +146,7 @@
     )
     {% for col_name in columnNames %}
         {% set qcol = prophecy_basics.quote_identifier(col_name) %}
-        {% if replaceIncomingType == 'null' %}
+        {% if replaceIncomingType == 'null_val' %}
             {% set filter_agg = qcol ~ ' IS NOT NULL' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
         {% else %}
@@ -195,7 +195,7 @@
             {{ prophecy_basics.quote_identifier(col_name) }}
         {% else %}
             {% set qcol = prophecy_basics.quote_identifier(col_name) %}
-            {% if replaceIncomingType == 'null' %}
+            {% if replaceIncomingType == 'null_val' %}
                 {% set is_imputed_cond = qcol ~ ' IS NULL' %}
             {% else %}
                 {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
@@ -244,7 +244,7 @@
     )
     {% for col_name in columnNames %}
         {% set qcol = bt ~ col_name ~ bt %}
-        {% if replaceIncomingType == 'null' %}
+        {% if replaceIncomingType == 'null_val' %}
             {% set filter_agg = qcol ~ ' IS NOT NULL' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
         {% else %}
@@ -293,7 +293,7 @@
             {{ bt ~ col_name ~ bt }}
         {% else %}
             {% set qcol = bt ~ col_name ~ bt %}
-            {% if replaceIncomingType == 'null' %}
+            {% if replaceIncomingType == 'null_val' %}
                 {% set is_imputed_cond = qcol ~ ' IS NULL' %}
             {% else %}
                 {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
@@ -341,7 +341,7 @@
     )
     {% for col_name in columnNames %}
         {% set qcol = prophecy_basics.quote_identifier(col_name) %}
-        {% if replaceIncomingType == 'null' %}
+        {% if replaceIncomingType == 'null_val' %}
             {% set filter_agg = qcol ~ ' IS NOT NULL' %}
             {% set is_imputed_cond = qcol ~ ' IS NULL' %}
         {% else %}
@@ -390,7 +390,7 @@
             {{ prophecy_basics.quote_identifier(col_name) }}
         {% else %}
             {% set qcol = prophecy_basics.quote_identifier(col_name) %}
-            {% if replaceIncomingType == 'null' %}
+            {% if replaceIncomingType == 'null_val' %}
                 {% set is_imputed_cond = qcol ~ ' IS NULL' %}
             {% else %}
                 {% set is_imputed_cond = qcol ~ ' = ' ~ (incomingUserValue | string) %}
