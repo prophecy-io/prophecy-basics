@@ -409,33 +409,49 @@ class Tile(MacroSpec):
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
-        # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+        raw_rel = parametersMap.get("relation_name") or ""
+        relation_name = (
+            json.loads(raw_rel.replace("'", '"'))
+            if raw_rel.strip().startswith("[")
+            else [s.strip() for s in raw_rel.lstrip("'").rstrip("'").split(",") if s.strip()]
+        )
         return Tile.TileProperties(
-            relation_name=parametersMap.get('relation_name'),
-            schema=parametersMap.get('schema'),
-            orderByColumns=parametersMap.get('orderByColumns'),
-            groupby_column_names=json.loads(parametersMap.get('groupby_column_names').replace("'", '"')),
-            unique_value_column_name=json.loads(parametersMap.get('unique_value_column_name').replace("'", '"')),
-            tile_method=parametersMap.get('tile_method'),
-            number_of_tiles=parametersMap.get('number_of_tiles'),
-            sum_column_name=parametersMap.get('sum_column_name'),
-            smart_tile_column_name=parametersMap.get('smart_tile_column_name'),
-            column_output_method_smartTile=parametersMap.get('column_output_method_smartTile'),
-            manual_tile_column_name=parametersMap.get('manual_tile_column_name'),
-            manual_tiles_cutoff=parametersMap.get('manual_tiles_cutoff'),
-            donot_split_tile_column_names=parametersMap.get('donot_split_tile_column_names')
+            relation_name=relation_name,
+            schema=parametersMap.get("schema"),
+            orderByColumns=json.loads(
+                parametersMap.get("orderByColumns").replace("'", '"')
+            ),
+            groupby_column_names=json.loads(
+                parametersMap.get("groupby_column_names").replace("'", '"')
+            ),
+            unique_value_column_name=json.loads(
+                parametersMap.get("unique_value_column_name").replace("'", '"')
+            ),
+            tile_method=parametersMap.get("tile_method").lstrip("'").rstrip("'"),
+            number_of_tiles=parametersMap.get("number_of_tiles").lstrip("'").rstrip("'"),
+            sum_column_name=parametersMap.get("sum_column_name").lstrip("'").rstrip("'"),
+            smart_tile_column_name=parametersMap.get("smart_tile_column_name").lstrip("'").rstrip("'"),
+            column_output_method_smartTile=parametersMap.get(
+                "column_output_method_smartTile"
+            ).lstrip("'").rstrip("'"),
+            manual_tile_column_name=parametersMap.get(
+                "manual_tile_column_name"
+            ).lstrip("'").rstrip("'"),
+            manual_tiles_cutoff=parametersMap.get("manual_tiles_cutoff").lstrip("'").rstrip("'"),
+            donot_split_tile_column_names=json.loads(
+                parametersMap.get("donot_split_tile_column_names").replace("'", '"')
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
-        # Convert component's state to default macro property representation
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("orderByColumns", str(properties.orderByColumns)),
+                MacroParameter("orderByColumns", json.dumps(properties.orderByColumns)),
                 MacroParameter("groupby_column_names", json.dumps(properties.groupby_column_names)),
                 MacroParameter("unique_value_column_name", json.dumps(properties.unique_value_column_name)),
                 MacroParameter("tile_method", str(properties.tile_method)),
@@ -445,8 +461,11 @@ class Tile(MacroSpec):
                 MacroParameter("column_output_method_smartTile", str(properties.column_output_method_smartTile)),
                 MacroParameter("manual_tile_column_name", str(properties.manual_tile_column_name)),
                 MacroParameter("manual_tiles_cutoff", str(properties.manual_tiles_cutoff)),
-                MacroParameter("donot_split_tile_column_names", str(properties.donot_split_tile_column_names))
-            ]
+                MacroParameter(
+                    "donot_split_tile_column_names",
+                    json.dumps(properties.donot_split_tile_column_names),
+                ),
+            ],
         )
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
