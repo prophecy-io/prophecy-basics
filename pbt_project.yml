@@ -267,6 +267,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/Sample.py
     createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/Tile:
+    name: Tile
+    macroType: expression
+    description: null
+    author: abhinav@prophecy.io
+    files:
+      - macros/Tile.sql
+      - .prophecy/ide/macros/Tile.json
+      - macros/macros.yml
+      - gems/Tile.py
+    createdAt: '2025-10-13 04:59:45'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
