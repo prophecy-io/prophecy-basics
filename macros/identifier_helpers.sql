@@ -500,3 +500,31 @@
         {{ return(date_result) }}
     {% endif %}
 {% endmacro %}
+
+{% macro is_string_type(data_type) %}
+  {%- set dt = data_type | lower | trim -%}
+  {%- if 'char' in dt or 'string' in dt or 'text' in dt
+       or 'date' in dt or 'time' in dt or 'timestamp' in dt -%}
+    true
+  {%- else -%}
+    false
+  {%- endif -%}
+{% endmacro %}
+
+{% macro is_integer_type(data_type) %}
+  {%- set dt = data_type | lower | trim -%}
+  {%- if dt in ('bigint', 'int', 'integer', 'smallint', 'tinyint', 'long', 'short', 'byte') -%}
+    true
+  {%- else -%}
+    false
+  {%- endif -%}
+{% endmacro %}
+
+{% macro is_double_type(data_type) %}
+  {%- set dt = data_type | lower | trim -%}
+  {%- if dt in ('double', 'float', 'real', 'float32', 'float64', 'decimal', 'numeric') -%}
+    true
+  {%- else -%}
+    false
+  {%- endif -%}
+{% endmacro %}
