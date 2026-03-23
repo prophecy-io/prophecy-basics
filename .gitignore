@@ -23,4 +23,8 @@ requirements.txt
 scripts/
 tests/bigquery_expected/
 tests/expected/
+tests/compiled_output/
+tests/docs/
+tests/generic/
+.DS_Store
 tests/

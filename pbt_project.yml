@@ -192,6 +192,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/RunningTotal.py
     createdAt: '2025-03-03 04:59:45'
+  .prophecy/metadata/sqlmacros/WeightedAverage:
+    name: WeightedAverage
+    macroType: query
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/WeightedAverage.sql
+      - .prophecy/ide/macros/WeightedAverage.json
+      - macros/macros.yml
+      - gems/WeightedAverage.py
+    createdAt: '2025-03-03 04:59:45'
   .prophecy/metadata/sqlmacros/generate_schema_name:
     name: generate_schema_name
     macroType: expression
