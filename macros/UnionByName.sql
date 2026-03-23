@@ -15,8 +15,9 @@
         {%- set relations = relation_names | list -%}
     {%- endif -%}
 
-    {# Step 2: Capture column names per schema #}
+    {# Step 2: Capture column names AND build norm→actual dict per relation #}
     {%- set columns_per_relation = [] -%}
+    {%- set norm_lookup_per_relation = [] -%}
     {%- for schema_blob in schemas -%}
         {%- if schema_blob is string -%}
             {%- set parsed = fromjson(schema_blob) -%}
@@ -25,10 +26,13 @@
         {%- endif -%}
 
         {%- set col_list = [] -%}
+        {%- set norm_dict = {} -%}
         {%- for f in parsed -%}
             {%- do col_list.append(f.name) -%}
+            {%- do norm_dict.update({f.name | lower: f.name}) -%}
         {%- endfor -%}
         {%- do columns_per_relation.append(col_list) -%}
+        {%- do norm_lookup_per_relation.append(norm_dict) -%}
     {%- endfor -%}
 
     {# Step 3: Normalize column names and preserve original for final SELECT #}
@@ -56,13 +60,15 @@
 
     {%- elif missingColumnOps == 'nameBasedUnionOperation' -%}
         {%- for idx in range(1, columns_per_relation | length) -%}
-            {%- set current_norm = columns_per_relation[idx] | map('lower') | list -%}
+            {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
             {%- set extra = [] -%}
             {%- set missing = [] -%}
-            {%- for c in current_norm if c not in final_columns -%}
-                {%- do extra.append(c) -%}
+            {%- for c in columns_per_relation[idx] -%}
+                {%- if c | lower not in norm_to_original -%}
+                    {%- do extra.append(c | lower) -%}
+                {%- endif -%}
             {%- endfor -%}
-            {%- for c in final_columns if c not in current_norm -%}
+            {%- for c in final_columns if c not in cur_lookup -%}
                 {%- do missing.append(c) -%}
             {%- endfor -%}
             {%- if extra or missing -%}
@@ -78,28 +84,41 @@
         {{ exceptions.raise_compiler_error("Unsupported missingColumnOps value: " ~ missingColumnOps) }}
     {%- endif -%}
 
-    {# Step 5: Build SELECTs with proper quoting #}
-    {%- set selects = [] -%}
-    {%- for idx in range(relations | length) -%}
-        {%- set cur_cols = columns_per_relation[idx] -%}
-        {%- set cur_norms = cur_cols | map('lower') | list -%}
-        {%- set parts = [] -%}
+    {# Step 5: Pre-build ALL string fragments — zero concat in the hot loop #}
+    {%- set bt = "`" -%}
 
-        {%- for norm in final_columns -%}
-            {%- set quoted_alias = prophecy_basics.quote_identifier(norm_to_original[norm]) -%}
-            {%- if norm in cur_norms -%}
-                {%- set actual_idx = cur_norms.index(norm) -%}
-                {%- set quoted_actual = prophecy_basics.quote_identifier(cur_cols[actual_idx]) -%}
-                {%- do parts.append(quoted_actual ~ " as " ~ quoted_alias) -%}
-            {%- else -%}
-                {%- do parts.append("null as " ~ quoted_alias) -%}
+    {%- set null_expr = {} -%}
+    {%- for norm in final_columns -%}
+        {%- do null_expr.update({norm: "null as " ~ bt ~ norm_to_original[norm] ~ bt}) -%}
+    {%- endfor -%}
+
+    {%- set actual_expr_per_rel = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
+        {%- set expr = {} -%}
+        {%- for norm in cur_lookup -%}
+            {%- if norm in norm_to_original -%}
+                {%- do expr.update({norm: bt ~ cur_lookup[norm] ~ bt ~ " as " ~ bt ~ norm_to_original[norm] ~ bt}) -%}
             {%- endif -%}
         {%- endfor -%}
+        {%- do actual_expr_per_rel.append(expr) -%}
+    {%- endfor -%}
 
+    {# Step 6: Assemble SELECTs — inner loop is pure lookups, zero ~ concat #}
+    {%- set selects = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set rel_expr = actual_expr_per_rel[idx] -%}
+        {%- set parts = [] -%}
+        {%- for norm in final_columns -%}
+            {%- if norm in rel_expr -%}
+                {%- do parts.append(rel_expr[norm]) -%}
+            {%- else -%}
+                {%- do parts.append(null_expr[norm]) -%}
+            {%- endif -%}
+        {%- endfor -%}
         {%- do selects.append("select " ~ parts | join(', ') ~ " from " ~ relations[idx]) -%}
     {%- endfor -%}
 
-    {# Step 6: Union all together #}
     with union_query as (
         {{ selects | join('\nunion all\n') }}
     )
@@ -118,8 +137,9 @@
         {%- set relations = relation_names | list -%}
     {%- endif -%}
 
-    {# Step 2: Capture column names per schema #}
+    {# Step 2: Capture column names AND build norm→actual dict per relation #}
     {%- set columns_per_relation = [] -%}
+    {%- set norm_lookup_per_relation = [] -%}
     {%- for schema_blob in schemas -%}
         {%- if schema_blob is string -%}
             {%- set parsed = fromjson(schema_blob) -%}
@@ -128,10 +148,13 @@
         {%- endif -%}
 
         {%- set col_list = [] -%}
+        {%- set norm_dict = {} -%}
         {%- for f in parsed -%}
             {%- do col_list.append(f.name) -%}
+            {%- do norm_dict.update({f.name | lower: f.name}) -%}
         {%- endfor -%}
         {%- do columns_per_relation.append(col_list) -%}
+        {%- do norm_lookup_per_relation.append(norm_dict) -%}
     {%- endfor -%}
 
     {# Step 3: Normalize column names and preserve original for final SELECT #}
@@ -159,13 +182,15 @@
 
     {%- elif missingColumnOps == 'nameBasedUnionOperation' -%}
         {%- for idx in range(1, columns_per_relation | length) -%}
-            {%- set current_norm = columns_per_relation[idx] | map('lower') | list -%}
+            {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
             {%- set extra = [] -%}
             {%- set missing = [] -%}
-            {%- for c in current_norm if c not in final_columns -%}
-                {%- do extra.append(c) -%}
+            {%- for c in columns_per_relation[idx] -%}
+                {%- if c | lower not in norm_to_original -%}
+                    {%- do extra.append(c | lower) -%}
+                {%- endif -%}
             {%- endfor -%}
-            {%- for c in final_columns if c not in current_norm -%}
+            {%- for c in final_columns if c not in cur_lookup -%}
                 {%- do missing.append(c) -%}
             {%- endfor -%}
             {%- if extra or missing -%}
@@ -181,28 +206,41 @@
         {{ exceptions.raise_compiler_error("Unsupported missingColumnOps value: " ~ missingColumnOps) }}
     {%- endif -%}
 
-    {# Step 5: Build SELECTs with proper quoting #}
-    {%- set selects = [] -%}
-    {%- for idx in range(relations | length) -%}
-        {%- set cur_cols = columns_per_relation[idx] -%}
-        {%- set cur_norms = cur_cols | map('lower') | list -%}
-        {%- set parts = [] -%}
+    {# Step 5: Pre-build ALL string fragments — zero concat in the hot loop #}
+    {%- set bt = "`" -%}
 
-        {%- for norm in final_columns -%}
-            {%- set quoted_alias = prophecy_basics.quote_identifier(norm_to_original[norm]) -%}
-            {%- if norm in cur_norms -%}
-                {%- set actual_idx = cur_norms.index(norm) -%}
-                {%- set quoted_actual = prophecy_basics.quote_identifier(cur_cols[actual_idx]) -%}
-                {%- do parts.append(quoted_actual ~ " as " ~ quoted_alias) -%}
-            {%- else -%}
-                {%- do parts.append("null as " ~ quoted_alias) -%}
+    {%- set null_expr = {} -%}
+    {%- for norm in final_columns -%}
+        {%- do null_expr.update({norm: "null as " ~ bt ~ norm_to_original[norm] ~ bt}) -%}
+    {%- endfor -%}
+
+    {%- set actual_expr_per_rel = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
+        {%- set expr = {} -%}
+        {%- for norm in cur_lookup -%}
+            {%- if norm in norm_to_original -%}
+                {%- do expr.update({norm: bt ~ cur_lookup[norm] ~ bt ~ " as " ~ bt ~ norm_to_original[norm] ~ bt}) -%}
             {%- endif -%}
         {%- endfor -%}
+        {%- do actual_expr_per_rel.append(expr) -%}
+    {%- endfor -%}
 
+    {# Step 6: Assemble SELECTs — inner loop is pure lookups, zero ~ concat #}
+    {%- set selects = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set rel_expr = actual_expr_per_rel[idx] -%}
+        {%- set parts = [] -%}
+        {%- for norm in final_columns -%}
+            {%- if norm in rel_expr -%}
+                {%- do parts.append(rel_expr[norm]) -%}
+            {%- else -%}
+                {%- do parts.append(null_expr[norm]) -%}
+            {%- endif -%}
+        {%- endfor -%}
         {%- do selects.append("select " ~ parts | join(', ') ~ " from " ~ relations[idx]) -%}
     {%- endfor -%}
 
-    {# Step 6: Union all together #}
     with union_query as (
         {{ selects | join('\nunion all\n') }}
     )
@@ -221,8 +259,9 @@
         {%- set relations = relation_names | list -%}
     {%- endif -%}
 
-    {# Step 2: Capture column names per schema #}
+    {# Step 2: Capture column names AND build norm→actual dict per relation #}
     {%- set columns_per_relation = [] -%}
+    {%- set norm_lookup_per_relation = [] -%}
     {%- for schema_blob in schemas -%}
         {%- if schema_blob is string -%}
             {%- set parsed = fromjson(schema_blob) -%}
@@ -231,10 +270,13 @@
         {%- endif -%}
 
         {%- set col_list = [] -%}
+        {%- set norm_dict = {} -%}
         {%- for f in parsed -%}
             {%- do col_list.append(f.name) -%}
+            {%- do norm_dict.update({f.name | lower: f.name}) -%}
         {%- endfor -%}
         {%- do columns_per_relation.append(col_list) -%}
+        {%- do norm_lookup_per_relation.append(norm_dict) -%}
     {%- endfor -%}
 
     {# Step 3: Normalize names #}
@@ -262,13 +304,15 @@
 
     {%- elif missingColumnOps == 'nameBasedUnionOperation' -%}
         {%- for idx in range(1, columns_per_relation | length) -%}
-            {%- set current_norm = columns_per_relation[idx] | map('lower') | list -%}
+            {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
             {%- set extra = [] -%}
             {%- set missing = [] -%}
-            {%- for c in current_norm if c not in final_columns -%}
-                {%- do extra.append(c) -%}
+            {%- for c in columns_per_relation[idx] -%}
+                {%- if c | lower not in norm_to_original -%}
+                    {%- do extra.append(c | lower) -%}
+                {%- endif -%}
             {%- endfor -%}
-            {%- for c in final_columns if c not in current_norm -%}
+            {%- for c in final_columns if c not in cur_lookup -%}
                 {%- do missing.append(c) -%}
             {%- endfor -%}
             {%- if extra or missing -%}
@@ -284,28 +328,39 @@
         {{ exceptions.raise_compiler_error("Unsupported missingColumnOps value: " ~ missingColumnOps) }}
     {%- endif -%}
 
-    {# Step 5: Build SELECTs #}
-    {%- set selects = [] -%}
-    {%- for idx in range(relations | length) -%}
-        {%- set cur_cols = columns_per_relation[idx] -%}
-        {%- set cur_norms = cur_cols | map('lower') | list -%}
-        {%- set parts = [] -%}
+    {# Step 5: Pre-build ALL string fragments — zero concat in the hot loop #}
+    {%- set null_expr = {} -%}
+    {%- for norm in final_columns -%}
+        {%- do null_expr.update({norm: "null as " ~ norm_to_original[norm]}) -%}
+    {%- endfor -%}
 
-        {%- for norm in final_columns -%}
-            {%- set alias_col = norm_to_original[norm] -%}
-            {%- if norm in cur_norms -%}
-                {%- set actual_idx = cur_norms.index(norm) -%}
-                {%- set actual_col = cur_cols[actual_idx] -%}
-                {%- do parts.append(actual_col ~ " as " ~ alias_col) -%}
-            {%- else -%}
-                {%- do parts.append("null as " ~ alias_col) -%}
+    {%- set actual_expr_per_rel = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set cur_lookup = norm_lookup_per_relation[idx] -%}
+        {%- set expr = {} -%}
+        {%- for norm in cur_lookup -%}
+            {%- if norm in norm_to_original -%}
+                {%- do expr.update({norm: cur_lookup[norm] ~ " as " ~ norm_to_original[norm]}) -%}
             {%- endif -%}
         {%- endfor -%}
+        {%- do actual_expr_per_rel.append(expr) -%}
+    {%- endfor -%}
 
+    {# Step 6: Assemble SELECTs — inner loop is pure lookups, zero ~ concat #}
+    {%- set selects = [] -%}
+    {%- for idx in range(relations | length) -%}
+        {%- set rel_expr = actual_expr_per_rel[idx] -%}
+        {%- set parts = [] -%}
+        {%- for norm in final_columns -%}
+            {%- if norm in rel_expr -%}
+                {%- do parts.append(rel_expr[norm]) -%}
+            {%- else -%}
+                {%- do parts.append(null_expr[norm]) -%}
+            {%- endif -%}
+        {%- endfor -%}
         {%- do selects.append("select " ~ parts | join(', ') ~ " from " ~ relations[idx]) -%}
     {%- endfor -%}
 
-    {# Step 6: Union all together #}
     with union_query as (
         {{ selects | join('\nunion all\n') }}
     )
