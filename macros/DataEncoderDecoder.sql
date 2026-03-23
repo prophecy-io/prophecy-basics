@@ -420,17 +420,10 @@
                 FROM {{ relation_list | join(', ') }}
             )
         {%- elif change_col_name == "prefix_suffix_substitute" -%}
-            {%- if remaining_columns == "" -%}
-                WITH final_cte AS (
-                    SELECT *, {{ select_clause_sql }}
-                    FROM {{ relation_list | join(', ') }}
-                )
-            {%- else -%}
-                WITH final_cte AS (
-                    SELECT {{ quoted_remaining_columns_sql }}, {{ select_clause_sql }}
-                    FROM {{ relation_list | join(', ') }}
-                )
-            {%- endif -%}
+            WITH final_cte AS (
+                SELECT *, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
         {%- elif remaining_columns == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
