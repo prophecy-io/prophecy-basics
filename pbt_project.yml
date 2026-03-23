@@ -1,6 +1,6 @@
 name: prophecy_basics
 description: ''
-version: 1.0.8.dev5
+version: 1.0.10.dev0
 author: abhisheks+e2etests@prophecy.io
 language: sql
 buildSystem: ''
@@ -181,6 +181,28 @@ sqlMacros:
       - macros/macros.yml
       - gems/FindDuplicates.py
     createdAt: '2025-07-04 04:59:45'
+  .prophecy/metadata/sqlmacros/RunningTotal:
+    name: RunningTotal
+    macroType: query
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/RunningTotal.sql
+      - .prophecy/ide/macros/RunningTotal.json
+      - macros/macros.yml
+      - gems/RunningTotal.py
+    createdAt: '2025-03-03 04:59:45'
+  .prophecy/metadata/sqlmacros/WeightedAverage:
+    name: WeightedAverage
+    macroType: query
+    description: null
+    author: nadeesh@prophecy.io
+    files:
+      - macros/WeightedAverage.sql
+      - .prophecy/ide/macros/WeightedAverage.json
+      - macros/macros.yml
+      - gems/WeightedAverage.py
+    createdAt: '2025-03-03 04:59:45'
   .prophecy/metadata/sqlmacros/generate_schema_name:
     name: generate_schema_name
     macroType: expression
@@ -266,6 +288,17 @@ sqlMacros:
       - .prophecy/ide/macros/Sample.json
       - macros/macros.yml
       - gems/Sample.py
+    createdAt: '2025-10-13 04:59:45'
+  .prophecy/metadata/sqlmacros/Tile:
+    name: Tile
+    macroType: expression
+    description: null
+    author: abhinav@prophecy.io
+    files:
+      - macros/Tile.sql
+      - .prophecy/ide/macros/Tile.json
+      - macros/macros.yml
+      - gems/Tile.py
     createdAt: '2025-10-13 04:59:45'
   .prophecy/metadata/sqlmacros/Imputation:
     name: Imputation
