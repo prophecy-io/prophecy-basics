@@ -207,7 +207,7 @@
     {%- endif -%}
 
     {# Step 5: Pre-build ALL string fragments — zero concat in the hot loop #}
-    {%- set bt = "`" -%}
+    {%- set bt = '"' -%}
 
     {%- set null_expr = {} -%}
     {%- for norm in final_columns -%}
