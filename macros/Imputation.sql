@@ -44,6 +44,10 @@
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {% set bt = '`' %}
 
+{% set _imp = prophecy_basics.normalize_imputation_args(schema, columnNames) %}
+{% set schema = _imp[0] %}
+{% set columnNames = _imp[1] %}
+
 {# Short-circuit: nothing to impute #}
 {% if columnNames | length == 0 %}
     SELECT * FROM {{ relation_list | join(', ') }}
@@ -205,6 +209,10 @@ FROM base
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
+{% set _imp = prophecy_basics.normalize_imputation_args(schema, columnNames) %}
+{% set schema = _imp[0] %}
+{% set columnNames = _imp[1] %}
+
 {% if columnNames | length == 0 %}
     SELECT * FROM {{ relation_list | join(', ') }}
 {% else %}
@@ -219,7 +227,7 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
-    {% set col_type = col_type_map[col_name] %}
+    {% set col_type = col_type_map.get(col_name, 'string') %}
     {% set qcol = prophecy_basics.quote_identifier(col_name) %}
 
     {# Change 2: proper literal quoting #}
@@ -358,6 +366,10 @@ FROM base
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {% set bt = '`' %}
 
+{% set _imp = prophecy_basics.normalize_imputation_args(schema, columnNames) %}
+{% set schema = _imp[0] %}
+{% set columnNames = _imp[1] %}
+
 {% if columnNames | length == 0 %}
     SELECT * FROM {{ relation_list | join(', ') }}
 {% else %}
@@ -372,7 +384,7 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
-    {% set col_type = col_type_map[col_name] %}
+    {% set col_type = col_type_map.get(col_name, 'string') %}
     {% set qcol = bt ~ col_name ~ bt %}
 
     {# Change 2: proper literal quoting #}
@@ -516,6 +528,10 @@ FROM base
 
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
+{% set _imp = prophecy_basics.normalize_imputation_args(schema, columnNames) %}
+{% set schema = _imp[0] %}
+{% set columnNames = _imp[1] %}
+
 {% if columnNames | length == 0 %}
     SELECT * FROM {{ relation_list | join(', ') }}
 {% else %}
@@ -530,7 +546,7 @@ WITH base AS (
 )
 
 {% for col_name in columnNames %}
-    {% set col_type = col_type_map[col_name] %}
+    {% set col_type = col_type_map.get(col_name, 'string') %}
     {% set qcol = prophecy_basics.quote_identifier(col_name) %}
 
     {# Change 2: proper literal quoting #}

@@ -188,7 +188,7 @@ class Imputation(MacroSpec):
         arguments = [
             str(props.relation_name),
             props.schema,
-            str(props.columnNames),
+            json.dumps(props.columnNames),
             "'" + props.replaceIncomingType + "'",
             "'" + str(props.incomingUserValue).replace("'", "''") + "'",
             "'" + props.replaceWithType + "'",
