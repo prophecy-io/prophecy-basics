@@ -6,7 +6,6 @@ from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
-        
 
 class Imputation(MacroSpec):
     name: str = "Imputation"
@@ -248,37 +247,44 @@ class Imputation(MacroSpec):
         )
         return component.bindProperties(newProperties)
 
-    def _parse_user_value(self, s: str):
-        try:
-            return float(s)
-        except (ValueError, TypeError):
-            return None
-
-    def _replacement_value(self, df: DataFrame, col_name: str, replace_with_type: str,
-                           replace_with_user: str, replace_incoming_type: str, incoming_user: str):
-        c = col(col_name)
-        if replace_incoming_type == "null_val":
-            filter_expr = c.isNotNull()
-        else:
-            uv = self._parse_user_value(incoming_user)
-            filter_expr = (c.isNull()) | (c != uv) if uv is not None else c.isNotNull()
-
-        filtered = df.filter(filter_expr)
-
-        if replace_with_type == "average":
-            row = filtered.agg(mean(c).alias("r")).first()
-            return row["r"] if row and row["r"] is not None else None
-        if replace_with_type == "median":
-            quantiles = filtered.stat.approxQuantile(col_name, [0.5], 0.01)
-            return quantiles[0] if quantiles else None
-        if replace_with_type == "mode":
-            mode_row = filtered.groupBy(c).count().orderBy(desc("count")).first()
-            return mode_row[0] if mode_row else None
-        if replace_with_type == "user":
-            return self._parse_user_value(replace_with_user)
-        return None
-
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        def _parse_user_value(s: str):
+            try:
+                return float(s)
+            except (ValueError, TypeError):
+                return None
+
+
+        def _replacement_value(
+            df: DataFrame,
+            col_name: str,
+            replace_with_type: str,
+            replace_with_user: str,
+            replace_incoming_type: str,
+            incoming_user: str,
+        ):
+            """Module-level helper so PySpark schema analysis (which may not bind `self`) can resolve the name."""
+            c = col(col_name)
+            if replace_incoming_type == "null_val":
+                filter_expr = c.isNotNull()
+            else:
+                uv = _parse_user_value(incoming_user)
+                filter_expr = (c.isNull()) | (c != uv) if uv is not None else c.isNotNull()
+
+            filtered = df.filter(filter_expr)
+
+            if replace_with_type == "average":
+                row = filtered.agg(mean(c).alias("r")).first()
+                return row["r"] if row and row["r"] is not None else None
+            if replace_with_type == "median":
+                quantiles = filtered.stat.approxQuantile(col_name, [0.5], 0.01)
+                return quantiles[0] if quantiles else None
+            if replace_with_type == "mode":
+                mode_row = filtered.groupBy(c).count().orderBy(desc("count")).first()
+                return mode_row[0] if mode_row else None
+            if replace_with_type == "user":
+                return _parse_user_value(replace_with_user)
+            return None
         column_names = self.props.columnNames
         replace_incoming_type = self.props.replaceIncomingType
         incoming_user_value = self.props.incomingUserValue
@@ -296,7 +302,7 @@ class Imputation(MacroSpec):
                 exprs.append(col(cname))
                 continue
 
-            repl = self._replacement_value(
+            repl = _replacement_value(
                 in0, cname, replace_with_type, replace_with_user_value,
                 replace_incoming_type, incoming_user_value
             )
@@ -305,7 +311,7 @@ class Imputation(MacroSpec):
             if replace_incoming_type == "null_val":
                 is_imputed = col(cname).isNull()
             else:
-                uv = self._parse_user_value(incoming_user_value)
+                uv = _parse_user_value(incoming_user_value)
                 is_imputed = (col(cname) == uv) if uv is not None else lit(False)
 
             imputed_val = when(is_imputed, repl_lit).otherwise(col(cname))
