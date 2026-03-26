@@ -249,6 +249,12 @@ class Imputation(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        def get_dtype(schema: StructType, cname: str):
+            for f in schema.fields:
+                if f.name == cname:
+                    return f.dataType
+            return None
+
         def is_integral(dt) -> bool:
             return isinstance(dt, (ByteType, ShortType, IntegerType, LongType))
 
@@ -331,9 +337,7 @@ class Imputation(MacroSpec):
                 exprs.append(col(cname))
                 continue
 
-            dtype = next(
-                (f.dataType for f in in0.schema.fields if f.name == cname), None
-            )
+            dtype = get_dtype(in0.schema, cname)
 
             repl = replacement_value(
                 in0,
