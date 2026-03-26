@@ -7,12 +7,6 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
-from prophecy_basics.utils import (
-    coerce_repl_scalar,
-    dtype_for_column,
-    parse_literal_for_dtype,
-)
-
 
 class Imputation(MacroSpec):
     name: str = "Imputation"
@@ -255,20 +249,52 @@ class Imputation(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
-        def replacement_value(
-            df: DataFrame,
-            col_name: str,
-            rw_type: str,
-            rw_user: str,
-            inc_type: str,
-            inc_user: str,
-            dt,
-        ):
+        def is_integral(dt) -> bool:
+            return isinstance(dt, (ByteType, ShortType, IntegerType, LongType))
+
+        def is_numeric(dt) -> bool:
+            return isinstance(
+                dt,
+                (ByteType, ShortType, IntegerType, LongType, FloatType, DoubleType, DecimalType),
+            )
+
+        def parse_lit(s: str, dt):
+            if s is None:
+                return None
+            t = str(s).strip()
+            if dt is None:
+                try:
+                    return float(t)
+                except (ValueError, TypeError):
+                    return None
+            if is_integral(dt):
+                try:
+                    return int(float(t))
+                except (ValueError, TypeError):
+                    return None
+            if is_numeric(dt):
+                try:
+                    return float(t)
+                except (ValueError, TypeError):
+                    return None
+            return t
+
+        def coerce_repl(repl, dt):
+            if repl is None or not is_integral(dt):
+                return repl
+            try:
+                if isinstance(repl, bool):
+                    return None
+                return int(repl)
+            except (ValueError, TypeError, OverflowError):
+                return None
+
+        def replacement_value(df, col_name, rw_type, rw_user, inc_type, inc_user, dt):
             c = col(col_name)
             if inc_type == "null_val":
                 filter_expr = c.isNotNull()
             else:
-                uv = parse_literal_for_dtype(inc_user, dt)
+                uv = parse_lit(inc_user, dt)
                 filter_expr = (
                     (c.isNull()) | (c != lit(uv)) if uv is not None else c.isNotNull()
                 )
@@ -284,8 +310,8 @@ class Imputation(MacroSpec):
                 mode_row = filtered.groupBy(c).count().orderBy(desc("count")).first()
                 repl = mode_row[0] if mode_row else None
             elif rw_type == "user":
-                repl = parse_literal_for_dtype(rw_user, dt)
-            return coerce_repl_scalar(repl, dt)
+                repl = parse_lit(rw_user, dt)
+            return coerce_repl(repl, dt)
 
         column_names = self.props.columnNames
         replace_incoming_type = self.props.replaceIncomingType
@@ -305,7 +331,9 @@ class Imputation(MacroSpec):
                 exprs.append(col(cname))
                 continue
 
-            dtype = dtype_for_column(in0.schema, cname)
+            dtype = next(
+                (f.dataType for f in in0.schema.fields if f.name == cname), None
+            )
 
             repl = replacement_value(
                 in0,
@@ -321,7 +349,7 @@ class Imputation(MacroSpec):
             if replace_incoming_type == "null_val":
                 is_imputed = col(cname).isNull()
             else:
-                uv = parse_literal_for_dtype(incoming_user_value, dtype)
+                uv = parse_lit(incoming_user_value, dtype)
                 is_imputed = (
                     (col(cname) == lit(uv)) if uv is not None else lit(False)
                 )
