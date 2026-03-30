@@ -31,6 +31,12 @@ macros:
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
     macroType: "expression"
+  - name: "as_sql_expr"
+    arguments:
+      - name: "val"
+        type: "value"
+        description: "{\"ProphecyType\": \"value\"}"
+    macroType: "expression"
   - name: "MultiColumnEdit"
     arguments:
       - name: "relation"
