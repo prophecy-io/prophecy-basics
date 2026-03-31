@@ -21,10 +21,13 @@ __pycache__/
 environment.yml
 requirements.txt
 scripts/
+<<<<<<< HEAD
+=======
 tests/bigquery_expected/
 tests/expected/
 tests/compiled_output/
 tests/docs/
 tests/generic/
 .DS_Store
+>>>>>>> origin
 tests/
