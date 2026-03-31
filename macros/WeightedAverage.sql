@@ -24,7 +24,7 @@
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0) as " ~ quoted_output -%}
+{%- set weighted_avg_expr = "coalesce(sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0), 0) as " ~ quoted_output -%}
 
 with base as (
     select *
@@ -62,7 +62,7 @@ from base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0) AS " ~ quoted_output -%}
+{%- set weighted_avg_expr = "COALESCE(SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0), 0) AS " ~ quoted_output -%}
 
 WITH base AS (
     SELECT *
@@ -100,7 +100,7 @@ FROM base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0) AS " ~ quoted_output -%}
+{%- set weighted_avg_expr = "COALESCE(SUM(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / NULLIF(SUM(" ~ quoted_weight ~ "), 0), 0) AS " ~ quoted_output -%}
 
 WITH base AS (
     SELECT *
@@ -138,7 +138,7 @@ FROM base
 {%- set quoted_value = prophecy_basics.quote_identifier(valueFieldColumn) -%}
 {%- set quoted_weight = prophecy_basics.quote_identifier(weightFieldColumn) -%}
 {%- set quoted_output = prophecy_basics.quote_identifier(outputFieldName) -%}
-{%- set weighted_avg_expr = "sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0) as " ~ quoted_output -%}
+{%- set weighted_avg_expr = "coalesce(sum(" ~ quoted_value ~ " * " ~ quoted_weight ~ ") / nullif(sum(" ~ quoted_weight ~ "), 0), 0) as " ~ quoted_output -%}
 
 with base as (
     select *
