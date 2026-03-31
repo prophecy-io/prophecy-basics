@@ -25,9 +25,13 @@ class RunningTotal(MacroSpec):
     projectName: str = "prophecy_basics"
     category: str = "Transform"
     minNumOfInputPorts: int = 1
+    # Snowflake: Order By cells come from the Expression Table as raw SQL. That text is pasted
+    # into the macro's ORDER BY clause without Snowflake-specific identifier quoting (e.g.
+    # double-quoted case-sensitive names, reserved words). Same expression can work on Spark/
+    # BigQuery but fail or mis-resolve on Snowflake until we normalize or quote per target.
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake, -> Need to get Expression Table expressions' quoting sorted.
+        ProviderTypeEnum.Snowflake,
         ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged,
     ]
