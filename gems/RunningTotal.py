@@ -108,6 +108,22 @@ class RunningTotal(MacroSpec):
                             .addElement(order_by_table.bindProperty("orderByColumns"))
                             .addElement(
                                 Condition()
+                                .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
+                                .then(
+                                    AlertBox(
+                                        variant="warning",
+                                        _children=[
+                                            Markdown(
+                                                "**Snowflake:** Unquoted identifiers are resolved as uppercase (for example, `payment_sequential` becomes `PAYMENT_SEQUENTIAL`). "
+                                                "Lowercase or case-sensitive columns from your schema must be entered with double quotes in **Order rows for calculation** "
+                                                "(for example: `\"column_name\"`), including inside expressions such as `concat(\"column_name_1\", \"column_name_2\")`."
+                                            )
+                                        ],
+                                    )
+                                )
+                            )
+                            .addElement(
+                                Condition()
                                 .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
                                 .then(
                                     AlertBox(
