@@ -114,9 +114,8 @@ class RunningTotal(MacroSpec):
                                         variant="warning",
                                         _children=[
                                             Markdown(
-                                                "**Snowflake:** Unquoted identifiers are resolved as uppercase (for example, `payment_sequential` becomes `PAYMENT_SEQUENTIAL`). "
-                                                "Lowercase or case-sensitive columns from your schema must be entered with double quotes in **Order rows for calculation** "
-                                                "(for example: `\"column_name\"`), including inside expressions such as `concat(\"column_name_1\", \"column_name_2\")`."
+                                                "**Snowflake:** Unquoted column names may not work correctly for Snowflake. Use the quoted variation instead "
+                                                "(for example `column_name -> \"column_name\"` or `concat(column_name_1, column_name_2) ->  concat(\"column_name_1\", \"column_name_2\")`)."
                                             )
                                         ],
                                     )
