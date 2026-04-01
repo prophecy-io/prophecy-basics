@@ -2,9 +2,9 @@
   CountRecords Macro Gem
   ======================
 
-  Answers how many rows you have in one or more tables, and—when you name
-  columns—how many non-null or distinct values appear in each. Use it for
-  volume checks and quick data-quality profiling.
+  Provides row counts for one or more tables and, when columns are specified,
+  reports the number of non-null or distinct values in each. Useful for
+  volume validation and quick data quality profiling.
 
   Parameters:
     - relation_name (string or list): The relation(s)/table name(s) to count from.
