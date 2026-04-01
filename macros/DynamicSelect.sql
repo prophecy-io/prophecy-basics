@@ -1,3 +1,27 @@
+{#
+  DynamicSelect Macro Gem
+  =======================
+
+  Returns a SELECT of columns from relation_name filtered either by data type
+  list or by evaluating a Python expression per column (SELECT_EXPR).
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - schema (list of dicts): Each column has at least name, dataType; column_index is added internally.
+    - targetTypes (list): Logical types to keep when selectUsing is not SELECT_EXPR
+        (default__ compares column["dataType"] to this list — use names as in your schema).
+    - selectUsing (string): "SELECT_TYPES" — include column if dataType in targetTypes;
+        "SELECT_EXPR" — evaluate customExpression per column.
+    - customExpression (string): Python expression; placeholders replaced per column:
+        column_name, column_type, field_number (as string). Must evaluate to "True" to include column.
+
+  Adapter Support:
+    - default__ (backtick identifiers), snowflake__ (type remap + quote_identifier), duckdb__ (case-insensitive types)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.DynamicSelect('my_table', schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+    {{ prophecy_basics.DynamicSelect('my_table', schema, [], 'SELECT_EXPR', "column_name.startswith('id')") }}
+#}
 {% macro DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
     {{ return(adapter.dispatch('DynamicSelect', 'prophecy_basics')(relation_name, schema, targetTypes, selectUsing, customExpression)) }}
 {% endmacro %}

@@ -1,3 +1,30 @@
+{#
+  TableOperations Macro Gem
+  =========================
+
+  default__ runs Delta/Databricks table maintenance commands via run_query and returns
+  a status SELECT. Builds fully-qualified `catalog`.`database`.`tableName`.
+
+  Parameters:
+    - catalog, database, tableName: Three-part name for target table.
+    - action: 'registerTableInCatalog' | 'vacuumTable' | 'optimiseTable' | 'restoreTable' |
+        'deleteFromTable' | 'updateTable' | 'dropTable' | 'fsckRepairTable' | 'runDDL'.
+    - path: External DELTA location for registerTableInCatalog.
+    - useExternalFilePath: unused in default__ snippet.
+    - vacuumRetainNumHours: RETAIN clause for vacuum.
+    - useOptimiseWhere, optimiseWhere, useOptimiseZOrder, optimiseZOrderColumns: OPTIMIZE options.
+    - restoreVia: 'restoreViaVersion' | 'restoreViaTimestamp'; restoreValue: version or timestamp literal.
+    - deleteCondition: WHERE for DELETE.
+    - updateSetClause, updateCondition: UPDATE SET and optional WHERE.
+    - runDDL: Custom DDL; {table_name} replaced with target_table.
+
+  Adapter Support:
+    - default__ (Databricks Delta); other adapters may override.
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.TableOperations('cat', 'db', 't', 'vacuumTable', '', false, '168', false, '', false, '', '', '', 'true', '', '', '') }}
+    {{ prophecy_basics.TableOperations('cat', 'db', 't', 'deleteFromTable', '', false, '', false, '', false, '', '', '', 'id < 0', '', '', '') }}
+#}
 {% macro TableOperations(
     catalog='',
     database='',

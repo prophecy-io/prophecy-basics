@@ -1,3 +1,27 @@
+{#
+  MultiColumnEdit Macro Gem
+  =========================
+
+  Builds SELECT ... FROM relation: applies expressionToBeApplied to columnNames
+  with placeholders column_value (quoted identifier) and column_name (string literal).
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - expressionToBeApplied: SQL fragment with column_value and column_name tokens.
+    - allColumnNames (list): Full column list in output order.
+    - columnNames (list): Subset to transform when changeOutputFieldName is false.
+    - changeOutputFieldName (bool): If true, emit all allColumnNames as-is then append transformed
+        columns with prefix/suffix aliases; if false, replace in place for columnNames only.
+    - prefixSuffixOption: "prefix" or other (suffix) when changeOutputFieldName is true.
+    - prefixSuffixToBeAdded: Prefix or suffix string for new names.
+
+  Adapter Support:
+    - default__, snowflake__, duckdb__ (quoting differences for column_name replacement)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.MultiColumnEdit('t', 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+    {{ prophecy_basics.MultiColumnEdit('t', 'concat(column_name, column_value)', ['a','b'], ['a'], True, 'prefix', 'new_') }}
+#}
 {% macro MultiColumnEdit(relation_name,
     expressionToBeApplied,
     allColumnNames=[],

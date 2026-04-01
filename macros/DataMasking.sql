@@ -1,3 +1,33 @@
+{#
+  DataMasking Macro Gem
+  =====================
+
+  Builds WITH final_cte AS (...) SELECT * FROM final_cte. Applies masking or
+  hashing per column with optional combined hash or prefix/suffix output names.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - column_names (list): Target columns.
+    - remaining_columns: Unquoted column list for default__ SELECT list when not using SELECT * pattern
+        (snowflake__/duckdb__ use quote_column_list where applicable).
+    - masking_method (string): "mask" (Databricks mask() with char params), "hash"
+      (multi-arg hash for combinedHash_substitute), "sha2" (sha2(..., sha2_bit_length)),
+      or any other function name used as literal SQL function for per-column calls.
+    - upper_char_substitute, lower_char_substitute, digit_char_substitute, other_char_substitute:
+        Passed to mask(); use "NULL" to skip a category (default__).
+    - sha2_bit_length: Bits for sha2 (e.g. 256).
+    - masked_column_add_method: "inplace_substitute" | "prefix_suffix_substitute" |
+        "combinedHash_substitute" (hash across column_names into combined_hash_column_name).
+    - prefix_suffix_opt / prefix_suffix_val: New column naming when not inplace.
+    - combined_hash_column_name: Output alias for combined hash.
+
+  Adapter Support:
+    - default__ (Databricks mask/hash/sha2), snowflake__, duckdb__ (regex-based mask, HASH/SHA2/sha256, etc.)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.DataMasking('t', ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+    {{ prophecy_basics.DataMasking('t', ['a','b'], '', 'hash', '', '', '', '', 256, 'combinedHash_substitute', 'Prefix', '', 'combined_h') }}
+#}
 {% macro DataMasking(relation_name,
     column_names,
     remaining_columns,

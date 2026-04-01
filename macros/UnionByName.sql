@@ -1,3 +1,23 @@
+{#
+  UnionByName Macro Gem
+  =====================
+
+  UNION ALL of normalized relations: columns matched case-insensitively; missing
+  columns filled with NULL per missingColumnOps.
+
+  Parameters:
+    - relation_names (string or list): Relation names (comma-split if string).
+    - schemas (list): Parallel list of schemas (JSON string or list of {name, ...} fields).
+    - missingColumnOps: 'allowMissingColumns' (union of all columns, NULL where absent) or
+        'nameBasedUnionOperation' (strict: compiler error on extra/missing vs first relation).
+
+  Adapter Support:
+    - default__ (backtick quoting), snowflake__ (double-quote), duckdb__ (unquoted identifiers in select list)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.UnionByName(['a', 'b'], [schema_a, schema_b], 'allowMissingColumns') }}
+    {{ prophecy_basics.UnionByName('a, b', [schema_a_json, schema_b_json], 'nameBasedUnionOperation') }}
+#}
 {% macro UnionByName(relation_names,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}

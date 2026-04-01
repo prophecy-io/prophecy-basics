@@ -1,3 +1,27 @@
+{#
+  TextToColumns Macro Gem
+  =======================
+
+  Splits a single text column by delimiter into new columns (splitColumns) or
+  exploded rows (splitRows). default__ uses split + regexp_replace / LATERAL VIEW explode.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - columnNames: Single column name to split (string).
+    - delimiter: Pattern used in regexp_replace / split (literal delimiter string).
+    - split_strategy: 'splitColumns' | 'splitRows' | other → SELECT * pass-through.
+    - noOfColumns: Number of output pieces for splitColumns.
+    - leaveExtraCharLastCol: True / 'Leave extra in last column' (Snowflake/DuckDB) — merge overflow into last column.
+    - splitColumnPrefix, splitColumnSuffix: Name pattern prefix_i_suffix for split columns.
+    - splitRowsColumnName: Output token column for splitRows.
+
+  Adapter Support:
+    - default__ (Spark), bigquery__, snowflake__, duckdb__
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.TextToColumns('t', 'payload', ',', 'splitColumns', 4, False, 'c', 'out', 'token') }}
+    {{ prophecy_basics.TextToColumns('t', 'payload', '|', 'splitRows', 1, False, '', '', 'part') }}
+#}
 {% macro TextToColumns(relation_name,
     columnNames,
     delimiter,

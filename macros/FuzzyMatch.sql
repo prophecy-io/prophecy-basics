@@ -1,3 +1,27 @@
+{#
+  FuzzyMatch Macro Gem
+  ====================
+
+  For mode PURGE or MERGE, builds a multi-CTE query that cross-joins per-field
+  extracted values and scores pairs (LEVENSHTEIN / EXACT / EQUALS per matchFunction).
+  Otherwise returns SELECT * FROM relation.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - mode (string): 'PURGE' | 'MERGE' | other (pass-through SELECT *).
+    - sourceIdCol, recordIdCol: Columns used in MERGE vs PURGE selects (identifiers; quoted on BigQuery/Snowflake adapters).
+    - matchFields (list): Items with matchFunction ('custom','name','phone','address','exact','equals', ...)
+        and columnName; maps to internal similarity function names per default__.
+    - matchThresholdPercentage (number): Minimum avg similarity to keep a pair.
+    - includeSimilarityScore (bool): Include similarity_score column in output.
+
+  Adapter Support:
+    - default__ (LEVENSHTEIN), bigquery__ (EDIT_DISTANCE), snowflake__ (EDITDISTANCE / JAROWINKLER_SIMILARITY), duckdb__ (LEVENSHTEIN)
+
+  Macro Call Examples (default__ — matchFields is a list of {matchFunction, columnName} objects):
+    {{ prophecy_basics.FuzzyMatch('src', 'PURGE', '', 'record_id', match_fields, 80, False) }}
+    {{ prophecy_basics.FuzzyMatch('src', 'MERGE', 'source_id', 'record_id', match_fields, 70, True) }}
+#}
 {% macro FuzzyMatch(relation_name,
     mode,
     sourceIdCol,

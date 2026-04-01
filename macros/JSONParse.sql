@@ -1,3 +1,24 @@
+{#
+  JSONParse Macro Gem
+  ===================
+
+  Parses a JSON string column with from_json / schema_of_json, or passes through.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - columnName: Column to parse; empty → SELECT *.
+    - parsingMethod: 'parseFromSchema' (needs sampleSchema), 'parseFromSampleRecord' (needs sampleRecord),
+        'none' or empty → pass-through; other values → compiler error.
+    - sampleRecord, sampleSchema: DDL/sample JSON string for Spark from_json.
+
+  Adapter Support:
+    - default__ (from_json, backticks), snowflake__ (PARSE_JSON), duckdb__ (json_extract)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
+    {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSampleRecord', '{"a":1}', '') }}
+    {{ prophecy_basics.JSONParse('t', '', 'none', '', '') }}
+#}
 {% macro JSONParse(relation_name,
     columnName,
     parsingMethod,

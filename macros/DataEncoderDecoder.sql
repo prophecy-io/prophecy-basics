@@ -1,3 +1,31 @@
+{#
+  DataEncoderDecoder Macro Gem
+  ============================
+
+  Wraps input in a final_cte WITH ... SELECT * FROM final_cte. Transforms listed
+  columns per enc_dec_method; remaining columns behavior depends on
+  change_col_name and remaining_columns (see default__ branches).
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - column_names (list): Columns to encode/decode.
+    - remaining_columns: Quoted column list for SELECT when keeping other columns;
+        "" selects only transformed columns (unless prefix_suffix_substitute adds *).
+    - enc_dec_method (string, default__): "aes_encrypt" (Databricks secret-based),
+        "base64", "unbase64", "hex", "unhex", "encode", "decode".
+    - enc_dec_charSet: Charset for encode/decode.
+    - aes_enc_dec_* : Secret scope/key names, mode, optional AAD/IV for aes_encrypt.
+    - change_col_name: "inplace_substitute" | "prefix_suffix_substitute" (SELECT *, new cols).
+    - prefix_suffix_opt: "Prefix" | other (suffix); prefix_suffix_val: string to prepend/append to alias.
+
+  Adapter Support:
+    - default__: AES + base64/hex/encode/decode as in Spark SQL
+    - snowflake__, duckdb__: subset (no AES on duckdb in implementation)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.DataEncoderDecoder('t', ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
+    {{ prophecy_basics.DataEncoderDecoder('t', ['c'], '', 'hex', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', '') }}
+#}
 {% macro DataEncoderDecoder(relation_name,
     column_names,
     remaining_columns,

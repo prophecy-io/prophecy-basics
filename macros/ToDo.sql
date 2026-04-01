@@ -1,3 +1,18 @@
+{#
+  ToDo Macro Gem
+  ==============
+
+  Placeholder macro that fails at runtime with a diagnostic message (adapter-specific).
+
+  Parameters:
+    - diag_message (string): Message embedded in the raised error.
+
+  Adapter Support:
+    - default__ (raise_error), duckdb__ (error), bigquery__ (ERROR), snowflake__ (invalid cast)
+
+  Macro Call Examples:
+    {{ prophecy_basics.ToDo('Replace this model with real logic') }}
+#}
 {% macro ToDo(diag_message) -%}
     {{ return(adapter.dispatch('ToDo', 'prophecy_basics')(diag_message)) }}
 {% endmacro %}

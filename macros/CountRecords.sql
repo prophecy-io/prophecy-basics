@@ -1,3 +1,49 @@
+{#
+  CountRecords Macro Gem
+  ======================
+
+  Generates a SELECT query that counts records from one or more relations.
+  Supports three counting modes: total row count, per-column non-null count,
+  and per-column distinct count.
+
+  Parameters:
+    - relation_name (string or list): The relation(s)/table name(s) to count from.
+        Can be a single string or a list of relation names.
+    - column_names (list): List of column names to count. Used when count_method
+        is "count_non_null_records" or "count_distinct_records". Pass an empty
+        list [] when using the default total count.
+    - count_method (string): Determines the counting strategy.
+        - Any value other than the two below (e.g. "count_all_records"): Total row count via COUNT(*).
+        - "count_non_null_records": Per-column non-null count via COUNT(col).
+        - "count_distinct_records": Per-column distinct count via COUNT(DISTINCT col).
+
+  Adapter Support:
+    - Default (Databricks / Spark / Snowflake / DuckDB)
+    - BigQuery (backtick-quoted table names)
+
+  Macro Call Examples:
+    -- 1. Total record count
+    {{ prophecy_basics.CountRecords(['source_table'], [], 'count_all_records') }}
+    -- Generated SQL: SELECT COUNT(*) AS total_records FROM source_table
+
+    -- 2. Non-null count per column
+    {{ prophecy_basics.CountRecords(['source_table'], ['col_a', 'col_b'], 'count_non_null_records') }}
+    -- Generated SQL: SELECT COUNT("col_a") AS "col_a_count", COUNT("col_b") AS "col_b_count" FROM source_table
+
+    -- 3. Distinct count per column
+    {{ prophecy_basics.CountRecords(['source_table'], ['col_a', 'col_b'], 'count_distinct_records') }}
+    -- Generated SQL: SELECT COUNT(DISTINCT "col_a") AS "col_a_distinct_count", COUNT(DISTINCT "col_b") AS "col_b_distinct_count" FROM source_table
+
+  CTE Usage Example:
+    WITH source_table AS (
+        SELECT *
+        FROM {{ ref('source_table') }}
+    ),
+    CountRecordsCTE AS (
+        {{ prophecy_basics.CountRecords(['source_table'], ['col_a', 'col_b'], 'count_non_null_records') }}
+    )
+    SELECT * FROM CountRecordsCTE
+#}
 {% macro CountRecords(relation_name,
     column_names,
     count_method) -%}

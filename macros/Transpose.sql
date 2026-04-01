@@ -1,3 +1,22 @@
+{#
+  Transpose Macro Gem
+  ===================
+
+  Unpivots listed data columns into name/value pairs via UNION ALL of SELECTs.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - keyColumns (list): Identifier columns repeated in each union branch.
+    - dataColumns (list): Columns to unpivot; each becomes a row with literal name + CAST value AS STRING.
+    - nameColumn, valueColumn: Output column names for the unpivoted pair.
+    - schema, customNames: Reserved for future use in default__ (customNames unused in default__).
+
+  Adapter Support:
+    - default__ (backticks, CAST AS STRING), snowflake__, duckdb__ (CAST AS VARCHAR)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Transpose('t', ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
+#}
 {% macro Transpose(relation_name,
         keyColumns,
         dataColumns,

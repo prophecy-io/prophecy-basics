@@ -1,3 +1,25 @@
+{#
+  MultiColumnRename Macro Gem
+  ===========================
+
+  Produces SELECT with renamed columns from columnNames merged into full schema order.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - columnNames (list): Columns to rename.
+    - renameMethod: 'editPrefixSuffix' (needs editType 'Prefix' or suffix) or 'advancedRename'
+        (evaluate customExpression with column_name replaced per column).
+    - schema (list): All output column names in order (strings or objects per adapter).
+    - editType, editWith: For editPrefixSuffix — prefix or suffix string.
+    - customExpression: Python expression evaluated to new name for advancedRename.
+
+  Adapter Support:
+    - default__, snowflake__, duckdb__ (duckdb advancedRename uses quoted string alias)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.MultiColumnRename('t', ['old'], 'editPrefixSuffix', schema_list, 'Prefix', 'new_') }}
+    {{ prophecy_basics.MultiColumnRename('t', ['col'], 'advancedRename', schema_list, '', '', "'ren_' + column_name") }}
+#}
 {% macro MultiColumnRename(relation_name,
     columnNames,
     renameMethod,

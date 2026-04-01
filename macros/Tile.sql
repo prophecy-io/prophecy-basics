@@ -1,3 +1,28 @@
+{#
+  Tile Macro Gem
+  ==============
+
+  default__ assigns tile buckets: equal_sum_tile (running sum vs total), equal_records_tile
+  (ntile + optional no-split columns), smart_tile (z-score buckets), unique_value_tile
+  (dense_rank on columns), manual_tile (cutoffs on manual_tile_column_name).
+
+  Parameters:
+    - relation_name: Source table identifier (string; used raw in many branches).
+    - tile_method: 'equal_sum_tile' | 'equal_records_tile' | 'smart_tile' | 'unique_value_tile' | 'manual_tile'.
+    - num_tiles, sum_column: For sum/record tiles.
+    - orderByRules: List of {expr, sort} for window ordering.
+    - groupby_column_names, no_split_column_list: Group / do-not-split columns (comma-joined in SQL).
+    - tile_column, column_output_method_smartTile: Smart tile labeling verbosity.
+    - unique_value_column_name: Columns for unique_value_tile.
+    - manual_tile_column_name, manual_tiles_cutoff: List of cutoffs for manual_tile.
+    - schema_cols: Column list fragment for SELECT / ORDER BY in generated SQL.
+
+  Adapter Support:
+    - default__ (Spark SQL functions); other adapters may define tile__ macros if present.
+
+  Macro Call Example (default__ — schema_cols is a comma-separated column list string; pass real orderByRules from the app):
+    {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', order_by_rules, ['g'], '', '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+#}
 {% macro Tile(relation_name,
     tile_method,
     num_tiles,

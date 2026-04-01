@@ -1,3 +1,28 @@
+{#
+  FindDuplicates Macro Gem
+  ========================
+
+  Window-based deduplication or duplicate detection: either row_number per partition
+  or group_count, then filter by output_type and optional numeric conditions.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - groupByColumnNames (list): PARTITION BY columns when generationMethod is not "allCols".
+    - column_group_rownum_condition: "between" | "equal_to" | "not_equal_to" | "less_than" | "greater_than"
+        (used with lower_limit/upper_limit or grouped_count_rownum as applicable).
+    - output_type (string): "unique" (row_num = 1), "duplicate" (row_num > 1),
+        "custom_row_number" (filter row_num), "custom_group_count" (filter group_count).
+    - grouped_count_rownum, lower_limit, upper_limit: Thresholds for custom_* modes.
+    - generationMethod (string): "allCols" — partition by all schema_columns; else use groupByColumnNames.
+    - schema_columns (list): All column names for SELECT EXCEPT / partition-all mode.
+    - orderByColumns (list): Sort specs with expression.expression and sortType (asc, asc_nulls_last, desc_nulls_first, desc).
+
+  Adapter Support:
+    - default__ (row_number, * EXCEPT), snowflake__ (ROW_NUMBER, EXCLUDE), duckdb__ (quoted schema columns on filter)
+
+  Macro Call Examples (default__ — orderByColumns structure as built by Prophecy):
+    {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+#}
 {% macro FindDuplicates(relation_name,
     groupByColumnNames,
     column_group_rownum_condition,

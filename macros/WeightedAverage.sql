@@ -1,3 +1,22 @@
+{#
+  WeightedAverage Macro Gem
+  =========================
+
+  Computes sum(value * weight) / nullif(sum(weight), 0) globally or per group.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - valueFieldColumn, weightFieldColumn: Numeric column names.
+    - outputFieldName: Alias for the weighted average expression.
+    - groupByColumnNames (list): Empty → single aggregate row; else GROUP BY these columns.
+
+  Adapter Support:
+    - default__, bigquery__, snowflake__, duckdb__ (same formula; keyword casing differs)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.WeightedAverage('t', 'score', 'w', 'wavg', []) }}
+    {{ prophecy_basics.WeightedAverage('t', 'amt', 'qty', 'wa', ['region']) }}
+#}
 {% macro WeightedAverage(relation_name,
         valueFieldColumn,
         weightFieldColumn,

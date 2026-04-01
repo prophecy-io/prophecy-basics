@@ -1,3 +1,28 @@
+{#
+  Imputation Macro Gem
+  ====================
+
+  For each imputed column, builds stat_* CTEs with AVG / PERCENTILE_APPROX (median) /
+  mode subquery or user literal, then final SELECT with COALESCE or CASE replacement.
+  Empty columnNames returns SELECT *.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - schema: Column name → type map for casting and literals.
+    - columnNames (list): Columns to impute.
+    - replaceIncomingType: 'null_val' (impute NULLs) vs other (impute rows matching incomingUserValue).
+    - incomingUserValue, replaceWithUserValue: Comparison / replacement literals (typed via helpers).
+    - replaceWithType: 'average' | 'median' | 'mode' | 'user'.
+    - includeImputedIndicator: Add <col>_Indicator 0/1.
+    - outputImputedAsSeparateField: Keep original column and add <col>_ImputedValue.
+
+  Adapter Support:
+    - default__ (PERCENTILE_APPROX, Spark-style), duckdb__, bigquery__, snowflake__ (median/mode differences)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Imputation('t', schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
+    {{ prophecy_basics.Imputation('t', schema, ['x'], 'literal_match', '-1', 'user', '0', True, True) }}
+#}
 {% macro Imputation(
     relation_name,
     schema,

@@ -1,3 +1,26 @@
+{#
+  GenerateRows Macro Gem
+  ======================
+
+  default__ generates a recursive WITH gen AS (...) query: either anchored on a
+  source table (relation_name + schema) or a standalone sequence. Validates
+  init_expr, condition_expr, loop_expr; substitutes column_name into expressions.
+
+  Parameters:
+    - relation_name: Source table(s) or None/empty for generator-only.
+    - schema: Used with prophecy_basics.column_exists_in_schema for EXCEPT of original column.
+    - init_expr, condition_expr, loop_expr: Generator expressions (column_name references the iterated column).
+    - column_name: Logical name of the generated column (unquoted for internal __gen_ col).
+    - max_rows: Recursion cap (default 100000; empty coerces to 100).
+    - force_mode: Reserved (default 'recursive'); BigQuery uses generate_array path in bigquery__.
+
+  Adapter Support:
+    - default__ (recursive CTE, struct payload, EXCEPT), bigquery__ (GENERATE_ARRAY / UNNEST), duckdb__ (recursive, EXCLUDE)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.GenerateRows(ref('seed'), schema, '1', 'value <= 10', 'value + 1', 'value', 1000, 'recursive') }}
+    {{ prophecy_basics.GenerateRows(none, '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
+#}
 {% macro GenerateRows(relation_name,
     schema,
     init_expr,

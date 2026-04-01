@@ -1,3 +1,25 @@
+{#
+  RunningTotal Macro Gem
+  ======================
+
+  Adds cumulative SUM(...) OVER window columns named outputPrefix || column for each
+  runningTotalColumnName, with optional partition and order.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - groupByColumnNames (list): PARTITION BY columns (empty = whole table).
+    - runningTotalColumnNames (list): Columns to sum (coalesced to 0).
+    - outputPrefix: Prefix for output column names.
+    - orderByColumns (list): Window ORDER BY from expression + sortType; if empty with group,
+        default__ uses monotonically_increasing_id() for ordering.
+
+  Adapter Support:
+    - default__, bigquery__ (frame only when ORDER BY present), snowflake__ (seq4() fallback), duckdb__
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
+    {{ prophecy_basics.RunningTotal('t', [], ['x'], 'cum_', orderByColumns) }}
+#}
 {% macro RunningTotal(relation_name,
         groupByColumnNames,
         runningTotalColumnNames,

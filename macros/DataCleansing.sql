@@ -1,3 +1,36 @@
+{#
+  DataCleansing Macro Gem
+  =======================
+
+  Builds a WITH cleansed_data CTE plus SELECT that applies optional row filtering
+  (remove rows where all columns are null) and per-column transforms for named
+  columns (null fill, trim, whitespace/regex cleanup, case change, date/timestamp
+  null fill). Unlisted columns pass through unchanged.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - schema (list): Column metadata with name and dataType (used for typing and column order).
+    - modifyCase (string): For string columns — '' (no change), 'makeLowercase', 'makeUppercase', 'makeTitlecase'.
+    - columnNames (list): Columns to transform; [] returns SELECT * FROM cleansed_data only.
+    - replaceNullTextFields, replaceNullTextWith: COALESCE strings to replaceNullTextWith.
+    - replaceNullForNumericFields, replaceNullNumericWith: COALESCE numeric types.
+    - trimWhiteSpace, removeTabsLineBreaksAndDuplicateWhitespace, allWhiteSpace: string whitespace handling.
+    - cleanLetters, cleanPunctuations, cleanNumbers: REGEXP_REPLACE-based string cleaning (string columns).
+    - removeRowNullAllCols (bool): WHERE col IS NOT NULL OR ... for all schema columns.
+    - replaceNullDateFields, replaceNullDateWith, replaceNullTimeFields, replaceNullTimeWith: date/timestamp COALESCE.
+
+  Adapter Support:
+    - default__ (Databricks/Spark-style backticks; REGEXP_REPLACE patterns as implemented)
+    - snowflake__, duckdb__, bigquery__ (see respective implementations for type names and regex).
+
+  Macro Call Example (default__ — all parameters; adjust flags for your case):
+    {{ prophecy_basics.DataCleansing(
+        'my_table', schema, 'makeLowercase', ['email'],
+        True, 'NA', False, 0,
+        True, False, False, False, False, False, False,
+        False, '1970-01-01', False, '1970-01-01 00:00:00'
+    ) }}
+#}
 {% macro DataCleansing(relation_name,
         schema,
         modifyCase,

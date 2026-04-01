@@ -1,3 +1,24 @@
+{#
+  Sample Macro Gem
+  ================
+
+  default__ implements row sampling modes using window functions: firstN, lastN, skipN,
+  oneOfN, oneInN, randomN, nPercent, randomNPercent. groupCols partitions when non-empty.
+
+  Parameters:
+    - relation_name: Single relation name string (unquoted in inner SQL for default__).
+    - groupCols (list): Partition columns; [] samples whole table.
+    - randomSeed: Seed for rand() / deterministic random modes (default 42).
+    - currentModeSelection: 'firstN' | 'lastN' | 'skipN' | 'oneOfN' | 'oneInN' | 'randomN' | 'nPercent' | 'randomNPercent'.
+    - numberN: Count N or percent depending on mode (defaults 100 or 10 for percent modes).
+
+  Adapter Support:
+    - default__ (Spark * except), bigquery__ (FARM_FINGERPRINT, MOD), snowflake__ (* exclude)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Sample('src', [], 42, 'firstN', 100) }}
+    {{ prophecy_basics.Sample('src', ['g'], 42, 'randomN', 50) }}
+#}
 {% macro Sample(relation_name,
     groupCols,
     randomSeed,

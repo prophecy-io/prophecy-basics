@@ -1,3 +1,29 @@
+{#
+  RecordID Macro Gem
+  ==================
+
+  Adds a UUID or sequential id column at start or end of row via row_number() window
+  (or uuid()), with optional group-level partition and order.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - method: 'uuid' or other (incremental numeric/string id).
+    - incremental_id_column_name: Output column name (unquoted in default__ SELECT list).
+    - incremental_id_type: 'string' (lpad) or other (numeric row_number expression).
+    - incremental_id_size: Pad width for string ids.
+    - incremental_id_starting_val: Added to row_number()-1 offset.
+    - generationMethod: 'groupLevel' (partition by groupByColumnNames, order from orders) or
+        'tableLevel' (order by 1 in default__).
+    - position: 'first_column' or other (append after base.*).
+    - groupByColumnNames (list), orders (list): Sort rules with expression.expression and sortType.
+
+  Adapter Support:
+    - default__, bigquery__ (GENERATE_UUID, LPAD), snowflake__, duckdb__ (tableLevel can use orderByColumns)
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.RecordID('t', 'incremental', 'rid', 'string', 10, 1, 'tableLevel', 'last_column', [], []) }}
+    {{ prophecy_basics.RecordID('t', 'uuid', 'uid', 'string', 0, 1, 'tableLevel', 'first_column', [], []) }}
+#}
 {% macro RecordID(relation_name,
         method,
         incremental_id_column_name,

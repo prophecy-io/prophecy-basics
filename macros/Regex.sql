@@ -1,3 +1,28 @@
+{#
+  Regex Macro Gem
+  ===============
+
+  default__ implements replace, parse (capturing groups to typed columns), tokenize
+  (splitColumns with regexp_extract_all / splitRows with explode, or numbered groups),
+  and match (0/1 flag). Validates selectedColumnName, regexExpression, relation_name.
+
+  Parameters:
+    - relation_name (string or list): Source relation(s).
+    - parseColumns: JSON string or list of {columnName, dataType, ...} for parse mode.
+    - selectedColumnName: Column to run regex on.
+    - regexExpression: Pattern (escaped via helpers).
+    - outputMethod: 'replace' | 'parse' | 'tokenize' | 'match'.
+    - caseInsensitive, allowBlankTokens, replacementText, copyUnmatchedText: replace/match behavior.
+    - tokenizeOutputMethod: 'splitColumns' | 'splitRows' | other (numbered extract groups).
+    - noOfColumns, extraColumnsHandling, outputRootName, matchColumnName, errorIfNotMatched: tokenize/match options.
+
+  Adapter Support:
+    - default__ (Spark regexp_*), snowflake__, bigquery__, duckdb__
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Regex('t', [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+    {{ prophecy_basics.Regex('t', parse_cols_json, 'text', '(\\d+)', 'parse', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'r', 'm', False) }}
+#}
 {% macro Regex(relation_name,
     parseColumns,
     schema='',
