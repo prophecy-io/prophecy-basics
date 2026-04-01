@@ -2,8 +2,10 @@
   MultiColumnEdit Macro Gem
   =========================
 
-  Builds SELECT ... FROM relation: applies expressionToBeApplied to columnNames
-  with placeholders column_value (quoted identifier) and column_name (string literal).
+  Applies the same kind of expression to many columns at once—uppercasing, math,
+  concatenation, or any SQL you template—using placeholders for the current column
+  name and value. You can replace columns in place or emit new names with a prefix
+  or suffix.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -18,9 +20,22 @@
   Adapter Support:
     - default__, snowflake__, duckdb__ (quoting differences for column_name replacement)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.MultiColumnEdit('t', 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
     {{ prophecy_basics.MultiColumnEdit('t', 'concat(column_name, column_value)', ['a','b'], ['a'], True, 'prefix', 'new_') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.MultiColumnEdit('t', 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+
+    Resolved query (default__):
+      select
+          upper(`a`) as `a`,
+          `b`
+      from t
 #}
 {% macro MultiColumnEdit(relation_name,
     expressionToBeApplied,

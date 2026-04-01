@@ -2,8 +2,9 @@
   TextToColumns Macro Gem
   =======================
 
-  Splits a single text column by delimiter into new columns (splitColumns) or
-  exploded rows (splitRows). default__ uses split + regexp_replace / LATERAL VIEW explode.
+  Splits one delimited text field into several new columns (fixed positions) or
+  into many rows (one token per row)—useful for CSV-like blobs, tags, or multi-value
+  fields stored in a single string.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -18,9 +19,35 @@
   Adapter Support:
     - default__ (Spark), bigquery__, snowflake__, duckdb__
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.TextToColumns('t', 'payload', ',', 'splitColumns', 4, False, 'c', 'out', 'token') }}
     {{ prophecy_basics.TextToColumns('t', 'payload', '|', 'splitRows', 1, False, '', '', 'part') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.TextToColumns('t', 'payload', ',', 'splitColumns', 4, False, 'c', 'out', 'token') }}
+
+    Resolved query (default__ — splitColumns; pattern uses %%DELIM%% placeholder; abbreviated column list):
+      WITH source AS (
+          SELECT *,
+              split(
+                  regexp_replace(`payload`, ',', '%%DELIM%%'),
+                  '%%DELIM%%'
+              ) AS tokens
+          FROM t
+      ),
+      all_data AS (
+          SELECT *,
+              regexp_replace(trim(tokens[0]), '^"|"$', '') AS `c_1_out`,
+              regexp_replace(trim(tokens[1]), '^"|"$', '') AS `c_2_out`,
+              regexp_replace(trim(tokens[2]), '^"|"$', '') AS `c_3_out`,
+              tokens[3] AS `c_4_out`
+          FROM source
+      )
+      SELECT * EXCEPT (tokens) FROM all_data
 #}
 {% macro TextToColumns(relation_name,
     columnNames,

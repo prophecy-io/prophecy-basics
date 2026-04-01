@@ -2,9 +2,10 @@
   FuzzyMatch Macro Gem
   ====================
 
-  For mode PURGE or MERGE, builds a multi-CTE query that cross-joins per-field
-  extracted values and scores pairs (LEVENSHTEIN / EXACT / EQUALS per matchFunction).
-  Otherwise returns SELECT * FROM relation.
+  Compares records to find likely matches when IDs do not line up: it scores pairs
+  of rows using fuzzy or exact rules on the fields you choose (names, phones,
+  addresses, and so on), then returns pairs above your similarity threshold—or
+  passes the table through unchanged when not in match mode.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -18,9 +19,24 @@
   Adapter Support:
     - default__ (LEVENSHTEIN), bigquery__ (EDIT_DISTANCE), snowflake__ (EDITDISTANCE / JAROWINKLER_SIMILARITY), duckdb__ (LEVENSHTEIN)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__ — matchFields is a list of {matchFunction, columnName} objects):
     {{ prophecy_basics.FuzzyMatch('src', 'PURGE', '', 'record_id', match_fields, 80, False) }}
     {{ prophecy_basics.FuzzyMatch('src', 'MERGE', 'source_id', 'record_id', match_fields, 70, True) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.FuzzyMatch('src', 'PURGE', '', 'record_id', match_fields, 80, False) }}
+
+    Resolved query (default__, PURGE):
+      -- Multi-CTE statement: match_function → cross_join_data → impose_function_match →
+      -- replace_record_ids → final_output, ending with SELECT record_id1, record_id2 [similarity_score]
+      -- WHERE similarity_score >= 80. Full SQL is long; inspect compiled output in your warehouse or logs.
+
+    Resolved query (default__, mode not PURGE/MERGE — pass-through):
+      select * from src
 #}
 {% macro FuzzyMatch(relation_name,
     mode,

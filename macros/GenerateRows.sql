@@ -2,9 +2,10 @@
   GenerateRows Macro Gem
   ======================
 
-  default__ generates a recursive WITH gen AS (...) query: either anchored on a
-  source table (relation_name + schema) or a standalone sequence. Validates
-  init_expr, condition_expr, loop_expr; substitutes column_name into expressions.
+  Expands each row into a sequence of values you define—counts, dates, or other
+  stepped values—either from a seed table or from scratch. You supply start,
+  condition, and step logic; the macro fills in the repeating column until your
+  rule stops.
 
   Parameters:
     - relation_name: Source table(s) or None/empty for generator-only.
@@ -17,9 +18,30 @@
   Adapter Support:
     - default__ (recursive CTE, struct payload, EXCEPT), bigquery__ (GENERATE_ARRAY / UNNEST), duckdb__ (recursive, EXCLUDE)
 
+  Depends on schema parameter:
+    Yes
+
   Macro Call Examples (default__):
     {{ prophecy_basics.GenerateRows(ref('seed'), schema, '1', 'value <= 10', 'value + 1', 'value', 1000, 'recursive') }}
     {{ prophecy_basics.GenerateRows(none, '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
+
+  CTE Usage Example:
+    Macro call (second example above — standalone sequence, no source table):
+      {{ prophecy_basics.GenerateRows(none, '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
+
+    Resolved query (default__ — illustrative; internal column is `__gen_n`):
+      with recursive gen as (
+          select 1 as __gen_n, 1 as _iter
+          union all
+          select
+              gen.__gen_n + 1 as __gen_n,
+              _iter + 1
+          from gen
+          where _iter < 100 and (gen.__gen_n <= 5)
+      )
+      select __gen_n as n
+      from gen
+      where __gen_n <= 5
 #}
 {% macro GenerateRows(relation_name,
     schema,

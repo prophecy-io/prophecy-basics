@@ -2,8 +2,9 @@
   UnionByName Macro Gem
   =====================
 
-  UNION ALL of normalized relations: columns matched case-insensitively; missing
-  columns filled with NULL per missingColumnOps.
+  Stacks several tables on top of each other even when column names differ only
+  by case or when some tables are missing columns: matching fields line up and gaps
+  are filled with nulls, or you can require every table to match the first exactly.
 
   Parameters:
     - relation_names (string or list): Relation names (comma-split if string).
@@ -14,9 +15,24 @@
   Adapter Support:
     - default__ (backtick quoting), snowflake__ (double-quote), duckdb__ (unquoted identifiers in select list)
 
+  Depends on schema parameter:
+    Yes
+
   Macro Call Examples (default__):
     {{ prophecy_basics.UnionByName(['a', 'b'], [schema_a, schema_b], 'allowMissingColumns') }}
     {{ prophecy_basics.UnionByName('a, b', [schema_a_json, schema_b_json], 'nameBasedUnionOperation') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.UnionByName(['a', 'b'], [schema_a, schema_b], 'allowMissingColumns') }}
+
+    Resolved query (default__ — illustrative; column lists come from merged schemas):
+      with union_query as (
+          select `id` as `id`, `name` as `name`, null as `region` from a
+          union all
+          select `id` as `id`, `name` as `name`, `region` as `region` from b
+      )
+      select * from union_query
 #}
 {% macro UnionByName(relation_names,
                      schemas,

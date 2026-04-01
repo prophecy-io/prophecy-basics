@@ -2,8 +2,9 @@
   RunningTotal Macro Gem
   ======================
 
-  Adds cumulative SUM(...) OVER window columns named outputPrefix || column for each
-  runningTotalColumnName, with optional partition and order.
+  Adds running totals for one or more numeric columns: each value shows the sum so
+  far, either across the whole table or restarting within groups you specify, in
+  the order you choose.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -16,9 +17,30 @@
   Adapter Support:
     - default__, bigquery__ (frame only when ORDER BY present), snowflake__ (seq4() fallback), duckdb__
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
     {{ prophecy_basics.RunningTotal('t', [], ['x'], 'cum_', orderByColumns) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
+
+    Resolved query (default__):
+      with base as (
+          select *
+          from t
+      )
+      select
+          base.*,
+          sum(coalesce(base.`amt`, 0)) over (
+              partition by `region`
+              order by monotonically_increasing_id()
+              rows between unbounded preceding and current row
+          ) as `rt_amt`
+      from base
 #}
 {% macro RunningTotal(relation_name,
         groupByColumnNames,

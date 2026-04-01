@@ -2,9 +2,10 @@
   Regex Macro Gem
   ===============
 
-  default__ implements replace, parse (capturing groups to typed columns), tokenize
-  (splitColumns with regexp_extract_all / splitRows with explode, or numbered groups),
-  and match (0/1 flag). Validates selectedColumnName, regexExpression, relation_name.
+  Uses a regular expression on one text column to replace content, pull out
+  structured fields, split text into multiple new columns or extra rows, or add a
+  yes/no match flag—so you can standardize messy strings without hand-written SQL
+  for every edge case.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -19,9 +20,22 @@
   Adapter Support:
     - default__ (Spark regexp_*), snowflake__, bigquery__, duckdb__
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.Regex('t', [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
     {{ prophecy_basics.Regex('t', parse_cols_json, 'text', '(\\d+)', 'parse', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'r', 'm', False) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.Regex('t', [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+
+    Resolved query (default__ — replace mode; pattern escaped per helpers, shown here with (?i) for case-insensitive):
+      select
+          *,
+          regexp_replace(`col`, '(?i)^[0-9]+$', '') as `col_replaced`
+      from t
 #}
 {% macro Regex(relation_name,
     parseColumns,

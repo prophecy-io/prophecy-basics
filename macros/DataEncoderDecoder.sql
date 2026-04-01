@@ -2,9 +2,10 @@
   DataEncoderDecoder Macro Gem
   ============================
 
-  Wraps input in a final_cte WITH ... SELECT * FROM final_cte. Transforms listed
-  columns per enc_dec_method; remaining columns behavior depends on
-  change_col_name and remaining_columns (see default__ branches).
+  Encodes or decodes column values so you can protect sensitive data, move binary
+  safely as text, or convert between character sets—for example AES encryption,
+  Base64, hex, or encode/decode operations. Output can replace columns in place or
+  add new names with a prefix or suffix.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -22,9 +23,23 @@
     - default__: AES + base64/hex/encode/decode as in Spark SQL
     - snowflake__, duckdb__: subset (no AES on duckdb in implementation)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.DataEncoderDecoder('t', ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
     {{ prophecy_basics.DataEncoderDecoder('t', ['c'], '', 'hex', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', '') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.DataEncoderDecoder('t', ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
+
+    Resolved query (default__ — base64, inplace_substitute):
+      WITH final_cte AS (
+          SELECT `a`, `b`, base64(`col`) AS `col`
+          FROM t
+      )
+      SELECT * FROM final_cte
 #}
 {% macro DataEncoderDecoder(relation_name,
     column_names,

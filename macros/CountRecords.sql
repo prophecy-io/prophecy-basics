@@ -2,9 +2,9 @@
   CountRecords Macro Gem
   ======================
 
-  Generates a SELECT query that counts records from one or more relations.
-  Supports three counting modes: total row count, per-column non-null count,
-  and per-column distinct count.
+  Answers how many rows you have in one or more tables, and—when you name
+  columns—how many non-null or distinct values appear in each. Use it for
+  volume checks and quick data-quality profiling.
 
   Parameters:
     - relation_name (string or list): The relation(s)/table name(s) to count from.
@@ -21,6 +21,9 @@
     - Default (Databricks / Spark / Snowflake / DuckDB)
     - BigQuery (backtick-quoted table names)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples:
     -- 1. Total record count
     {{ prophecy_basics.CountRecords(['source_table'], [], 'count_all_records') }}
@@ -35,14 +38,11 @@
     -- Generated SQL: SELECT COUNT(DISTINCT "col_a") AS "col_a_distinct_count", COUNT(DISTINCT "col_b") AS "col_b_distinct_count" FROM source_table
 
   CTE Usage Example:
-    WITH source_table AS (
-        SELECT *
-        FROM {{ ref('source_table') }}
-    ),
-    CountRecordsCTE AS (
-        {{ prophecy_basics.CountRecords(['source_table'], ['col_a', 'col_b'], 'count_non_null_records') }}
-    )
-    SELECT * FROM CountRecordsCTE
+    Macro call (first example above):
+      {{ prophecy_basics.CountRecords(['source_table'], [], 'count_all_records') }}
+
+    Resolved query (default__):
+      SELECT COUNT(*) AS total_records FROM source_table
 #}
 {% macro CountRecords(relation_name,
     column_names,

@@ -2,8 +2,9 @@
   FindDuplicates Macro Gem
   ========================
 
-  Window-based deduplication or duplicate detection: either row_number per partition
-  or group_count, then filter by output_type and optional numeric conditions.
+  Finds duplicate rows or keeps unique rows within groups you define: it ranks
+  rows by your keys and sort order, then returns only the slice you want—such as
+  all but one copy, only duplicates, or rows whose group size matches a rule.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -20,8 +21,21 @@
   Adapter Support:
     - default__ (row_number, * EXCEPT), snowflake__ (ROW_NUMBER, EXCLUDE), duckdb__ (quoted schema columns on filter)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__ — orderByColumns structure as built by Prophecy):
     {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+
+    Resolved query (default__ — duplicate rows by id; empty order → ORDER BY 1):
+      WITH select_cte1 AS (
+          SELECT *, row_number() OVER (PARTITION BY `id` ORDER BY 1) AS row_num FROM src
+      )
+      SELECT * EXCEPT(row_num) FROM select_cte1 WHERE row_num > 1
 #}
 {% macro FindDuplicates(relation_name,
     groupByColumnNames,

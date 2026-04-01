@@ -2,7 +2,9 @@
   JSONParse Macro Gem
   ===================
 
-  Parses a JSON string column with from_json / schema_of_json, or passes through.
+  Turns a JSON text column into structured columns (nested struct) using a schema
+  you provide or infer from a sample record—or returns the table unchanged when
+  parsing is turned off.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -14,10 +16,23 @@
   Adapter Support:
     - default__ (from_json, backticks), snowflake__ (PARSE_JSON), duckdb__ (json_extract)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
     {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSampleRecord', '{"a":1}', '') }}
     {{ prophecy_basics.JSONParse('t', '', 'none', '', '') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
+
+    Resolved query (default__ — schema string shortened):
+      select
+          *,
+          from_json(`payload`, '{"type":"struct","fields":[...]}') as `payload_parsed`
+      from t
 #}
 {% macro JSONParse(relation_name,
     columnName,

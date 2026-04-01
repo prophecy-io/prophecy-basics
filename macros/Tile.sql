@@ -2,9 +2,9 @@
   Tile Macro Gem
   ==============
 
-  default__ assigns tile buckets: equal_sum_tile (running sum vs total), equal_records_tile
-  (ntile + optional no-split columns), smart_tile (z-score buckets), unique_value_tile
-  (dense_rank on columns), manual_tile (cutoffs on manual_tile_column_name).
+  Buckets rows into groups for analysis: equal-sized slices by row count or by
+  running total of a measure, smart bands around the mean, one bucket per distinct
+  value combination, or custom bins from numeric cutoffs.
 
   Parameters:
     - relation_name: Source table identifier (string; used raw in many branches).
@@ -20,8 +20,20 @@
   Adapter Support:
     - default__ (Spark SQL functions); other adapters may define tile__ macros if present.
 
+  Depends on schema parameter:
+    No
+
   Macro Call Example (default__ — schema_cols is a comma-separated column list string; pass real orderByRules from the app):
     {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', order_by_rules, ['g'], '', '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+
+  CTE Usage Example:
+    Macro call (see "Macro Call Example" above):
+      {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', order_by_rules, ['g'], '', '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+
+    Resolved query (default__ — equal_records_tile branches use ntile, dense_rank, and final SELECT with Tile_Num; exact SQL depends on orderByRules and no_split_column_list):
+      -- Illustrative core: WITH provisional AS (SELECT *, ntile(4) OVER (PARTITION BY g ORDER BY ...) AS provisional_tile FROM t), ...
+      -- Final SELECT includes schema columns, Tile_Num, Tile_RecordCount, Tile_SequenceNum.
+      -- For the full statement, compile the macro in your project.
 #}
 {% macro Tile(relation_name,
     tile_method,

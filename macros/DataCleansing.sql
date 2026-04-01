@@ -2,10 +2,11 @@
   DataCleansing Macro Gem
   =======================
 
-  Builds a WITH cleansed_data CTE plus SELECT that applies optional row filtering
-  (remove rows where all columns are null) and per-column transforms for named
-  columns (null fill, trim, whitespace/regex cleanup, case change, date/timestamp
-  null fill). Unlisted columns pass through unchanged.
+  Cleans and standardizes your dataset: optionally remove rows where every field
+  is empty, fill missing text and numbers, trim and fix whitespace, strip letters,
+  punctuation, or digits where configured, change case, and substitute default
+  dates or timestamps. Only the columns you list are transformed; the rest stay
+  as-is.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -23,6 +24,9 @@
     - default__ (Databricks/Spark-style backticks; REGEXP_REPLACE patterns as implemented)
     - snowflake__, duckdb__, bigquery__ (see respective implementations for type names and regex).
 
+  Depends on schema parameter:
+    Yes
+
   Macro Call Example (default__ — all parameters; adjust flags for your case):
     {{ prophecy_basics.DataCleansing(
         'my_table', schema, 'makeLowercase', ['email'],
@@ -30,6 +34,28 @@
         True, False, False, False, False, False, False,
         False, '1970-01-01', False, '1970-01-01 00:00:00'
     ) }}
+
+  CTE Usage Example:
+    Macro call (see "Macro Call Example" above):
+      {{ prophecy_basics.DataCleansing(
+          'my_table', schema, 'makeLowercase', ['email'],
+          True, 'NA', False, 0,
+          True, False, False, False, False, False, False,
+          False, '1970-01-01', False, '1970-01-01 00:00:00'
+      ) }}
+
+    Resolved query (default__ — illustrative; schema has `id` and `email` (string); only `email` in columnNames; removeRowNullAllCols false):
+      WITH cleansed_data AS (
+          SELECT * FROM `my_table`
+      )
+      SELECT
+          `id`,
+          CAST(
+              LOWER(
+                  LTRIM(RTRIM(COALESCE(`email`, 'NA')))
+              ) AS string
+          ) AS `email`
+      FROM cleansed_data
 #}
 {% macro DataCleansing(relation_name,
         schema,

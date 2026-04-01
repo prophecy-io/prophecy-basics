@@ -2,8 +2,9 @@
   DynamicSelect Macro Gem
   =======================
 
-  Returns a SELECT of columns from relation_name filtered either by data type
-  list or by evaluating a Python expression per column (SELECT_EXPR).
+  Picks which columns to pull from a table before the rest of your pipeline runs:
+  either by data type (for example "give me all strings and integers") or by a
+  rule you write so only matching columns are included.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -18,9 +19,22 @@
   Adapter Support:
     - default__ (backtick identifiers), snowflake__ (type remap + quote_identifier), duckdb__ (case-insensitive types)
 
+  Depends on schema parameter:
+    Yes
+
   Macro Call Examples (default__):
     {{ prophecy_basics.DynamicSelect('my_table', schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
     {{ prophecy_basics.DynamicSelect('my_table', schema, [], 'SELECT_EXPR', "column_name.startswith('id')") }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.DynamicSelect('my_table', schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+
+    Resolved query (default__ — depends on schema; example when `id` is integer and `name` is string):
+      SELECT `id`, `name` FROM my_table
+
+    Resolved query (default__ — when no column dataTypes match targetTypes):
+      SELECT NULL AS no_columns_matched FROM my_table
 #}
 {% macro DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
     {{ return(adapter.dispatch('DynamicSelect', 'prophecy_basics')(relation_name, schema, targetTypes, selectUsing, customExpression)) }}

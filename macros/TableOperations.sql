@@ -2,8 +2,10 @@
   TableOperations Macro Gem
   =========================
 
-  default__ runs Delta/Databricks table maintenance commands via run_query and returns
-  a status SELECT. Builds fully-qualified `catalog`.`database`.`tableName`.
+  Performs lifecycle actions on a Delta Lake table: register external data, vacuum
+  old files, optimize and Z-order, restore a version or timestamp, delete or update
+  rows, drop the table, repair metadata, or run custom DDL—then reports success or
+  failure for auditing.
 
   Parameters:
     - catalog, database, tableName: Three-part name for target table.
@@ -21,9 +23,23 @@
   Adapter Support:
     - default__ (Databricks Delta); other adapters may override.
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.TableOperations('cat', 'db', 't', 'vacuumTable', '', false, '168', false, '', false, '', '', '', 'true', '', '', '') }}
     {{ prophecy_basics.TableOperations('cat', 'db', 't', 'deleteFromTable', '', false, '', false, '', false, '', '', '', 'id < 0', '', '', '') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.TableOperations('cat', 'db', 't', 'vacuumTable', '', false, '168', false, '', false, '', '', '', 'true', '', '', '') }}
+
+    Resolved behavior (default__):
+      -- run_query executes:
+      VACUUM `cat`.`db`.`t` RETAIN 168 HOURS
+
+    Resolved query (returned string from macro — what dbt materializes after the side-effect):
+      SELECT 'vacuumTable' AS operation, '`cat`.`db`.`t`' AS target_table, 'Success' AS status, current_timestamp() AS executed_at
 #}
 {% macro TableOperations(
     catalog='',

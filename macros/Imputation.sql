@@ -2,9 +2,10 @@
   Imputation Macro Gem
   ====================
 
-  For each imputed column, builds stat_* CTEs with AVG / PERCENTILE_APPROX (median) /
-  mode subquery or user literal, then final SELECT with COALESCE or CASE replacement.
-  Empty columnNames returns SELECT *.
+  Fills in missing or sentinel values using statistics from the rest of the table
+  (average, median, or mode), a fixed value you choose, or leaves the table
+  untouched when no columns are listed. Optional flags add an imputed-value column
+  and/or a 0/1 indicator per field.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -19,9 +20,27 @@
   Adapter Support:
     - default__ (PERCENTILE_APPROX, Spark-style), duckdb__, bigquery__, snowflake__ (median/mode differences)
 
+  Depends on schema parameter:
+    Yes
+
   Macro Call Examples (default__):
     {{ prophecy_basics.Imputation('t', schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
     {{ prophecy_basics.Imputation('t', schema, ['x'], 'literal_match', '-1', 'user', '0', True, True) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.Imputation('t', schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
+
+    Resolved query (default__ — single numeric column `amount`; schema drives types):
+      WITH base AS (
+          SELECT * FROM t
+      ),
+      stat_0 AS (
+          SELECT PERCENTILE_APPROX(CASE WHEN `amount` IS NOT NULL THEN `amount` END, 0.5) AS rep_val FROM base
+      )
+      SELECT
+          COALESCE(`amount`, (SELECT rep_val FROM stat_0)) AS `amount`
+      FROM base
 #}
 {% macro Imputation(
     relation_name,

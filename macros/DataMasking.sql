@@ -2,8 +2,10 @@
   DataMasking Macro Gem
   =====================
 
-  Builds WITH final_cte AS (...) SELECT * FROM final_cte. Applies masking or
-  hashing per column with optional combined hash or prefix/suffix output names.
+  Masks or hashes sensitive values so you can share or analyze data without
+  exposing originals—character masking, one-way hashes, SHA-2 digests, or a single
+  hash across multiple columns. New column names can replace fields in place or
+  use a prefix or suffix.
 
   Parameters:
     - relation_name (string or list): Source relation(s).
@@ -24,9 +26,23 @@
   Adapter Support:
     - default__ (Databricks mask/hash/sha2), snowflake__, duckdb__ (regex-based mask, HASH/SHA2/sha256, etc.)
 
+  Depends on schema parameter:
+    No
+
   Macro Call Examples (default__):
     {{ prophecy_basics.DataMasking('t', ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
     {{ prophecy_basics.DataMasking('t', ['a','b'], '', 'hash', '', '', '', '', 256, 'combinedHash_substitute', 'Prefix', '', 'combined_h') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.DataMasking('t', ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+
+    Resolved query (default__ — mask on email; remaining id column kept):
+      WITH final_cte AS (
+          SELECT `id`, mask(`email`, upperChar => 'X', lowerChar => 'x', digitChar => '0') AS `email`
+          FROM t
+      )
+      SELECT * FROM final_cte
 #}
 {% macro DataMasking(relation_name,
     column_names,
