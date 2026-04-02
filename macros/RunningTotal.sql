@@ -7,7 +7,7 @@
   the order you choose.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - groupByColumnNames (list): PARTITION BY columns (empty = whole table).
     - runningTotalColumnNames (list): Columns to sum (coalesced to 0).
     - outputPrefix: Prefix for output column names.

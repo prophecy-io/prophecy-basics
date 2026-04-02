@@ -7,7 +7,7 @@
   order so the numbering matches how you want rows ranked.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - method: 'uuid' or other (incremental numeric/string id).
     - incremental_id_column_name: Output column name (unquoted in default__ SELECT list).
     - incremental_id_type: 'string' (lpad) or other (numeric row_number expression).

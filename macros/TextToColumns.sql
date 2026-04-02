@@ -7,7 +7,7 @@
   fields stored in a single string.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - columnNames: Single column name to split (string).
     - delimiter: Pattern used in regexp_replace / split (literal delimiter string).
     - split_strategy: 'splitColumns' | 'splitRows' | other → SELECT * pass-through.

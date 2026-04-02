@@ -8,7 +8,7 @@
   passes the table through unchanged when not in match mode.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - mode (string): 'PURGE' | 'MERGE' | other (pass-through SELECT *).
     - sourceIdCol, recordIdCol: Columns used in MERGE vs PURGE selects (identifiers; quoted on BigQuery/Snowflake adapters).
     - matchFields (list): Items with matchFunction ('custom','name','phone','address','exact','equals', ...)

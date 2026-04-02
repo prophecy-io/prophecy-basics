@@ -6,7 +6,7 @@
   and divided by the sum of weights—overall or separately for each group you name.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - valueFieldColumn, weightFieldColumn: Numeric column names.
     - outputFieldName: Alias for the weighted average expression.
     - groupByColumnNames (list): Empty → single aggregate row; else GROUP BY these columns.

@@ -8,7 +8,7 @@
   and/or a 0/1 indicator per field.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - schema: Column name → type map for casting and literals.
     - columnNames (list): Columns to impute.
     - replaceIncomingType: 'null_val' (impute NULLs) vs other (impute rows matching incomingUserValue).

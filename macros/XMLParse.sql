@@ -7,7 +7,7 @@
   when parsing is disabled.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - columnName: Column to parse; empty → SELECT *.
     - parsingMethod: 'parseFromSchema' | 'parseFromSampleRecord' | 'none' / empty.
     - sampleRecord, sampleSchema: XML sample or schema string for Spark from_xml.

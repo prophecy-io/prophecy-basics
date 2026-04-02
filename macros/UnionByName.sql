@@ -7,7 +7,7 @@
   are filled with nulls, or you can require every table to match the first exactly.
 
   Parameters:
-    - relation_names (string or list): Relation names (comma-split if string).
+    - relation_names (list): Relation names (comma-split if string).
     - schemas (list): Parallel list of schemas (JSON string or list of {name, ...} fields).
     - missingColumnOps: 'allowMissingColumns' (union of all columns, NULL where absent) or
         'nameBasedUnionOperation' (strict: compiler error on extra/missing vs first relation).

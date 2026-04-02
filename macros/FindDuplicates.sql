@@ -7,7 +7,7 @@
   all but one copy, only duplicates, or rows whose group size matches a rule.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - groupByColumnNames (list): PARTITION BY columns when generationMethod is not "allCols".
     - column_group_rownum_condition: "between" | "equal_to" | "not_equal_to" | "less_than" | "greater_than"
         (used with lower_limit/upper_limit or grouped_count_rownum as applicable).

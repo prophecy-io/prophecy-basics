@@ -8,7 +8,7 @@
   or suffix.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - expressionToBeApplied: SQL fragment with column_value and column_name tokens.
     - allColumnNames (list): Full column list in output order.
     - columnNames (list): Subset to transform when changeOutputFieldName is false.

@@ -7,7 +7,7 @@
   volume validation and quick data quality profiling.
 
   Parameters:
-    - relation_name (string or list): The relation(s)/table name(s) to count from.
+    - relation_name (list): The relation(s)/table name(s) to count from.
         Can be a single string or a list of relation names.
     - column_names (list): List of column names to count. Used when count_method
         is "count_non_null_records" or "count_distinct_records". Pass an empty

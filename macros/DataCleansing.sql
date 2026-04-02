@@ -9,7 +9,7 @@
   as-is.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - schema (list): Column metadata with name and dataType (used for typing and column order).
     - modifyCase (string): For string columns — '' (no change), 'makeLowercase', 'makeUppercase', 'makeTitlecase'.
     - columnNames (list): Columns to transform; [] returns SELECT * FROM cleansed_data only.

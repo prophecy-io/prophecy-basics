@@ -8,7 +8,7 @@
   for every edge case.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - parseColumns: JSON string or list of {columnName, dataType, ...} for parse mode.
     - selectedColumnName: Column to run regex on.
     - regexExpression: Pattern (escaped via helpers).

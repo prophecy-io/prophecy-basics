@@ -7,7 +7,7 @@
   rule you write so only matching columns are included.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - schema (list of dicts): Each column has at least name, dataType; column_index is added internally.
     - targetTypes (list): Logical types to keep when selectUsing is not SELECT_EXPR
         (default__ compares column["dataType"] to this list — use names as in your schema).

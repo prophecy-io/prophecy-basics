@@ -7,7 +7,7 @@
   parsing is turned off.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - columnName: Column to parse; empty → SELECT *.
     - parsingMethod: 'parseFromSchema' (needs sampleSchema), 'parseFromSampleRecord' (needs sampleRecord),
         'none' or empty → pass-through; other values → compiler error.

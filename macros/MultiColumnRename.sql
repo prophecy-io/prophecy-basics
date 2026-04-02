@@ -7,7 +7,7 @@
   order as your metadata list.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - columnNames (list): Columns to rename.
     - renameMethod: 'editPrefixSuffix' (needs editType 'Prefix' or suffix) or 'advancedRename'
         (evaluate customExpression with column_name replaced per column).

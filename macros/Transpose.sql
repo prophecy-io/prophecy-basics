@@ -7,7 +7,7 @@
   while key columns are repeated on every row.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - keyColumns (list): Identifier columns repeated in each union branch.
     - dataColumns (list): Columns to unpivot; each becomes a row with literal name + CAST value AS STRING.
     - nameColumn, valueColumn: Output column names for the unpivoted pair.

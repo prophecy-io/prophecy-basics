@@ -8,7 +8,7 @@
   use a prefix or suffix.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - column_names (list): Target columns.
     - remaining_columns: Unquoted column list for default__ SELECT list when not using SELECT * pattern
         (snowflake__/duckdb__ use quote_column_list where applicable).

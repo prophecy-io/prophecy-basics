@@ -8,7 +8,7 @@
   add new names with a prefix or suffix.
 
   Parameters:
-    - relation_name (string or list): Source relation(s).
+    - relation_name (list): Source relation(s).
     - column_names (list): Columns to encode/decode.
     - remaining_columns: Quoted column list for SELECT when keeping other columns;
         "" selects only transformed columns (unless prefix_suffix_substitute adds *).
