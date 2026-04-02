@@ -11,8 +11,12 @@
     - groupByColumnNames (list): PARTITION BY columns (empty = whole table).
     - runningTotalColumnNames (list): Columns to sum (coalesced to 0).
     - outputPrefix: Prefix for output column names.
-    - orderByColumns (list): Window ORDER BY from expression + sortType; if empty with group,
-        default__ uses monotonically_increasing_id() for ordering.
+    - orderByColumns (list[dict]): Window ORDER BY, same shape as Prophecy orderByColumns. Each item:
+        { "expression": { "expression": "<SQL expression>" }, "sortType": "<sort>" }
+        The inner expression is raw SQL (e.g. `col1`, concat(`a`,`b`)). sortType is one of:
+        asc, desc, asc_nulls_last, desc_nulls_first (any other value is treated as desc).
+        Empty list → default__ uses monotonically_increasing_id() in the window ORDER BY when no
+        explicit order is built.
 
   Adapter Support:
     - default__, bigquery__ (frame only when ORDER BY present), snowflake__ (seq4() fallback), duckdb__
@@ -22,10 +26,14 @@
 
   Macro Call Examples (default__):
     {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
-    {{ prophecy_basics.RunningTotal('t', [], ['x'], 'cum_', orderByColumns) }}
+    {% set orderByColumns = [
+      {'expression': {'expression': '`order_date`'}, 'sortType': 'asc'},
+      {'expression': {'expression': 'concat(`a`, `b`)'}, 'sortType': 'desc'}
+    ] %}
+    {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', orderByColumns) }}
 
   CTE Usage Example:
-    Macro call (first example above):
+    Macro call (first example — empty orderByColumns; default__ falls back to monotonically_increasing_id()):
       {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
 
     Resolved query (default__):
@@ -38,6 +46,27 @@
           sum(coalesce(base.`amt`, 0)) over (
               partition by `region`
               order by monotonically_increasing_id()
+              rows between unbounded preceding and current row
+          ) as `rt_amt`
+      from base
+
+    Macro call (second example — orderByColumns with expression + sortType as above):
+      {% set orderByColumns = [
+        {'expression': {'expression': '`order_date`'}, 'sortType': 'asc'},
+        {'expression': {'expression': 'concat(`a`, `b`)'}, 'sortType': 'desc'}
+      ] %}
+      {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', orderByColumns) }}
+
+    Resolved query (default__):
+      with base as (
+          select *
+          from t
+      )
+      select
+          base.*,
+          sum(coalesce(base.`amt`, 0)) over (
+              partition by `region`
+              order by `order_date` asc, concat(`a`, `b`) desc
               rows between unbounded preceding and current row
           ) as `rt_amt`
       from base

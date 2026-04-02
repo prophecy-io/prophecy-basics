@@ -10,7 +10,10 @@
     - relation_name: Source table identifier (string; used raw in many branches).
     - tile_method: 'equal_sum_tile' | 'equal_records_tile' | 'smart_tile' | 'unique_value_tile' | 'manual_tile'.
     - num_tiles, sum_column: For sum/record tiles.
-    - orderByRules: List of {expr, sort} for window ordering.
+    - orderByRules (list[dict]): Window ORDER BY for Tile. Prophecy builds this from the same logical order as
+        orderByColumns, but maps each rule to { "expr": "<SQL expression>", "sort": "<sortType>" } where expr is
+        the string from expression.expression and sort is the sortType (asc, desc, asc_nulls_last, desc_nulls_first;
+        anything else → desc). Example item: { "expr": "`order_date`", "sort": "asc" }.
     - groupby_column_names, no_split_column_list: Group / do-not-split columns (comma-joined in SQL).
     - tile_column, column_output_method_smartTile: Smart tile labeling verbosity.
     - unique_value_column_name: Columns for unique_value_tile.
@@ -23,17 +26,26 @@
   Depends on schema parameter:
     No
 
-  Macro Call Example (default__ — schema_cols is a comma-separated column list string; pass real orderByRules from the app):
-    {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', order_by_rules, ['g'], '', '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+  Macro Call Examples (default__):
+    {% set orderByRules = [
+      {'expr': '`order_date`', 'sort': 'asc'},
+      {'expr': 'concat(`id`, `name`)', 'sort': 'desc_nulls_first'}
+    ] %}
+    {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
 
   CTE Usage Example:
-    Macro call (see "Macro Call Example" above):
-      {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', order_by_rules, ['g'], '', '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+    Macro call (orderByRules uses expr + sort — Prophecy maps orderByColumns to this list[dict]):
+      {% set orderByRules = [
+        {'expr': '`order_date`', 'sort': 'asc'},
+        {'expr': 'concat(`id`, `name`)', 'sort': 'desc_nulls_first'}
+      ] %}
+      {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
 
-    Resolved query (default__ — equal_records_tile branches use ntile, dense_rank, and final SELECT with Tile_Num; exact SQL depends on orderByRules and no_split_column_list):
-      -- Illustrative core: WITH provisional AS (SELECT *, ntile(4) OVER (PARTITION BY g ORDER BY ...) AS provisional_tile FROM t), ...
-      -- Final SELECT includes schema columns, Tile_Num, Tile_RecordCount, Tile_SequenceNum.
-      -- For the full statement, compile the macro in your project.
+    Resolved query (default__ — equal_records_tile; illustrative window fragment; full statement depends on tile_method branch):
+      -- Window ORDER BY from orderByRules:
+      --   PARTITION BY <group cols> ORDER BY `order_date` asc, concat(`id`, `name`) desc nulls first
+      -- Typical shape: ntile / dense_rank over that ordering, then final SELECT with schema_cols, Tile_Num, ...
+      -- Compile the macro in your project for the complete SQL.
 #}
 {% macro Tile(relation_name,
     tile_method,
