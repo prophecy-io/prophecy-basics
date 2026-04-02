@@ -9,7 +9,7 @@ import json
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
