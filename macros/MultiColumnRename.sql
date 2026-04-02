@@ -22,12 +22,12 @@
     Yes
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.MultiColumnRename('t', ['old'], 'editPrefixSuffix', schema_list, 'Prefix', 'new_') }}
-    {{ prophecy_basics.MultiColumnRename('t', ['col'], 'advancedRename', schema_list, '', '', "'ren_' + column_name") }}
+    {{ prophecy_basics.MultiColumnRename(['t'], ['old'], 'editPrefixSuffix', schema_list, 'Prefix', 'new_') }}
+    {{ prophecy_basics.MultiColumnRename(['t'], ['col'], 'advancedRename', schema_list, '', '', "'ren_' + column_name") }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.MultiColumnRename('t', ['old'], 'editPrefixSuffix', schema_list, 'Prefix', 'new_') }}
+      {{ prophecy_basics.MultiColumnRename(['t'], ['old'], 'editPrefixSuffix', schema_list, 'Prefix', 'new_') }}
 
     Resolved query (default__ — illustrative; full SELECT list follows schema order):
       select

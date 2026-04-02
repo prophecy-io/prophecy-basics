@@ -30,12 +30,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.DataMasking('t', ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
-    {{ prophecy_basics.DataMasking('t', ['a','b'], '', 'hash', '', '', '', '', 256, 'combinedHash_substitute', 'Prefix', '', 'combined_h') }}
+    {{ prophecy_basics.DataMasking(['t'], ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+    {{ prophecy_basics.DataMasking(['t'], ['a','b'], '', 'hash', '', '', '', '', 256, 'combinedHash_substitute', 'Prefix', '', 'combined_h') }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.DataMasking('t', ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+      {{ prophecy_basics.DataMasking(['t'], ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
 
     Resolved query (default__ — mask on email; remaining id column kept):
       WITH final_cte AS (

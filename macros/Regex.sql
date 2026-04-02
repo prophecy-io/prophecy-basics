@@ -24,12 +24,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.Regex('t', [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
-    {{ prophecy_basics.Regex('t', parse_cols_json, 'text', '(\\d+)', 'parse', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'r', 'm', False) }}
+    {{ prophecy_basics.Regex(['t'], [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+    {{ prophecy_basics.Regex(['t'], parse_cols_json, 'text', '(\\d+)', 'parse', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'r', 'm', False) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.Regex('t', [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+      {{ prophecy_basics.Regex(['t'], [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
 
     Resolved query (default__ — replace mode; pattern escaped per helpers, shown here with (?i) for case-insensitive):
       select

@@ -25,16 +25,16 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
+    {{ prophecy_basics.RunningTotal(['t'], ['region'], ['amt'], 'rt_', []) }}
     {% set orderByColumns = [
       {'expression': {'expression': '`order_date`'}, 'sortType': 'asc'},
       {'expression': {'expression': 'concat(`a`, `b`)'}, 'sortType': 'desc'}
     ] %}
-    {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', orderByColumns) }}
+    {{ prophecy_basics.RunningTotal(['t'], ['region'], ['amt'], 'rt_', orderByColumns) }}
 
   CTE Usage Example:
     Macro call (first example — empty orderByColumns; default__ falls back to monotonically_increasing_id()):
-      {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', []) }}
+      {{ prophecy_basics.RunningTotal(['t'], ['region'], ['amt'], 'rt_', []) }}
 
     Resolved query (default__):
       with base as (
@@ -55,7 +55,7 @@
         {'expression': {'expression': '`order_date`'}, 'sortType': 'asc'},
         {'expression': {'expression': 'concat(`a`, `b`)'}, 'sortType': 'desc'}
       ] %}
-      {{ prophecy_basics.RunningTotal('t', ['region'], ['amt'], 'rt_', orderByColumns) }}
+      {{ prophecy_basics.RunningTotal(['t'], ['region'], ['amt'], 'rt_', orderByColumns) }}
 
     Resolved query (default__):
       with base as (

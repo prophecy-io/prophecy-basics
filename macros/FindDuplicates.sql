@@ -29,16 +29,16 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+    {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
     {% set orderByColumns = [
       {'expression': {'expression': '`created_at`'}, 'sortType': 'desc'},
       {'expression': {'expression': 'concat(`c1`, `c2`)'}, 'sortType': 'asc_nulls_last'}
     ] %}
-    {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
+    {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
 
   CTE Usage Example:
     Macro call (first example — empty orderByColumns):
-      {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+      {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
 
     Resolved query (default__ — duplicate rows by id; ORDER BY 1):
       WITH select_cte1 AS (
@@ -51,7 +51,7 @@
         {'expression': {'expression': '`created_at`'}, 'sortType': 'desc'},
         {'expression': {'expression': 'concat(`c1`, `c2`)'}, 'sortType': 'asc_nulls_last'}
       ] %}
-      {{ prophecy_basics.FindDuplicates('src', ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
+      {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
 
     Resolved query (default__):
       WITH select_cte1 AS (

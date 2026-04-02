@@ -27,12 +27,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.DataEncoderDecoder('t', ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
-    {{ prophecy_basics.DataEncoderDecoder('t', ['c'], '', 'hex', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', '') }}
+    {{ prophecy_basics.DataEncoderDecoder(['t'], ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
+    {{ prophecy_basics.DataEncoderDecoder(['t'], ['c'], '', 'hex', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', '') }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.DataEncoderDecoder('t', ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
+      {{ prophecy_basics.DataEncoderDecoder(['t'], ['col'], '"a","b"', 'base64', 'UTF-8', '', '', '', '', '', '', '', '', 'Prefix', 'inplace_substitute', 'enc_') }}
 
     Resolved query (default__ — base64, inplace_substitute):
       WITH final_cte AS (

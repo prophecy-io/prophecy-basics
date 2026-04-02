@@ -7,7 +7,7 @@
   are filled with nulls, or you can require every table to match the first exactly.
 
   Parameters:
-    - relation_names (list): Relation names (comma-split if string).
+    - relation_names (list): Relation identifiers to union (e.g. `['a', 'b']`).
     - schemas (list): Parallel list of schemas (JSON string or list of {name, ...} fields).
     - missingColumnOps: 'allowMissingColumns' (union of all columns, NULL where absent) or
         'nameBasedUnionOperation' (strict: compiler error on extra/missing vs first relation).
@@ -20,7 +20,7 @@
 
   Macro Call Examples (default__):
     {{ prophecy_basics.UnionByName(['a', 'b'], [schema_a, schema_b], 'allowMissingColumns') }}
-    {{ prophecy_basics.UnionByName('a, b', [schema_a_json, schema_b_json], 'nameBasedUnionOperation') }}
+    {{ prophecy_basics.UnionByName(['a', 'b'], [schema_a_json, schema_b_json], 'nameBasedUnionOperation') }}
 
   CTE Usage Example:
     Macro call (first example above):

@@ -23,12 +23,12 @@
     Yes
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.DynamicSelect('my_table', schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
-    {{ prophecy_basics.DynamicSelect('my_table', schema, [], 'SELECT_EXPR', "column_name.startswith('id')") }}
+    {{ prophecy_basics.DynamicSelect(['my_table'], schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+    {{ prophecy_basics.DynamicSelect(['my_table'], schema, [], 'SELECT_EXPR', "column_name.startswith('id')") }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.DynamicSelect('my_table', schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+      {{ prophecy_basics.DynamicSelect(['my_table'], schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
 
     Resolved query (default__ — depends on schema; example when `id` is integer and `name` is string):
       SELECT `id`, `name` FROM my_table
@@ -175,7 +175,7 @@
   Dynamic column selection macro for DuckDB - handles both expression-based and type-based selection.
   
   Args:
-    relation_name: The table/relation to select from
+    relation_name (list): Relation identifier(s) to select from
     schema: List of column dictionaries with 'name' and 'dataType' keys
     targetTypes: List of data types to select (for SELECT_TYPES mode) - case-insensitive
     selectUsing: Selection mode - 'SELECT_EXPR' or 'SELECT_TYPES'
@@ -185,8 +185,8 @@
     SELECT statement with dynamically selected columns
   
   Examples:
-    SELECT_TYPES mode: {{ DynamicSelect(ref('my_table'), schema, ['STRING', 'INTEGER']) }}
-    SELECT_EXPR mode: {{ DynamicSelect(ref('my_table'), schema, [], 'SELECT_EXPR', "column_name like '%user%'") }}
+    SELECT_TYPES mode: {{ DynamicSelect([ref('my_table')], schema, ['STRING', 'INTEGER']) }}
+    SELECT_EXPR mode: {{ DynamicSelect([ref('my_table')], schema, [], 'SELECT_EXPR', "column_name like '%user%'") }}
 #}
 
     {%- set enriched_schema = [] -%}

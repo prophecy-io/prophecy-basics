@@ -24,12 +24,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.MultiColumnEdit('t', 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
-    {{ prophecy_basics.MultiColumnEdit('t', 'concat(column_name, column_value)', ['a','b'], ['a'], True, 'prefix', 'new_') }}
+    {{ prophecy_basics.MultiColumnEdit(['t'], 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+    {{ prophecy_basics.MultiColumnEdit(['t'], 'concat(column_name, column_value)', ['a','b'], ['a'], True, 'prefix', 'new_') }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.MultiColumnEdit('t', 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+      {{ prophecy_basics.MultiColumnEdit(['t'], 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
 
     Resolved query (default__):
       select

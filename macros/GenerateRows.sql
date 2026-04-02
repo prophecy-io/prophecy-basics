@@ -8,7 +8,7 @@
   rule stops.
 
   Parameters:
-    - relation_name: Source table(s) or None/empty for generator-only.
+    - relation_name (list): Source relation identifier(s); use `[]` for generator-only (no source table).
     - schema: Used with prophecy_basics.column_exists_in_schema for EXCEPT of original column.
     - init_expr, condition_expr, loop_expr: Generator expressions (column_name references the iterated column).
     - column_name: Logical name of the generated column (unquoted for internal __gen_ col).
@@ -22,12 +22,12 @@
     Yes
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.GenerateRows(ref('seed'), schema, '1', 'value <= 10', 'value + 1', 'value', 1000, 'recursive') }}
-    {{ prophecy_basics.GenerateRows(none, '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
+    {{ prophecy_basics.GenerateRows([ref('seed')], schema, '1', 'value <= 10', 'value + 1', 'value', 1000, 'recursive') }}
+    {{ prophecy_basics.GenerateRows([], '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
 
   CTE Usage Example:
     Macro call (second example above — standalone sequence, no source table):
-      {{ prophecy_basics.GenerateRows(none, '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
+      {{ prophecy_basics.GenerateRows([], '[]', '1', 'n <= 5', 'n + 1', 'n', 100, 'recursive') }}
 
     Resolved query (default__ — illustrative; internal column is `__gen_n`):
       with recursive gen as (

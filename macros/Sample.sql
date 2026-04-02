@@ -7,7 +7,7 @@
   sampling happens independently within each group.
 
   Parameters:
-    - relation_name: Single relation name string (unquoted in inner SQL for default__).
+    - relation_name (list): Source relation identifier(s) (e.g. `['src']`); joined in default__ inner SQL.
     - groupCols (list): Partition columns; [] samples whole table.
     - randomSeed: Seed for rand() / deterministic random modes (default 42).
     - currentModeSelection: 'firstN' | 'lastN' | 'skipN' | 'oneOfN' | 'oneInN' | 'randomN' | 'nPercent' | 'randomNPercent'.
@@ -20,12 +20,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.Sample('src', [], 42, 'firstN', 100) }}
-    {{ prophecy_basics.Sample('src', ['g'], 42, 'randomN', 50) }}
+    {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
+    {{ prophecy_basics.Sample(['src'], ['g'], 42, 'randomN', 50) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.Sample('src', [], 42, 'firstN', 100) }}
+      {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
 
     Resolved query (default__ — firstN, ungrouped):
       select * except (rn, random_rn, total_rows)

@@ -29,7 +29,7 @@
 
   Macro Call Example (default__ — all parameters; adjust flags for your case):
     {{ prophecy_basics.DataCleansing(
-        'my_table', schema, 'makeLowercase', ['email'],
+        ['my_table'], schema, 'makeLowercase', ['email'],
         True, 'NA', False, 0,
         True, False, False, False, False, False, False,
         False, '1970-01-01', False, '1970-01-01 00:00:00'
@@ -38,7 +38,7 @@
   CTE Usage Example:
     Macro call (see "Macro Call Example" above):
       {{ prophecy_basics.DataCleansing(
-          'my_table', schema, 'makeLowercase', ['email'],
+          ['my_table'], schema, 'makeLowercase', ['email'],
           True, 'NA', False, 0,
           True, False, False, False, False, False, False,
           False, '1970-01-01', False, '1970-01-01 00:00:00'

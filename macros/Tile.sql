@@ -7,7 +7,7 @@
   value combination, or custom bins from numeric cutoffs.
 
   Parameters:
-    - relation_name: Source table identifier (string; used raw in many branches).
+    - relation_name (list): Source relation identifier(s) (e.g. `['t']`); used raw in many branches after join.
     - tile_method: 'equal_sum_tile' | 'equal_records_tile' | 'smart_tile' | 'unique_value_tile' | 'manual_tile'.
     - num_tiles, sum_column: For sum/record tiles.
     - orderByRules (list[dict]): Window ORDER BY for Tile. Prophecy builds this from the same logical order as
@@ -31,7 +31,7 @@
       {'expr': '`order_date`', 'sort': 'asc'},
       {'expr': 'concat(`id`, `name`)', 'sort': 'desc_nulls_first'}
     ] %}
-    {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+    {{ prophecy_basics.Tile(['t'], 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
 
   CTE Usage Example:
     Macro call (orderByRules uses expr + sort — Prophecy maps orderByColumns to this list[dict]):
@@ -39,7 +39,7 @@
         {'expr': '`order_date`', 'sort': 'asc'},
         {'expr': 'concat(`id`, `name`)', 'sort': 'desc_nulls_first'}
       ] %}
-      {{ prophecy_basics.Tile('t', 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
+      {{ prophecy_basics.Tile(['t'], 'equal_records_tile', 4, '', orderByRules, ['g'], '', 'no_output_column_smartTile', [], '', [], '', 'id, name, amt') }}
 
     Resolved query (default__ — equal_records_tile; illustrative window fragment; full statement depends on tile_method branch):
       -- Window ORDER BY from orderByRules:

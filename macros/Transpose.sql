@@ -20,11 +20,11 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.Transpose('t', ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
+    {{ prophecy_basics.Transpose(['t'], ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.Transpose('t', ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
+      {{ prophecy_basics.Transpose(['t'], ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
 
     Resolved query (default__):
       SELECT `id`, 'q1' AS `metric`, CAST(`q1` AS STRING) AS `amount` FROM t

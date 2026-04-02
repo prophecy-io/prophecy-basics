@@ -18,12 +18,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.WeightedAverage('t', 'score', 'w', 'wavg', []) }}
-    {{ prophecy_basics.WeightedAverage('t', 'amt', 'qty', 'wa', ['region']) }}
+    {{ prophecy_basics.WeightedAverage(['t'], 'score', 'w', 'wavg', []) }}
+    {{ prophecy_basics.WeightedAverage(['t'], 'amt', 'qty', 'wa', ['region']) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.WeightedAverage('t', 'score', 'w', 'wavg', []) }}
+      {{ prophecy_basics.WeightedAverage(['t'], 'score', 'w', 'wavg', []) }}
 
     Resolved query (default__):
       with base as (

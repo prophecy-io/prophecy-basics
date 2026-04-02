@@ -19,12 +19,12 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.XMLParse('t', 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
-    {{ prophecy_basics.XMLParse('t', 'xml_col', 'none', '', '') }}
+    {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
+    {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'none', '', '') }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.XMLParse('t', 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
+      {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
 
     Resolved query (default__):
       select

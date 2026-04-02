@@ -29,17 +29,17 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.RecordID('t', 'incremental', 'rid', 'string', 10, 1, 'tableLevel', 'last_column', [], []) }}
-    {{ prophecy_basics.RecordID('t', 'uuid', 'uid', 'string', 0, 1, 'tableLevel', 'first_column', [], []) }}
+    {{ prophecy_basics.RecordID(['t'], 'incremental', 'rid', 'string', 10, 1, 'tableLevel', 'last_column', [], []) }}
+    {{ prophecy_basics.RecordID(['t'], 'uuid', 'uid', 'string', 0, 1, 'tableLevel', 'first_column', [], []) }}
     {% set orders = [
       {'expression': {'expression': '`event_ts`'}, 'sortType': 'asc'},
       {'expression': {'expression': 'concat(`region`, `id`)'}, 'sortType': 'desc'}
     ] %}
-    {{ prophecy_basics.RecordID('t', 'incremental', 'rid', 'string', 10, 1, 'groupLevel', 'last_column', ['region'], orders) }}
+    {{ prophecy_basics.RecordID(['t'], 'incremental', 'rid', 'string', 10, 1, 'groupLevel', 'last_column', ['region'], orders) }}
 
   CTE Usage Example:
     Macro call (first example — tableLevel; empty orders; window order by 1):
-      {{ prophecy_basics.RecordID('t', 'incremental', 'rid', 'string', 10, 1, 'tableLevel', 'last_column', [], []) }}
+      {{ prophecy_basics.RecordID(['t'], 'incremental', 'rid', 'string', 10, 1, 'tableLevel', 'last_column', [], []) }}
 
     Resolved query (default__ — padded string id at end of row):
       with base as (
@@ -58,7 +58,7 @@
         {'expression': {'expression': '`event_ts`'}, 'sortType': 'asc'},
         {'expression': {'expression': 'concat(`region`, `id`)'}, 'sortType': 'desc'}
       ] %}
-      {{ prophecy_basics.RecordID('t', 'incremental', 'rid', 'string', 10, 1, 'groupLevel', 'last_column', ['region'], orders) }}
+      {{ prophecy_basics.RecordID(['t'], 'incremental', 'rid', 'string', 10, 1, 'groupLevel', 'last_column', ['region'], orders) }}
 
     Resolved query (default__):
       with base as (

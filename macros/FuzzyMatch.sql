@@ -23,12 +23,12 @@
     No
 
   Macro Call Examples (default__ — matchFields is a list of {matchFunction, columnName} objects):
-    {{ prophecy_basics.FuzzyMatch('src', 'PURGE', '', 'record_id', match_fields, 80, False) }}
-    {{ prophecy_basics.FuzzyMatch('src', 'MERGE', 'source_id', 'record_id', match_fields, 70, True) }}
+    {{ prophecy_basics.FuzzyMatch(['src'], 'PURGE', '', 'record_id', match_fields, 80, False) }}
+    {{ prophecy_basics.FuzzyMatch(['src'], 'MERGE', 'source_id', 'record_id', match_fields, 70, True) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.FuzzyMatch('src', 'PURGE', '', 'record_id', match_fields, 80, False) }}
+      {{ prophecy_basics.FuzzyMatch(['src'], 'PURGE', '', 'record_id', match_fields, 80, False) }}
 
     Resolved query (default__, PURGE):
       -- Multi-CTE statement: match_function → cross_join_data → impose_function_match →

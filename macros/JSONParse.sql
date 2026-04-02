@@ -20,13 +20,13 @@
     No
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
-    {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSampleRecord', '{"a":1}', '') }}
-    {{ prophecy_basics.JSONParse('t', '', 'none', '', '') }}
+    {{ prophecy_basics.JSONParse(['t'], 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
+    {{ prophecy_basics.JSONParse(['t'], 'payload', 'parseFromSampleRecord', '{"a":1}', '') }}
+    {{ prophecy_basics.JSONParse(['t'], '', 'none', '', '') }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.JSONParse('t', 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
+      {{ prophecy_basics.JSONParse(['t'], 'payload', 'parseFromSchema', '', '{"type":"struct","fields":[...]}') }}
 
     Resolved query (default__ — schema string shortened):
       select

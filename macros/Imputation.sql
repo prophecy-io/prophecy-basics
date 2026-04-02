@@ -24,12 +24,12 @@
     Yes
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.Imputation('t', schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
-    {{ prophecy_basics.Imputation('t', schema, ['x'], 'literal_match', '-1', 'user', '0', True, True) }}
+    {{ prophecy_basics.Imputation(['t'], schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
+    {{ prophecy_basics.Imputation(['t'], schema, ['x'], 'literal_match', '-1', 'user', '0', True, True) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.Imputation('t', schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
+      {{ prophecy_basics.Imputation(['t'], schema, ['amount'], 'null_val', '', 'median', '', False, False) }}
 
     Resolved query (default__ — single numeric column `amount`; schema drives types):
       WITH base AS (
