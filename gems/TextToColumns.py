@@ -296,7 +296,7 @@ class TextToColumns(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         # Handle delimiter with special characters
-        escaped_delimiter = re.escape(props.delimiter).replace("\\", "\\\\\\")
+        escaped_delimiter = re.escape(props.delimiter)
 
         arguments = [
             str(props.relation_name),
