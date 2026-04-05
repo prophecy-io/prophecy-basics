@@ -24,7 +24,7 @@
 
   Macro Call Examples (default__):
     {{ prophecy_basics.TextToColumns(['t'], 'payload', ',', 'splitColumns', 4, False, 'c', 'out', 'token') }}
-    {{ prophecy_basics.TextToColumns(['t'], 'payload', '|', 'splitRows', 1, False, '', '', 'part') }}
+    {{ prophecy_basics.TextToColumns(['t'], 'payload', '|', 'splitRows', 1, False, 'in', 'out', 'part') }}
 
   CTE Usage Example:
     Macro call (first example above):
