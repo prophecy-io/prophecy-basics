@@ -5,6 +5,6 @@
 select
     {{ column_list }}
 from {{ model }}
-where not(COALESCE({{ expression }}, FALSE))
+where not (coalesce({{ expression }}, false))
 
 {% endtest %}
