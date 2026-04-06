@@ -11,7 +11,7 @@ from pyspark.sql.functions import lpad, expr, row_number, lit, col
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -327,7 +327,7 @@ class RecordID(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         order_rules: List[dict] = [
-            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
+            {"expression": {"expression": expr}, "sortType": r.sortType}
             for r in props.orders
             for expr in [(r.expression.expression or "").strip()]
             if expr

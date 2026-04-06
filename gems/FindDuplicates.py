@@ -10,7 +10,7 @@ from pyspark.sql.functions import row_number, count, lit, expr
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -450,7 +450,7 @@ class FindDuplicates(MacroSpec):
             schema_columns.append(js["name"])
 
         order_rules: List[dict] = [
-            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
+            {"expression": {"expression": expr}, "sortType": r.sortType}
             for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty

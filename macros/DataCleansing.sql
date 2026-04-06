@@ -1,3 +1,62 @@
+{#
+  DataCleansing Macro Gem
+  =======================
+
+  Cleans and standardizes your dataset: optionally remove rows where every field
+  is empty, fill missing text and numbers, trim and fix whitespace, strip letters,
+  punctuation, or digits where configured, change case, and substitute default
+  dates or timestamps. Only the columns you list are transformed; the rest stay
+  as-is.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - schema (list): Column metadata with name and dataType (used for typing and column order).
+    - modifyCase (string): For string columns — '' (no change), 'makeLowercase', 'makeUppercase', 'makeTitlecase'.
+    - columnNames (list): Columns to transform; [] returns SELECT * FROM cleansed_data only.
+    - replaceNullTextFields, replaceNullTextWith: COALESCE strings to replaceNullTextWith.
+    - replaceNullForNumericFields, replaceNullNumericWith: COALESCE numeric types.
+    - trimWhiteSpace, removeTabsLineBreaksAndDuplicateWhitespace, allWhiteSpace: string whitespace handling.
+    - cleanLetters, cleanPunctuations, cleanNumbers: REGEXP_REPLACE-based string cleaning (string columns).
+    - removeRowNullAllCols (bool): WHERE col IS NOT NULL OR ... for all schema columns.
+    - replaceNullDateFields, replaceNullDateWith, replaceNullTimeFields, replaceNullTimeWith: date/timestamp COALESCE.
+
+  Adapter Support:
+    - default__ (Databricks/Spark-style backticks; REGEXP_REPLACE patterns as implemented)
+    - snowflake__, duckdb__, bigquery__ (see respective implementations for type names and regex).
+
+  Depends on schema parameter:
+    Yes
+
+  Macro Call Example (default__ — all parameters; adjust flags for your case):
+    {{ prophecy_basics.DataCleansing(
+        ['my_table'], schema, 'makeLowercase', ['email'],
+        True, 'NA', False, 0,
+        True, False, False, False, False, False, False,
+        False, '1970-01-01', False, '1970-01-01 00:00:00'
+    ) }}
+
+  CTE Usage Example:
+    Macro call (see "Macro Call Example" above):
+      {{ prophecy_basics.DataCleansing(
+          ['my_table'], schema, 'makeLowercase', ['email'],
+          True, 'NA', False, 0,
+          True, False, False, False, False, False, False,
+          False, '1970-01-01', False, '1970-01-01 00:00:00'
+      ) }}
+
+    Resolved query (default__ — illustrative; schema has `id` and `email` (string); only `email` in columnNames; removeRowNullAllCols false):
+      WITH cleansed_data AS (
+          SELECT * FROM `my_table`
+      )
+      SELECT
+          `id`,
+          CAST(
+              LOWER(
+                  LTRIM(RTRIM(COALESCE(`email`, 'NA')))
+              ) AS string
+          ) AS `email`
+      FROM cleansed_data
+#}
 {% macro DataCleansing(relation_name,
         schema,
         modifyCase,

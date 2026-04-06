@@ -1,3 +1,67 @@
+{#
+  FindDuplicates Macro Gem
+  ========================
+
+  Finds duplicate rows or keeps unique rows within groups you define: it ranks
+  rows by your keys and sort order, then returns only the slice you want—such as
+  all but one copy, only duplicates, or rows whose group size matches a rule.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - groupByColumnNames (list): PARTITION BY columns when generationMethod is not "allCols".
+    - column_group_rownum_condition: "between" | "equal_to" | "not_equal_to" | "less_than" | "greater_than"
+        (used with lower_limit/upper_limit or grouped_count_rownum as applicable).
+    - output_type (string): "unique" (row_num = 1), "duplicate" (row_num > 1),
+        "custom_row_number" (filter row_num), "custom_group_count" (filter group_count).
+    - grouped_count_rownum, lower_limit, upper_limit: Thresholds for custom_* modes.
+    - generationMethod (string): "allCols" — partition by all schema_columns; else use groupByColumnNames.
+    - schema_columns (list): All column names for SELECT EXCEPT / partition-all mode.
+    - orderByColumns (list[dict]): Same shape as Prophecy orderByColumns. Each item:
+        { "expression": { "expression": "<SQL expression>" }, "sortType": "<sort>" }
+        expression is raw SQL (e.g. `col1`, concat(`a`,`b`)). sortType: asc, desc, asc_nulls_last,
+        desc_nulls_first (else treated as desc). Ignored when generationMethod is "allCols" (window uses ORDER BY 1).
+        Empty list → ORDER BY 1 in the row_number window.
+
+  Adapter Support:
+    - default__ (row_number, * EXCEPT), snowflake__ (ROW_NUMBER, EXCLUDE), duckdb__ (quoted schema columns on filter)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+    {% set orderByColumns = [
+      {'expression': {'expression': '`created_at`'}, 'sortType': 'desc'},
+      {'expression': {'expression': 'concat(`c1`, `c2`)'}, 'sortType': 'asc_nulls_last'}
+    ] %}
+    {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
+
+  CTE Usage Example:
+    Macro call (first example — empty orderByColumns):
+      {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], []) }}
+
+    Resolved query (default__ — duplicate rows by id; ORDER BY 1):
+      WITH select_cte1 AS (
+          SELECT *, row_number() OVER (PARTITION BY `id` ORDER BY 1) AS row_num FROM src
+      )
+      SELECT * EXCEPT(row_num) FROM select_cte1 WHERE row_num > 1
+
+    Macro call (second example — orderByColumns with expression + sortType):
+      {% set orderByColumns = [
+        {'expression': {'expression': '`created_at`'}, 'sortType': 'desc'},
+        {'expression': {'expression': 'concat(`c1`, `c2`)'}, 'sortType': 'asc_nulls_last'}
+      ] %}
+      {{ prophecy_basics.FindDuplicates(['src'], ['id'], 'equal_to', 'duplicate', 1, 1, 1, 'groupBy', ['c1','c2'], orderByColumns) }}
+
+    Resolved query (default__):
+      WITH select_cte1 AS (
+          SELECT *, row_number() OVER (
+              PARTITION BY `id`
+              ORDER BY `created_at` desc, concat(`c1`, `c2`) asc nulls last
+          ) AS row_num FROM src
+      )
+      SELECT * EXCEPT(row_num) FROM select_cte1 WHERE row_num > 1
+#}
 {% macro FindDuplicates(relation_name,
     groupByColumnNames,
     column_group_rownum_condition,

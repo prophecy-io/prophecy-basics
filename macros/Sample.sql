@@ -1,3 +1,43 @@
+{#
+  Sample Macro Gem
+  ================
+
+  Reduces a large table to a subset of rows: take the first or last N, skip N,
+  systematic or random picks, or an exact percentage—with optional grouping so
+  sampling happens independently within each group.
+
+  Parameters:
+    - relation_name (list): Source relation identifier(s) (e.g. `['src']`); joined in default__ inner SQL.
+    - groupCols (list): Partition columns; [] samples whole table.
+    - randomSeed: Seed for rand() / deterministic random modes (default 42).
+    - currentModeSelection: 'firstN' | 'lastN' | 'skipN' | 'oneOfN' | 'oneInN' | 'randomN' | 'nPercent' | 'randomNPercent'.
+    - numberN: Count N or percent depending on mode (defaults 100 or 10 for percent modes).
+
+  Adapter Support:
+    - default__ (Spark * except), bigquery__ (FARM_FINGERPRINT, MOD), snowflake__ (* exclude)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
+    {{ prophecy_basics.Sample(['src'], ['g'], 42, 'randomN', 50) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
+
+    Resolved query (default__ — firstN, ungrouped):
+      select * except (rn, random_rn, total_rows)
+      from (
+          select *,
+              row_number() over (order by 1) as rn,
+              row_number() over (order by rand(42)) as random_rn,
+              count(*) over () as total_rows
+          from src
+      ) numbered_data
+      where rn <= 100
+#}
 {% macro Sample(relation_name,
     groupCols,
     randomSeed,

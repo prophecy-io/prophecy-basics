@@ -1,3 +1,41 @@
+{#
+  DynamicSelect Macro Gem
+  =======================
+
+  Picks which columns to pull from a table before the rest of your pipeline runs:
+  either by data type (for example "give me all strings and integers") or by a
+  rule you write so only matching columns are included.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - schema (list of dicts): Each column has at least name, dataType; column_index is added internally.
+    - targetTypes (list): Logical types to keep when selectUsing is not SELECT_EXPR
+        (default__ compares column["dataType"] to this list — use names as in your schema).
+    - selectUsing (string): "SELECT_TYPES" — include column if dataType in targetTypes;
+        "SELECT_EXPR" — evaluate customExpression per column.
+    - customExpression (string): Python expression; placeholders replaced per column:
+        column_name, column_type, field_number (as string). Must evaluate to "True" to include column.
+
+  Adapter Support:
+    - default__ (backtick identifiers), snowflake__ (type remap + quote_identifier), duckdb__ (case-insensitive types)
+
+  Depends on schema parameter:
+    Yes
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.DynamicSelect(['my_table'], schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+    {{ prophecy_basics.DynamicSelect(['my_table'], schema, [], 'SELECT_EXPR', "column_name.startswith('id')") }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.DynamicSelect(['my_table'], schema, ['string', 'integer'], 'SELECT_TYPES', '') }}
+
+    Resolved query (default__ — depends on schema; example when `id` is integer and `name` is string):
+      SELECT `id`, `name` FROM my_table
+
+    Resolved query (default__ — when no column dataTypes match targetTypes):
+      SELECT NULL AS no_columns_matched FROM my_table
+#}
 {% macro DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
     {{ return(adapter.dispatch('DynamicSelect', 'prophecy_basics')(relation_name, schema, targetTypes, selectUsing, customExpression)) }}
 {% endmacro %}
@@ -137,7 +175,7 @@
   Dynamic column selection macro for DuckDB - handles both expression-based and type-based selection.
   
   Args:
-    relation_name: The table/relation to select from
+    relation_name (list): Relation identifier(s) to select from
     schema: List of column dictionaries with 'name' and 'dataType' keys
     targetTypes: List of data types to select (for SELECT_TYPES mode) - case-insensitive
     selectUsing: Selection mode - 'SELECT_EXPR' or 'SELECT_TYPES'
@@ -147,8 +185,8 @@
     SELECT statement with dynamically selected columns
   
   Examples:
-    SELECT_TYPES mode: {{ DynamicSelect(ref('my_table'), schema, ['STRING', 'INTEGER']) }}
-    SELECT_EXPR mode: {{ DynamicSelect(ref('my_table'), schema, [], 'SELECT_EXPR', "column_name like '%user%'") }}
+    SELECT_TYPES mode: {{ DynamicSelect([ref('my_table')], schema, ['STRING', 'INTEGER']) }}
+    SELECT_EXPR mode: {{ DynamicSelect([ref('my_table')], schema, [], 'SELECT_EXPR', "column_name like '%user%'") }}
 #}
 
     {%- set enriched_schema = [] -%}

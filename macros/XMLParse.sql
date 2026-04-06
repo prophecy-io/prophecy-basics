@@ -1,3 +1,37 @@
+{#
+  XMLParse Macro Gem
+  ==================
+
+  Reads XML stored in a text column and expands it into a structured column you
+  can query, using a schema or a sample document—or leaves the table unchanged
+  when parsing is disabled.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - columnName: Column to parse; empty → SELECT *.
+    - parsingMethod: 'parseFromSchema' | 'parseFromSampleRecord' | 'none' / empty.
+    - sampleRecord, sampleSchema: XML sample or schema string for Spark from_xml.
+
+  Adapter Support:
+    - default__ (from_xml), snowflake__ (PARSE_XML), duckdb__ (pass-through SELECT *)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
+    {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'none', '', '') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.XMLParse(['t'], 'xml_col', 'parseFromSchema', '', '<root>...</root>') }}
+
+    Resolved query (default__):
+      select
+          *,
+          from_xml(`xml_col`, '<root>...</root>') as `xml_col_parsed`
+      from t
+#}
 {% macro XMLParse(relation_name,
     columnName,
     parsingMethod,

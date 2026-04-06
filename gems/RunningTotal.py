@@ -11,7 +11,7 @@ from pyspark.sql import functions as F
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -232,7 +232,7 @@ class RunningTotal(MacroSpec):
 
         order_rules: List[dict] = [
             {
-                "expression": {"expression": e, "format": r.expression.format},
+                "expression": {"expression": e},
                 "sortType": r.sortType,
             }
             for r in props.orderByColumns

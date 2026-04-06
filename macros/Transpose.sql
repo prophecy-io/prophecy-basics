@@ -1,3 +1,36 @@
+{#
+  Transpose Macro Gem
+  ===================
+
+  Turns wide data into long data: each chosen measure column becomes its own row
+  with a name column (which field it was) and a value column (the cell contents),
+  while key columns are repeated on every row.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - keyColumns (list): Identifier columns repeated in each union branch.
+    - dataColumns (list): Columns to unpivot; each becomes a row with literal name + CAST value AS STRING.
+    - nameColumn, valueColumn: Output column names for the unpivoted pair.
+    - schema, customNames: Reserved for future use in default__ (customNames unused in default__).
+
+  Adapter Support:
+    - default__ (backticks, CAST AS STRING), snowflake__, duckdb__ (CAST AS VARCHAR)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Transpose(['t'], ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.Transpose(['t'], ['id'], ['q1','q2'], 'metric', 'amount', [], false) }}
+
+    Resolved query (default__):
+      SELECT `id`, 'q1' AS `metric`, CAST(`q1` AS STRING) AS `amount` FROM t
+      UNION ALL
+      SELECT `id`, 'q2' AS `metric`, CAST(`q2` AS STRING) AS `amount` FROM t
+#}
 {% macro Transpose(relation_name,
         keyColumns,
         dataColumns,
