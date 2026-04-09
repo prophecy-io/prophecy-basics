@@ -368,15 +368,16 @@ class Tile(MacroSpec):
 
     def apply(self, props: TileProperties) -> str:
         # Generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        schema_columns = [js['name'] for js in json.loads(props.schema)]
-        schema_columns_str = ", ".join(schema_columns)
-
-        manual_tile_cutoff_list = (props.manual_tiles_cutoff).split(',')
 
         order_rules: List[dict] = [
-            {"expr": expr, "sort": r.sortType}
+            {
+                "expression": {
+                    "expression": expr,
+                    "format": r.expression.format or "sql",
+                },
+                "sortType": r.sortType,
+            }
             for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty
@@ -390,19 +391,19 @@ class Tile(MacroSpec):
             return f"'{val}'"
 
         arguments = [
-            safe_str(table_name),
+            str(props.relation_name),
+            safe_str(props.schema),
             safe_str(props.tile_method),
             safe_str(props.number_of_tiles),
             safe_str(props.sum_column_name),
-            safe_str(order_rules),
+            str(order_rules),
             safe_str(props.groupby_column_names),
             safe_str(props.smart_tile_column_name),
             safe_str(props.column_output_method_smartTile),
             safe_str(props.unique_value_column_name),
             safe_str(props.manual_tile_column_name),
-            safe_str(manual_tile_cutoff_list),
+            safe_str(props.manual_tiles_cutoff),
             safe_str(props.donot_split_tile_column_names),
-            safe_str(schema_columns_str)
         ]
 
         params = ",".join(arguments)
@@ -410,48 +411,76 @@ class Tile(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
-        raw_rel = parametersMap.get("relation_name") or ""
-        relation_name = (
-            json.loads(raw_rel.replace("'", '"'))
-            if raw_rel.strip().startswith("[")
-            else [s.strip() for s in raw_rel.lstrip("'").rstrip("'").split(",") if s.strip()]
-        )
+
+        def _load_json_value(raw: str, default):
+            raw = raw or ""
+            if raw == "":
+                return default
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return json.loads(raw.replace("'", '"'))
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _load_json_value(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
+        raw_rel = parametersMap.get("relation_name") or "[]"
+        raw_schema = parametersMap.get("schema") or ""
+        raw_order = parametersMap.get("orderByColumns") or "[]"
+        raw_group = parametersMap.get("groupby_column_names") or "[]"
+        raw_unique = parametersMap.get("unique_value_column_name") or "[]"
+        raw_donot_split = parametersMap.get("donot_split_tile_column_names") or "[]"
+
         return Tile.TileProperties(
-            relation_name=relation_name,
-            schema=parametersMap.get("schema"),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns").replace("'", '"')
-            ),
-            groupby_column_names=json.loads(
-                parametersMap.get("groupby_column_names").replace("'", '"')
-            ),
-            unique_value_column_name=json.loads(
-                parametersMap.get("unique_value_column_name").replace("'", '"')
-            ),
-            tile_method=parametersMap.get("tile_method").lstrip("'").rstrip("'"),
-            number_of_tiles=parametersMap.get("number_of_tiles").lstrip("'").rstrip("'"),
-            sum_column_name=parametersMap.get("sum_column_name").lstrip("'").rstrip("'"),
-            smart_tile_column_name=parametersMap.get("smart_tile_column_name").lstrip("'").rstrip("'"),
+            relation_name=_load_json_value(raw_rel, []),
+            schema=raw_schema.lstrip("'").rstrip("'"),
+            orderByColumns=_parse_order_columns(raw_order),
+            groupby_column_names=_load_json_value(raw_group, []),
+            unique_value_column_name=_load_json_value(raw_unique, []),
+            tile_method=(parametersMap.get("tile_method") or "''").lstrip("'").rstrip("'"),
+            number_of_tiles=(parametersMap.get("number_of_tiles") or "''").lstrip("'").rstrip("'"),
+            sum_column_name=(parametersMap.get("sum_column_name") or "''").lstrip("'").rstrip("'"),
+            smart_tile_column_name=(parametersMap.get("smart_tile_column_name") or "''").lstrip("'").rstrip("'"),
             column_output_method_smartTile=parametersMap.get(
-                "column_output_method_smartTile"
+                "column_output_method_smartTile", "''"
             ).lstrip("'").rstrip("'"),
             manual_tile_column_name=parametersMap.get(
-                "manual_tile_column_name"
+                "manual_tile_column_name", "''"
             ).lstrip("'").rstrip("'"),
-            manual_tiles_cutoff=parametersMap.get("manual_tiles_cutoff").lstrip("'").rstrip("'"),
-            donot_split_tile_column_names=json.loads(
-                parametersMap.get("donot_split_tile_column_names").replace("'", '"')
-            ),
+            manual_tiles_cutoff=(parametersMap.get("manual_tiles_cutoff") or "''").lstrip("'").rstrip("'"),
+            donot_split_tile_column_names=_load_json_value(raw_donot_split, []),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("orderByColumns", json.dumps(properties.orderByColumns)),
+                MacroParameter("orderByColumns", order_by_json),
                 MacroParameter("groupby_column_names", json.dumps(properties.groupby_column_names)),
                 MacroParameter("unique_value_column_name", json.dumps(properties.unique_value_column_name)),
                 MacroParameter("tile_method", str(properties.tile_method)),
@@ -478,4 +507,3 @@ class Tile(MacroSpec):
             relation_name=relation_name
         )
         return component.bindProperties(newProperties)
-
