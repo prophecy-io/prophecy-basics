@@ -416,31 +416,56 @@ class Tile(MacroSpec):
             if raw_rel.strip().startswith("[")
             else [s.strip() for s in raw_rel.lstrip("'").rstrip("'").split(",") if s.strip()]
         )
+
+        def _quoted_string(value: Optional[str], default: str = "") -> str:
+            raw = value if value is not None else default
+            return str(raw).lstrip("'").rstrip("'")
+
+        def _load_json_list(value: Optional[str], default: str = "[]"):
+            if isinstance(value, list):
+                return value
+            raw = value or default
+            return json.loads(str(raw).replace("'", '"'))
+
         return Tile.TileProperties(
             relation_name=relation_name,
-            schema=parametersMap.get("schema"),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns").replace("'", '"')
+            schema=parametersMap.get("schema") or "",
+            orderByColumns=_load_json_list(
+                parametersMap.get("orderByColumns")
+                or parametersMap.get("orderByRules")
             ),
-            groupby_column_names=json.loads(
-                parametersMap.get("groupby_column_names").replace("'", '"')
+            groupby_column_names=_load_json_list(parametersMap.get("groupby_column_names")),
+            unique_value_column_name=_load_json_list(
+                parametersMap.get("unique_value_column_name")
             ),
-            unique_value_column_name=json.loads(
-                parametersMap.get("unique_value_column_name").replace("'", '"')
+            tile_method=_quoted_string(
+                parametersMap.get("tile_method"), "equal_sum_tile"
             ),
-            tile_method=parametersMap.get("tile_method").lstrip("'").rstrip("'"),
-            number_of_tiles=parametersMap.get("number_of_tiles").lstrip("'").rstrip("'"),
-            sum_column_name=parametersMap.get("sum_column_name").lstrip("'").rstrip("'"),
-            smart_tile_column_name=parametersMap.get("smart_tile_column_name").lstrip("'").rstrip("'"),
-            column_output_method_smartTile=parametersMap.get(
-                "column_output_method_smartTile"
-            ).lstrip("'").rstrip("'"),
-            manual_tile_column_name=parametersMap.get(
-                "manual_tile_column_name"
-            ).lstrip("'").rstrip("'"),
-            manual_tiles_cutoff=parametersMap.get("manual_tiles_cutoff").lstrip("'").rstrip("'"),
-            donot_split_tile_column_names=json.loads(
-                parametersMap.get("donot_split_tile_column_names").replace("'", '"')
+            number_of_tiles=_quoted_string(
+                parametersMap.get("number_of_tiles")
+                or parametersMap.get("num_tiles")
+            ),
+            sum_column_name=_quoted_string(
+                parametersMap.get("sum_column_name")
+                or parametersMap.get("sum_column")
+            ),
+            smart_tile_column_name=_quoted_string(
+                parametersMap.get("smart_tile_column_name")
+                or parametersMap.get("tile_column")
+            ),
+            column_output_method_smartTile=_quoted_string(
+                parametersMap.get("column_output_method_smartTile"),
+                "no_output_column_smartTile",
+            ),
+            manual_tile_column_name=_quoted_string(
+                parametersMap.get("manual_tile_column_name")
+            ),
+            manual_tiles_cutoff=_quoted_string(
+                parametersMap.get("manual_tiles_cutoff")
+            ),
+            donot_split_tile_column_names=_load_json_list(
+                parametersMap.get("donot_split_tile_column_names")
+                or parametersMap.get("no_split_column_list")
             ),
         )
 

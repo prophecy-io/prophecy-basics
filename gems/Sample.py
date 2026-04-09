@@ -272,12 +272,31 @@ class Sample(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_int(value, default):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _parse_json_list(value, default_json):
+            if isinstance(value, list):
+                return value
+            raw = value or default_json
+            return json.loads(str(raw).replace("'", '"'))
+
+        # Keep backward compatibility with older macro signatures that use `groupCols`.
+        raw_data_columns = (
+            parametersMap.get("dataColumns")
+            or parametersMap.get("groupCols")
+            or "[]"
+        )
         props = Sample.SampleProperties(
-            relation_name=parametersMap.get("relation_name"),
-            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
-            randomSeed=int(parametersMap.get("randomSeed")),
-            currentModeSelection=parametersMap.get("currentModeSelection"),
-            numberN=int(parametersMap.get("numberN")),
+            relation_name=parametersMap.get("relation_name") or [],
+            dataColumns=_parse_json_list(raw_data_columns, "[]"),
+            randomSeed=_parse_int(parametersMap.get("randomSeed"), 1002),
+            currentModeSelection=parametersMap.get("currentModeSelection") or "firstN",
+            numberN=_parse_int(parametersMap.get("numberN"), 80),
         )
         return props
 
