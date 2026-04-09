@@ -248,36 +248,61 @@ class Sample(MacroSpec):
 
     def apply(self, props: SampleProperties) -> str:
         # generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-        # Get existing column names
         resolved_macro_name = f"{self.projectName}.{self.name}"
         if props.sampleLevelSelection == "sampleDataset":
             dataColumns = []
         else:
             dataColumns = props.dataColumns
+
+        def safe_str(val):
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, list):
+                return str(val)
+            return f"'{val}'"
+
         non_empty_param = ",".join(
             [
-                "'" + table_name + "'",
-                str(dataColumns),
+                str(props.relation_name),
+                safe_str(props.schema),
+                safe_str(props.sampleLevelSelection),
+                safe_str(dataColumns),
                 str(props.randomSeed),
-                f"'{props.currentModeSelection}'",
+                safe_str(props.currentModeSelection),
                 str(props.numberN),
-                ]
+            ]
         )
-        print(f"[DEBUG_DEBUG] APPLY METHOD PARAMS = { non_empty_param }")
 
-        # Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN)
         return f"{{{{ {resolved_macro_name}({non_empty_param}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _load_json_value(raw: str, default):
+            raw = raw or ""
+            if raw == "":
+                return default
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return json.loads(raw.replace("'", '"'))
+
+        data_columns = _load_json_value(parametersMap.get("dataColumns"), [])
+        sample_level_selection = (
+            (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
+        )
+        if sample_level_selection == "":
+            sample_level_selection = "sampleGroup" if data_columns else "sampleDataset"
+
         props = Sample.SampleProperties(
-            relation_name=parametersMap.get("relation_name"),
-            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
-            randomSeed=int(parametersMap.get("randomSeed")),
-            currentModeSelection=parametersMap.get("currentModeSelection"),
-            numberN=int(parametersMap.get("numberN")),
+            relation_name=_load_json_value(parametersMap.get("relation_name"), []),
+            schema=(parametersMap.get("schema") or "").lstrip("'").rstrip("'"),
+            sampleLevelSelection=sample_level_selection,
+            dataColumns=data_columns,
+            randomSeed=int(str(parametersMap.get("randomSeed", 1002)).lstrip("'").rstrip("'")),
+            currentModeSelection=(parametersMap.get("currentModeSelection") or "''").lstrip("'").rstrip("'"),
+            numberN=int(str(parametersMap.get("numberN", 80)).lstrip("'").rstrip("'")),
         )
         return props
 
@@ -287,17 +312,28 @@ class Sample(MacroSpec):
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("schema", str(properties.schema)),
+                MacroParameter("sampleLevelSelection", str(properties.sampleLevelSelection)),
                 MacroParameter("dataColumns", json.dumps(properties.dataColumns)),
                 MacroParameter("randomSeed", str(properties.randomSeed)),
-                MacroParameter("currentModeSelection", properties.currentModeSelection),
+                MacroParameter("currentModeSelection", str(properties.currentModeSelection)),
                 MacroParameter("numberN", str(properties.numberN)),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
         return replace(
             component,
-            properties=replace(component.properties, relation_name=relation_name),
+            properties=replace(
+                component.properties,
+                relation_name=relation_name,
+                schema=json.dumps(fields_array),
+            ),
         )
