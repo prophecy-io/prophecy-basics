@@ -8,7 +8,9 @@
 
   Parameters:
     - relation_name (list): Source relation identifier(s) (e.g. `['src']`); joined in default__ inner SQL.
-    - groupCols (list): Partition columns; [] samples whole table.
+    - schema (string): JSON-serialized upstream schema as stored on the Python properties object.
+    - sampleLevelSelection (string): 'sampleDataset' or 'sampleGroup'; carried for round-trip reconstruction.
+    - dataColumns (list): Partition columns; [] samples whole table.
     - randomSeed: Seed for rand() / deterministic random modes (default 42).
     - currentModeSelection: 'firstN' | 'lastN' | 'skipN' | 'oneOfN' | 'oneInN' | 'randomN' | 'nPercent' | 'randomNPercent'.
     - numberN: Count N or percent depending on mode (defaults 100 or 10 for percent modes).
@@ -17,15 +19,15 @@
     - default__ (Spark * except), bigquery__ (FARM_FINGERPRINT, MOD), snowflake__ (* exclude)
 
   Depends on schema parameter:
-    No
+    Yes
 
   Macro Call Examples (default__):
-    {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
-    {{ prophecy_basics.Sample(['src'], ['g'], 42, 'randomN', 50) }}
+    {{ prophecy_basics.Sample(['src'], '[{"name": "id"}]', 'sampleDataset', [], 42, 'firstN', 100) }}
+    {{ prophecy_basics.Sample(['src'], '[{"name": "id"}, {"name": "g"}]', 'sampleGroup', ['g'], 42, 'randomN', 50) }}
 
   CTE Usage Example:
     Macro call (first example above):
-      {{ prophecy_basics.Sample(['src'], [], 42, 'firstN', 100) }}
+      {{ prophecy_basics.Sample(['src'], '[{"name": "id"}]', 'sampleDataset', [], 42, 'firstN', 100) }}
 
     Resolved query (default__ — firstN, ungrouped):
       select * except (rn, random_rn, total_rows)
@@ -39,30 +41,36 @@
       where rn <= 100
 #}
 {% macro Sample(relation_name,
-    groupCols,
+    schema,
+    sampleLevelSelection,
+    dataColumns,
     randomSeed,
     currentModeSelection,
     numberN) -%}
     {{ return(adapter.dispatch('Sample', 'prophecy_basics')(relation_name,
-    groupCols,
+    schema,
+    sampleLevelSelection,
+    dataColumns,
     randomSeed,
     currentModeSelection,
     numberN)) }}
 {% endmacro %}
 
-{%- macro default__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+{%- macro default__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{% set relation_sql = relation_list | join(', ') %}
 
-{%- if groupCols | length > 0 -%}
+{%- if dataColumns | length > 0 -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (partition by " ~ groupCols | join(', ') ~ " order by " ~ groupCols | join(', ') ~ ") as rn,
-            row_number() over (partition by " ~ groupCols | join(', ') ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
-            count(*) over (partition by " ~ groupCols | join(', ') ~ ") as group_rows,
+            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by " ~ dataColumns | join(', ') ~ ") as rn,
+            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
+            count(*) over (partition by " ~ dataColumns | join(', ') ~ ") as group_rows,
             count(*) over () as total_rows
-        from " ~ relation_name
+        from " ~ relation_sql
         -%}
 {%- else -%}
     {%- set innerQuery = "
@@ -70,13 +78,13 @@
             row_number() over (order by 1) as rn,
             row_number() over (order by rand(" ~ seed_value ~ ")) as random_rn,
             count(*) over () as total_rows
-        from " ~ relation_name
+        from " ~ relation_sql
         -%}
 {%- endif -%}
 
 {%- if currentModeSelection == 'firstN' -%}
     -- Get first N rows
-    select * except (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * except (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
@@ -84,16 +92,16 @@
 
 {%- elif currentModeSelection == 'lastN' -%}
     -- Get last N rows
-    select * except (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * except (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
-    where {%- if groupCols | length > 0 %} rn > greatest(0, group_rows - {{ sample_size }}) {%- else %} rn > greatest(0, total_rows - {{ sample_size }}) {%- endif %}
+    where {%- if dataColumns | length > 0 %} rn > greatest(0, group_rows - {{ sample_size }}) {%- else %} rn > greatest(0, total_rows - {{ sample_size }}) {%- endif %}
     order by rn
 
 {%- elif currentModeSelection == 'skipN' -%}
     -- Skip first N rows, return the rest
-    select * except (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * except (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
@@ -102,7 +110,7 @@
 {%- elif currentModeSelection == 'oneOfN' -%}
     -- Take the first row of every group of N rows (1 of every N rows)
     -- This returns rows 1, N+1, 2N+1, etc.
-    select * except (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * except (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
@@ -111,7 +119,7 @@
 {%- elif currentModeSelection == 'oneInN' -%}
     -- Take every Nth row (deterministic): rows N, 2N, 3N, etc.
     -- This replicates Alteryx behavior of systematic sampling
-    select * except (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * except (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
@@ -119,7 +127,7 @@
 
 {%- elif currentModeSelection == 'randomN' -%}
     -- Get N random rows (seeded for reproducibility)
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         -- For grouped data, take N random rows from each group
         select * except (rn, random_rn, total_rows, group_rows)
         from (
@@ -143,7 +151,7 @@
         {% set percent_val = 100 %}
     {% endif %}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         -- For grouped data, take N% from each group
         select * except (rn, random_rn, total_rows, group_rows)
         from (
@@ -166,7 +174,7 @@
         {% set percent_val = 100 %}
     {% endif %}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         -- For grouped data, take N% random rows from each group
         select * except (rn, random_rn, total_rows, group_rows)
         from (
@@ -189,19 +197,21 @@
 
 {%- endmacro -%}
 
-{%- macro bigquery__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+{%- macro bigquery__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
+{% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+{% set relation_sql = relation_list | join(', ') %}
 
-{%- if groupCols is string -%}
-    {%- set groupCols = fromjson(groupCols) -%}
+{%- if dataColumns is string -%}
+    {%- set dataColumns = fromjson(dataColumns) -%}
 {%- endif -%}
 
 {%- set bt = "`" -%}
 {%- set ns = namespace(quoted_group_cols='') -%}
-{%- if groupCols and groupCols | length > 0 -%}
-    {%- for col in groupCols -%}
+{%- if dataColumns and dataColumns | length > 0 -%}
+    {%- for col in dataColumns -%}
         {%- if loop.first -%}
             {%- set ns.quoted_group_cols = bt ~ col ~ bt -%}
         {%- else -%}
@@ -212,12 +222,12 @@
 {%- set quoted_group_cols = ns.quoted_group_cols -%}
 
 {%- if currentModeSelection == 'firstN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn <= {{ sample_size }}
     {%- else -%}
@@ -225,20 +235,20 @@
         from (
             select *,
                 row_number() over (order by 1) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn <= {{ sample_size }}
     {%- endif -%}
 
 {%- elif currentModeSelection == 'lastN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn, group_rows, total_rows)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
                 count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn > greatest(0, group_rows - {{ sample_size }})
         order by rn
@@ -248,19 +258,19 @@
             select *,
                 row_number() over (order by 1) as rn,
                 count(*) over () as total_rows
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn > greatest(0, total_rows - {{ sample_size }})
         order by rn
     {%- endif -%}
 
 {%- elif currentModeSelection == 'skipN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn > {{ sample_size }}
     {%- else -%}
@@ -268,18 +278,18 @@
         from (
             select *,
                 row_number() over (order by 1) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn > {{ sample_size }}
     {%- endif -%}
 
 {%- elif currentModeSelection == 'oneOfN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where MOD(rn - 1, greatest(1, {{ sample_size }})) = 0
     {%- else -%}
@@ -287,18 +297,18 @@
         from (
             select *,
                 row_number() over (order by 1) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where MOD(rn - 1, greatest(1, {{ sample_size }})) = 0
     {%- endif -%}
 
 {%- elif currentModeSelection == 'oneInN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where MOD(rn, greatest(1, {{ sample_size }})) = 0
     {%- else -%}
@@ -306,13 +316,13 @@
         from (
             select *,
                 row_number() over (order by 1) as rn
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where MOD(rn, greatest(1, {{ sample_size }})) = 0
     {%- endif -%}
 
 {%- elif currentModeSelection == 'randomN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn, random_rn, group_rows, total_rows)
         from (
             select *,
@@ -320,7 +330,7 @@
                 row_number() over (partition by {{ quoted_group_cols }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
                 count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
-            from {{ relation_name }} as t
+            from {{ relation_sql }} as t
         ) numbered_data
         where random_rn <= least({{ sample_size }}, group_rows)
     {%- else -%}
@@ -330,7 +340,7 @@
                 row_number() over (order by 1) as rn,
                 row_number() over (order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
                 count(*) over () as total_rows
-            from {{ relation_name }} as t
+            from {{ relation_sql }} as t
         ) numbered_data
         where random_rn <= least({{ sample_size }}, total_rows)
     {%- endif -%}
@@ -341,14 +351,14 @@
         {% set percent_val = 100 %}
     {% endif %}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn, group_rows, total_rows)
         from (
             select *,
                 row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
                 count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn <= ceiling(group_rows * {{ percent_val }} / 100.0)
     {%- else -%}
@@ -357,7 +367,7 @@
             select *,
                 row_number() over (order by 1) as rn,
                 count(*) over () as total_rows
-            from {{ relation_name }}
+            from {{ relation_sql }}
         ) numbered_data
         where rn <= ceiling(total_rows * {{ percent_val }} / 100.0)
     {%- endif -%}
@@ -368,7 +378,7 @@
         {%- set percent_val = 100 -%}
     {%- endif -%}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * except (rn, random_rn, group_rows, total_rows)
         from (
             select *,
@@ -376,7 +386,7 @@
                 row_number() over (partition by {{ quoted_group_cols }} order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
                 count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
-            from {{ relation_name }} as t
+            from {{ relation_sql }} as t
         ) numbered_data
         where random_rn <= ceiling(group_rows * {{ percent_val }} / 100.0)
     {%- else -%}
@@ -386,7 +396,7 @@
                 row_number() over (order by 1) as rn,
                 row_number() over (order by FARM_FINGERPRINT(CONCAT(TO_JSON_STRING(STRUCT(t)), '-', CAST({{ seed_value }} AS STRING)))) as random_rn,
                 count(*) over () as total_rows
-            from {{ relation_name }} as t
+            from {{ relation_sql }} as t
         ) numbered_data
         where random_rn <= ceiling(total_rows * {{ percent_val }} / 100.0)
     {%- endif -%}
@@ -397,14 +407,14 @@
 
 {%- endmacro -%}
 
-{%- macro snowflake__Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN) -%}
+{%- macro snowflake__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
 
-{# Parse groupCols if string (e.g. from JSON) #}
-{%- if groupCols is string -%}
-    {%- set groupCols = fromjson(groupCols) -%}
+{# Parse dataColumns if string (e.g. from JSON) #}
+{%- if dataColumns is string -%}
+    {%- set dataColumns = fromjson(dataColumns) -%}
 {%- endif -%}
 
 {# Normalize relation name #}
@@ -412,15 +422,15 @@
 
 {# Build quoted group columns list - Following CountRecords pattern #}
 {%- set quoted_cols = [] -%}
-{%- if groupCols and groupCols | length > 0 -%}
-    {% for col in groupCols %}
+{%- if dataColumns and dataColumns | length > 0 -%}
+    {% for col in dataColumns %}
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
         {%- do quoted_cols.append(quoted_col) -%}
     {% endfor %}
 {%- endif -%}
 {%- set quoted_group_cols = quoted_cols | join(', ') -%}
 
-{%- if groupCols | length > 0 -%}
+{%- if dataColumns | length > 0 -%}
     {%- set innerQuery = "
         select *,
             row_number() over (partition by " ~ quoted_group_cols ~ " order by " ~ quoted_group_cols ~ ") as rn,
@@ -440,43 +450,43 @@
 {%- endif -%}
 
 {%- if currentModeSelection == 'firstN' -%}
-    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * exclude (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
     where rn <= {{ sample_size }}
 
 {%- elif currentModeSelection == 'lastN' -%}
-    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * exclude (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
-    where {%- if groupCols | length > 0 %} rn > greatest(0, group_rows - {{ sample_size }}) {%- else %} rn > greatest(0, total_rows - {{ sample_size }}) {%- endif %}
+    where {%- if dataColumns | length > 0 %} rn > greatest(0, group_rows - {{ sample_size }}) {%- else %} rn > greatest(0, total_rows - {{ sample_size }}) {%- endif %}
     order by rn
 
 {%- elif currentModeSelection == 'skipN' -%}
-    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * exclude (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
     where rn > {{ sample_size }}
 
 {%- elif currentModeSelection == 'oneOfN' -%}
-    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * exclude (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
     where mod(rn - 1, greatest(1, {{ sample_size }})) = 0
 
 {%- elif currentModeSelection == 'oneInN' -%}
-    select * exclude (rn, random_rn, total_rows{%- if groupCols | length > 0 -%}, group_rows{%- endif -%})
+    select * exclude (rn, random_rn, total_rows{%- if dataColumns | length > 0 -%}, group_rows{%- endif -%})
     from (
         {{ innerQuery }}
     ) numbered_data
     where mod(rn, greatest(1, {{ sample_size }})) = 0
 
 {%- elif currentModeSelection == 'randomN' -%}
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * exclude (rn, random_rn, total_rows, group_rows)
         from (
             {{ innerQuery }}
@@ -496,7 +506,7 @@
         {% set percent_val = 100 %}
     {% endif %}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * exclude (rn, random_rn, total_rows, group_rows)
         from (
             {{ innerQuery }}
@@ -516,7 +526,7 @@
         {% set percent_val = 100 %}
     {% endif %}
 
-    {%- if groupCols | length > 0 -%}
+    {%- if dataColumns | length > 0 -%}
         select * exclude (rn, random_rn, total_rows, group_rows)
         from (
             {{ innerQuery }}
