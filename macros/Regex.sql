@@ -301,9 +301,9 @@
             from exploded_tokens
         )
         select
-            * except (token_value_new),
+            * except (token_value_new, token_position),
             token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_position as token_sequence
+            token_position
         from numbered_tokens
         {% if not allowBlankTokens %}
         where token_value_new != '' and token_value_new is not null
