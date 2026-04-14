@@ -146,7 +146,10 @@ class CountRecords(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = newState.ports.inputs[0].schema
+        if isinstance(schema, str):
+            schema = json.loads(schema)
+            
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
