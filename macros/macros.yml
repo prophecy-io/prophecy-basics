@@ -497,9 +497,6 @@ macros:
       - name: "errorIfNotMatched"
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
-      - name: "replaceOutputSuffix"
-        type: "value"
-        description: "{\"ProphecyType\": \"value\"}"
     macroType: "query"
   - name: "GenerateRows"
     arguments:
