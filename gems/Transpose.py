@@ -238,38 +238,32 @@ class Transpose(MacroSpec):
         return newState.bindProperties(newProperties)
 
     def apply(self, props: TransposeProperties) -> str:
-
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
-
-        # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         arguments = [
-            str(props.relation_name),
-            str(props.keyColumns),
-            str(props.dataColumns),
-            "'" + props.nameColumn + "'",
-            "'" + props.valueColumn + "'",
-            str(allColumnNames),
+            json.dumps(props.relation_name),
+            json.dumps(props.keyColumns),
+            json.dumps(props.dataColumns),
+            json.dumps(props.nameColumn),
+            json.dumps(props.valueColumn),
+            json.dumps(allColumnNames),
             str(props.customNames).lower(),
         ]
 
-        params = ",".join([param for param in arguments])
+        params = ",".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
-
-        # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
         return Transpose.TransposeProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=json.loads(parametersMap.get('relation_name')),
             schema=parametersMap.get("schema"),
-            nameColumn=parametersMap.get("nameColumn").lstrip("'").rstrip("'"),
-            valueColumn=parametersMap.get("valueColumn").lstrip("'").rstrip("'"),
-            keyColumns=json.loads(parametersMap.get("keyColumns").replace("'", '"')),
-            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
-            customNames=parametersMap.get("customNames").lower()
-            == "true",
+            nameColumn=json.loads(parametersMap.get("nameColumn")),
+            valueColumn=json.loads(parametersMap.get("valueColumn")),
+            keyColumns=json.loads(parametersMap.get("keyColumns")),
+            dataColumns=json.loads(parametersMap.get("dataColumns")),
+            customNames=parametersMap.get("customNames").lower() == "true",
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
