@@ -304,9 +304,9 @@
             from exploded_tokens
         )
         select
-            * except (token_value_new),
+            * except (token_value_new, token_position),
             token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_position as token_sequence
+            token_position
         from numbered_tokens
         {% if not allowBlankTokens %}
         where token_value_new != '' and token_value_new is not null
@@ -557,14 +557,14 @@
             SELECT
                 * EXCLUDE (split_tokens),
                 f.value::VARCHAR AS token_value_new,
-                f.index + 1 AS token_sequence
+                f.index + 1 AS token_position
             FROM regex_matches,
             LATERAL FLATTEN(input => split_tokens) f
         )
         SELECT
-            * EXCLUDE (token_value_new, token_sequence),
+            * EXCLUDE (token_value_new, token_position),
             token_value_new AS {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_sequence
+            token_position
         FROM exploded_tokens
         {% if not allowBlankTokens %}
         WHERE TRIM(COALESCE(token_value_new, '')) != '' AND token_value_new IS NOT NULL
@@ -849,7 +849,7 @@
         select
             numbered_tokens.* EXCEPT (token_value_new, token_position),
             numbered_tokens.token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            numbered_tokens.token_position as token_sequence
+            numbered_tokens.token_position
         from numbered_tokens
         {% if not allowBlankTokens %}
         where numbered_tokens.token_value_new != '' and numbered_tokens.token_value_new is not null
