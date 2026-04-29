@@ -1,9 +1,9 @@
 import dataclasses
 import datetime as dt
 import json
+import re
 
 from prophecy.cb.sql.MacroBuilderBase import *
-from prophecy_basics._macro_utils import get_relation_names
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
@@ -49,6 +49,21 @@ class DataCleansing(MacroSpec):
         replaceNullDateWith: str = "1970-01-01"
         replaceNullTimeFields: bool = False
         replaceNullTimeWith: str = "1970-01-01 00:00:00.0"
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         nullOpCheckBox = ColumnsLayout(gap="1rem", height="100%").addColumn(
@@ -310,7 +325,7 @@ class DataCleansing(MacroSpec):
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
         ]
-        relation_name = get_relation_names(newState, context)
+        relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
             newState.properties,
@@ -442,7 +457,7 @@ class DataCleansing(MacroSpec):
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
         ]
-        relation_name = get_relation_names(component, context)
+        relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
             component.properties,
