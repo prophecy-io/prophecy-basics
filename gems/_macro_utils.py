@@ -1,8 +1,6 @@
 # Shared relation-name resolution for MacroSpec gems.
-# Keep in sync with: prophecy/modules/common/core/src/main/resources/pyspark_sql_gems/_macro_utils.py
 
 import re
-
 
 def get_relation_names(component, context):
     """
@@ -22,7 +20,6 @@ def get_relation_names(component, context):
             upstream_label = _get_upstream_label(input_port, context)
             relation_names.append(upstream_label)
     return relation_names
-
 
 def _get_upstream_label(input_port, context):
     """Traverse graph connections to find the upstream node's label for a given input port."""
