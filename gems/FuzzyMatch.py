@@ -5,6 +5,7 @@ from collections import defaultdict
 from prophecy.cb.sql.Component import *
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
+from prophecy_basics._macro_utils import get_relation_names
 from prophecy.cb.ui.uispec import *
 import json
 
@@ -45,25 +46,6 @@ class FuzzyMatch(MacroSpec):
         includeSimilarityScore: bool = False
         matchFields: List[MatchField] = field(default_factory=list)
         relation_name: List[str] = field(default_factory=list)
-
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
         _matchFields = state.properties.matchFields
@@ -283,7 +265,7 @@ class FuzzyMatch(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        relation_name = self.get_relation_names(newState, context)
+        relation_name = get_relation_names(newState, context)
         newProperties = dataclasses.replace(
             newState.properties,
             relation_name=relation_name
@@ -366,7 +348,7 @@ class FuzzyMatch(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        relation_name = self.get_relation_names(component, context)
+        relation_name = get_relation_names(component, context)
         newProperties = dataclasses.replace(
             component.properties,
             relation_name=relation_name

@@ -3,6 +3,7 @@ import json
 
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
+from prophecy_basics._macro_utils import get_relation_names
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import *
 from pyspark.sql.functions import *
@@ -28,25 +29,6 @@ class UnionByName(MacroSpec):
         )  # labels of upstream nodes
         schemas: List[str] = field(default_factory=list)  # JSON strings, one per port
         missingColumnOps: str = "allowMissingColumns"
-
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
 
     def dialog(self) -> Dialog:
         return Dialog("Macro").addElement(
@@ -94,7 +76,7 @@ class UnionByName(MacroSpec):
     def onChange(self, context: SqlContext, oldState: Component, newState: Component):
         new_props = dataclasses.replace(
             newState.properties,
-            relation_name=self.get_relation_names(newState, context),
+            relation_name=get_relation_names(newState, context),
             schemas=self._extract_schemas(newState),
         )
         return newState.bindProperties(new_props)
@@ -137,7 +119,7 @@ class UnionByName(MacroSpec):
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         new_props = dataclasses.replace(
             component.properties,
-            relation_name=self.get_relation_names(component, context),
+            relation_name=get_relation_names(component, context),
             schemas=self._extract_schemas(component),
         )
         return component.bindProperties(new_props)
