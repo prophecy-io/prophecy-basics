@@ -159,11 +159,13 @@
                     {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
                 {%- endif -%}
         {%- else -%}
-            {# Case-insensitive match against the (Snowflake-remapped) target types #}
+            {# Case-insensitive match against either the original or Snowflake-remapped target types #}
             {%- set column_type_upper = (column["dataType"] or '') | upper -%}
             {%- set base_type_upper = (column["dataType"] or '').split('(')[0] | trim | upper -%}
             {%- set snowflake_target_types_upper = snowflake_target_types | map('upper') | list -%}
-            {%- if column_type_upper in snowflake_target_types_upper or base_type_upper in snowflake_target_types_upper -%}
+            {%- set original_target_types_upper = targetTypes | map('upper') | list -%}
+            {%- set all_target_types_upper = (snowflake_target_types_upper + original_target_types_upper) | unique | list -%}
+            {%- if column_type_upper in all_target_types_upper or base_type_upper in all_target_types_upper -%}
                 {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
             {%- endif -%}
         {%- endif -%}
