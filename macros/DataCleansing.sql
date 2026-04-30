@@ -160,15 +160,16 @@
 
     {% for col_name in columnNames %}
         {% set dtype = col_type_map.get(col_name) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
         {% set col_expr = bt ~ col_name ~ bt %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -201,10 +202,10 @@
         {% endif %}
 
         {# date / timestamp null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
 
@@ -298,14 +299,16 @@
         {{ log(col_type_map, info = True) }}
         {%- for col_name in columnNames -%}
             {%- set col_expr = '"' ~ col_name ~ '"' -%}
+            {%- set dtype = col_type_map.get(col_name) -%}
+            {%- set base_type = (dtype or '').split('(')[0] | trim -%}
 
-            {%- if col_type_map.get(col_name) in numeric_types -%}
+            {%- if base_type in numeric_types -%}
                 {%- if replaceNullForNumericFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ replaceNullNumericWith | string ~ ")" -%}
                 {%- endif -%}
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "string" -%}
+            {%- if base_type == "string" -%}
 
                 {%- if replaceNullTextFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" -%}
@@ -349,20 +352,20 @@
 
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "date" -%}
+            {%- if base_type == "date" -%}
                 {%- if replaceNullDateFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" -%}
                 {%- endif -%}
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "timestamp" -%}
+            {%- if base_type == "timestamp" -%}
                 {%- if replaceNullTimeFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" -%}
                 {%- endif -%}
             {%- endif -%}
 
             {{ log("Appending transformed column expression", info=True) }}
-            {%- set col_expr = col_expr ~ "::" ~ col_type_map.get(col_name) -%}
+            {%- set col_expr = col_expr ~ "::" ~ dtype -%}
             {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ col_name ~ '"') -%}
         {%- endfor -%}
 
@@ -472,15 +475,16 @@
 
     {% for col_name in columnNames %}
         {% set dtype = col_type_map.get(col_name) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
         {% set col_expr = prophecy_basics.quote_identifier(col_name) %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -517,10 +521,10 @@
         {% endif %}
 
         {# date / timestamp null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", CAST('" ~ replaceNullTimeWith ~ "' AS TIMESTAMP))" %}
         {% endif %}
 
@@ -611,15 +615,16 @@
 
     {% for col_name in columnNames %}
         {% set dtype = col_type_map.get(col_name) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
         {% set col_expr = bt ~ col_name ~ bt %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -652,20 +657,20 @@
         {% endif %}
 
         {# date null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
 
         {# timestamp / datetime null replacement #}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'datetime' and replaceNullTimeFields %}
+        {% if base_type == 'datetime' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATETIME '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
 
         {# BigQuery requires FLOAT64, not FLOAT #}
-        {% set cast_type = "FLOAT64" if dtype == "float" else dtype %}
+        {% set cast_type = "FLOAT64" if base_type == "float" else dtype %}
         {# final cast back to original dtype; store override #}
         {% set final_expr = "CAST(" ~ col_expr ~ " AS " ~ cast_type ~ ")" %}
         {% do override_map.update({ (col_name | upper): final_expr }) %}

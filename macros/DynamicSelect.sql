@@ -83,8 +83,11 @@
                     {%- do selected_columns.append("`" ~ column["name"] ~ "`") -%}
                 {%- endif -%}
         {%- else -%}
-            {# If no custom expression, select columns based on target types #}
-            {%- if column["dataType"] in targetTypes -%}
+            {# If no custom expression, select columns based on target types (case-insensitive) #}
+            {%- set column_type_upper = (column["dataType"] or '') | upper -%}
+            {%- set base_type_upper = (column["dataType"] or '').split('(')[0] | trim | upper -%}
+            {%- set target_types_upper = targetTypes | map('upper') | list -%}
+            {%- if column_type_upper in target_types_upper or base_type_upper in target_types_upper -%}
                 {%- do selected_columns.append("`" ~ column["name"] ~ "`") -%}
             {%- endif -%}
         {%- endif -%}
@@ -156,7 +159,11 @@
                     {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
                 {%- endif -%}
         {%- else -%}
-            {%- if column["dataType"] in snowflake_target_types -%}
+            {# Case-insensitive match against the (Snowflake-remapped) target types #}
+            {%- set column_type_upper = (column["dataType"] or '') | upper -%}
+            {%- set base_type_upper = (column["dataType"] or '').split('(')[0] | trim | upper -%}
+            {%- set snowflake_target_types_upper = snowflake_target_types | map('upper') | list -%}
+            {%- if column_type_upper in snowflake_target_types_upper or base_type_upper in snowflake_target_types_upper -%}
                 {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
             {%- endif -%}
         {%- endif -%}
@@ -231,8 +238,9 @@
         {%- else -%}
             {# If no custom expression, select columns based on target types (case-insensitive) #}
             {%- set column_type_upper = column["dataType"] | upper -%}
+            {%- set base_type_upper = (column["dataType"] or '').split('(')[0] | trim | upper -%}
             {%- set target_types_upper = targetTypes | map('upper') | list -%}
-            {%- if column_type_upper in target_types_upper -%}
+            {%- if column_type_upper in target_types_upper or base_type_upper in target_types_upper -%}
                 {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
             {%- endif -%}
         {%- endif -%}
