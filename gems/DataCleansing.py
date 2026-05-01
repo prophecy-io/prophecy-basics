@@ -534,7 +534,7 @@ class DataCleansing(MacroSpec):
                     col_expr = col(col_name)
 
                     if replace_null_numeric_fields:
-                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with))
+                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with).cast(col_type))
                     
                     all_expressions.append(col_expr.alias(col_name))
                     
