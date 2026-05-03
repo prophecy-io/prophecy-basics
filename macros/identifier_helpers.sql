@@ -512,8 +512,9 @@
 {% endmacro %}
 
 {% macro is_integer_type(data_type) %}
-  {%- set dt = data_type | lower | trim -%}
-  {%- if dt in ('bigint', 'int', 'integer', 'smallint', 'tinyint', 'long', 'short', 'byte') -%}
+  {%- set dt = (data_type or '') | lower | trim -%}
+  {%- set base = dt.split('(')[0] | trim -%}
+  {%- if base in ('bigint', 'int', 'integer', 'smallint', 'tinyint', 'long', 'short', 'byte') -%}
     true
   {%- else -%}
     false
@@ -521,8 +522,9 @@
 {% endmacro %}
 
 {% macro is_double_type(data_type) %}
-  {%- set dt = data_type | lower | trim -%}
-  {%- if dt in ('double', 'float', 'real', 'float32', 'float64', 'decimal', 'numeric') -%}
+  {%- set dt = (data_type or '') | lower | trim -%}
+  {%- set base = dt.split('(')[0] | trim -%}
+  {%- if base in ('double', 'float', 'real', 'float32', 'float64', 'decimal', 'numeric') -%}
     true
   {%- else -%}
     false
