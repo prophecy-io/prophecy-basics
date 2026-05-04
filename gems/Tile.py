@@ -1,10 +1,12 @@
-from dataclasses import dataclass
 import dataclasses
+import json
+import re
 from collections import defaultdict
+from dataclasses import dataclass
+
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-import json
 
 @dataclass(frozen=True)
 class ColumnExpr:
@@ -46,6 +48,21 @@ class Tile(MacroSpec):
         manual_tile_column_name: str = ""
         manual_tiles_cutoff: str = ""
         donot_split_tile_column_names: List[str] = field(default_factory=list)
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         select_tiling_radio_box = (RadioGroup("")
@@ -333,25 +350,6 @@ class Tile(MacroSpec):
                         Diagnostic("component.properties.unique_value_column_name", f"Selected columns {missingKeyColumns} are not present in input schema.", SeverityLevelEnum.Error)
                     )
         return diagnostics
-
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
