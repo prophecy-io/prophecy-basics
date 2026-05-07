@@ -47,6 +47,7 @@ class Regex(MacroSpec):
         # Replace
         replacementText: Optional[str] = ""
         copyUnmatchedText: bool = False
+        replaceOutputSuffix: Optional[str] = "_replaced"
         # Tokenize
         tokenizeOutputMethod: str = "splitColumns"
         noOfColumns: int = 1
@@ -270,6 +271,11 @@ class Regex(MacroSpec):
                                     .addElement(
                                         Checkbox("Copy Unmatched Text to Output")
                                         .bindProperty("copyUnmatchedText")
+                                    )
+                                    .addElement(
+                                        TextBox("Output Column Suffix")
+                                        .bindPlaceholder("Enter suffix for output column")
+                                        .bindProperty("replaceOutputSuffix")
                                     )
                                 )
                             ).otherwise(
@@ -669,6 +675,7 @@ class Regex(MacroSpec):
             safe_str(props.outputRootName),
             safe_str(props.matchColumnName),
             str(props.errorIfNotMatched).lower(),
+            safe_str(props.replaceOutputSuffix),
         ]
         # Join all parameters - don't filter out empty strings, use "''" instead
         non_empty_param = ",".join(parameter_list)
@@ -709,6 +716,7 @@ class Regex(MacroSpec):
             matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
             errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
                               == "true",
+            replaceOutputSuffix=parametersMap.get("replaceOutputSuffix", "'_replaced'").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -740,6 +748,7 @@ class Regex(MacroSpec):
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
                 MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
+                MacroParameter("replaceOutputSuffix", str(properties.replaceOutputSuffix)),
             ],
         )
 
@@ -771,6 +780,9 @@ class Regex(MacroSpec):
         match_column_name = self.props.matchColumnName
         error_if_not_matched = self.props.errorIfNotMatched
         extra_columns_handling = self.props.extraColumnsHandling
+        replace_output_suffix = self.props.replaceOutputSuffix
+        if not replace_output_suffix:
+            replace_output_suffix = "_replaced"
 
         regex_pattern = regex_expression
         if case_insensitive:
@@ -788,7 +800,7 @@ class Regex(MacroSpec):
                 ).otherwise(col(selected_column))
 
             result_df = result_df.withColumn(
-                f"{selected_column}_replaced",
+                f"{selected_column}{replace_output_suffix}",
                 replaced_col
             )
 
@@ -951,4 +963,3 @@ class Regex(MacroSpec):
                 result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
         return result_df
-

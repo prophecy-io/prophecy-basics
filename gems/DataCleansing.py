@@ -530,11 +530,11 @@ class DataCleansing(MacroSpec):
 
                     all_expressions.append(col_expr.alias(col_name))
 
-                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, DecimalType)):
+                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, ByteType, DecimalType)):
                     col_expr = col(col_name)
 
                     if replace_null_numeric_fields:
-                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with))
+                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with).cast(col_type))
                     
                     all_expressions.append(col_expr.alias(col_name))
                     
