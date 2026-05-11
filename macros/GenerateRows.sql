@@ -320,7 +320,7 @@
     {# --- Replace the target column in loop expression to reference gen.<internal_col> in recursive step --- #}
     {# Properly quote internal_col when creating gen. reference (e.g., gen.`__gen_date_val` not gen.__gen_date_val) #}
     {# Use backticks for internal columns to ensure proper SQL syntax #}
-    {% set quoted_internal_col = "`" ~ internal_col ~ "`" %}
+    {% set quoted_internal_col = internal_col %}
     {% set loop_expr_replaced = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, 'gen.' ~ quoted_internal_col, preserve_payload=false) %}
 
     {# Use adapter-safe quoting for EXCLUDE column #}
