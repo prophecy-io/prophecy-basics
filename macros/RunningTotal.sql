@@ -233,10 +233,10 @@ FROM base
   {% if r.expression.expression | trim != '' %}
     {% set part %}
       {{ r.expression.expression }}
-      {% if   r.sortType == 'asc'               %} ASC
+      {% if   r.sortType == 'asc'               %} ASC NULLS FIRST
       {% elif r.sortType == 'asc_nulls_last'    %} ASC NULLS LAST
       {% elif r.sortType == 'desc_nulls_first'  %} DESC NULLS FIRST
-      {% else                               %} DESC
+      {% else                               %} DESC NULLS LAST
       {% endif %}
     {% endset %}
     {%- do order_parts.append(part | trim) -%}

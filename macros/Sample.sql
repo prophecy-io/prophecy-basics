@@ -484,13 +484,13 @@
         {%- if r.expression.expression | trim != '' -%}
             {%- set part = r.expression.expression | trim ~ " " -%}
             {%- if r.sortType == 'asc' -%}
-                {%- set part = part ~ "asc" -%}
+                {%- set part = part ~ "asc nulls first" -%}
             {%- elif r.sortType == 'asc_nulls_last' -%}
                 {%- set part = part ~ "asc nulls last" -%}
             {%- elif r.sortType == 'desc_nulls_first' -%}
                 {%- set part = part ~ "desc nulls first" -%}
             {%- else -%}
-                {%- set part = part ~ "desc" -%}
+                {%- set part = part ~ "desc nulls last" -%}
             {%- endif -%}
             {%- do order_parts.append(part) -%}
         {%- endif -%}
