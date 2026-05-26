@@ -46,36 +46,64 @@
     dataColumns,
     randomSeed,
     currentModeSelection,
-    numberN) -%}
+    numberN,
+    orderByColumns=[]) -%}
     {{ return(adapter.dispatch('Sample', 'prophecy_basics')(relation_name,
     schema,
     sampleLevelSelection,
     dataColumns,
     randomSeed,
     currentModeSelection,
-    numberN)) }}
+    numberN,
+    orderByColumns)) }}
 {% endmacro %}
 
-{%- macro default__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
+{%- macro default__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN, orderByColumns=[]) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {% set relation_sql = relation_list | join(', ') %}
+{%- set quoted_data_cols = [] -%}
+{%- for col in dataColumns -%}
+    {%- do quoted_data_cols.append(prophecy_basics.quote_identifier(col)) -%}
+{%- endfor -%}
+{%- set quoted_data_cols_str = quoted_data_cols | join(', ') -%}
+{%- set order_parts = [] -%}
+{%- if currentModeSelection == 'firstN' or currentModeSelection == 'lastN' -%}
+    {%- for r in orderByColumns -%}
+        {%- if r.expression.expression | trim != '' -%}
+            {%- set part = r.expression.expression | trim ~ " " -%}
+            {%- if r.sortType == 'asc' -%}
+                {%- set part = part ~ "asc" -%}
+            {%- elif r.sortType == 'asc_nulls_last' -%}
+                {%- set part = part ~ "asc nulls last" -%}
+            {%- elif r.sortType == 'desc_nulls_first' -%}
+                {%- set part = part ~ "desc nulls first" -%}
+            {%- else -%}
+                {%- set part = part ~ "desc" -%}
+            {%- endif -%}
+            {%- do order_parts.append(part) -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+{%- set order_by_clause = order_parts | join(', ') -%}
 
 {%- if dataColumns | length > 0 -%}
+    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else quoted_data_cols_str -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by " ~ dataColumns | join(', ') ~ ") as rn,
-            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
-            count(*) over (partition by " ~ dataColumns | join(', ') ~ ") as group_rows,
+            row_number() over (partition by " ~ quoted_data_cols_str ~ " order by " ~ rn_order_by ~ ") as rn,
+            row_number() over (partition by " ~ quoted_data_cols_str ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
+            count(*) over (partition by " ~ quoted_data_cols_str ~ ") as group_rows,
             count(*) over () as total_rows
         from " ~ relation_sql
         -%}
 {%- else -%}
+    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else "1" -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (order by 1) as rn,
+            row_number() over (order by " ~ rn_order_by ~ ") as rn,
             row_number() over (order by rand(" ~ seed_value ~ ")) as random_rn,
             count(*) over () as total_rows
         from " ~ relation_sql
@@ -197,7 +225,7 @@
 
 {%- endmacro -%}
 
-{%- macro bigquery__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
+{%- macro bigquery__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN, orderByColumns=[]) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
@@ -220,13 +248,34 @@
     {%- endfor -%}
 {%- endif -%}
 {%- set quoted_group_cols = ns.quoted_group_cols -%}
+{%- set order_parts = [] -%}
+{%- if currentModeSelection == 'firstN' or currentModeSelection == 'lastN' -%}
+    {%- for r in orderByColumns -%}
+        {%- if r.expression.expression | trim != '' -%}
+            {%- set part = r.expression.expression | trim ~ " " -%}
+            {%- if r.sortType == 'asc' -%}
+                {%- set part = part ~ "ASC" -%}
+            {%- elif r.sortType == 'asc_nulls_last' -%}
+                {%- set part = part ~ "ASC NULLS LAST" -%}
+            {%- elif r.sortType == 'desc_nulls_first' -%}
+                {%- set part = part ~ "DESC NULLS FIRST" -%}
+            {%- else -%}
+                {%- set part = part ~ "DESC" -%}
+            {%- endif -%}
+            {%- do order_parts.append(part) -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+{%- set order_by_clause = order_parts | join(', ') -%}
+{%- set grouped_rn_order_by = order_by_clause if order_by_clause | length > 0 else quoted_group_cols -%}
+{%- set dataset_rn_order_by = order_by_clause if order_by_clause | length > 0 else "1" -%}
 
 {%- if currentModeSelection == 'firstN' -%}
     {%- if dataColumns | length > 0 -%}
         select * except (rn)
         from (
             select *,
-                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ grouped_rn_order_by }}) as rn
             from {{ relation_sql }}
         ) numbered_data
         where rn <= {{ sample_size }}
@@ -234,7 +283,7 @@
         select * except (rn)
         from (
             select *,
-                row_number() over (order by 1) as rn
+                row_number() over (order by {{ dataset_rn_order_by }}) as rn
             from {{ relation_sql }}
         ) numbered_data
         where rn <= {{ sample_size }}
@@ -245,7 +294,7 @@
         select * except (rn, group_rows, total_rows)
         from (
             select *,
-                row_number() over (partition by {{ quoted_group_cols }} order by {{ quoted_group_cols }}) as rn,
+                row_number() over (partition by {{ quoted_group_cols }} order by {{ grouped_rn_order_by }}) as rn,
                 count(*) over (partition by {{ quoted_group_cols }}) as group_rows,
                 count(*) over () as total_rows
             from {{ relation_sql }}
@@ -256,7 +305,7 @@
         select * except (rn, total_rows)
         from (
             select *,
-                row_number() over (order by 1) as rn,
+                row_number() over (order by {{ dataset_rn_order_by }}) as rn,
                 count(*) over () as total_rows
             from {{ relation_sql }}
         ) numbered_data
@@ -407,7 +456,7 @@
 
 {%- endmacro -%}
 
-{%- macro snowflake__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN) -%}
+{%- macro snowflake__Sample(relation_name, schema, sampleLevelSelection, dataColumns, randomSeed, currentModeSelection, numberN, orderByColumns=[]) -%}
 
 {%- set seed_value = randomSeed | default(42) -%}
 {%- set sample_size = numberN | default(100) -%}
@@ -429,20 +478,41 @@
     {% endfor %}
 {%- endif -%}
 {%- set quoted_group_cols = quoted_cols | join(', ') -%}
+{%- set order_parts = [] -%}
+{%- if currentModeSelection == 'firstN' or currentModeSelection == 'lastN' -%}
+    {%- for r in orderByColumns -%}
+        {%- if r.expression.expression | trim != '' -%}
+            {%- set part = r.expression.expression | trim ~ " " -%}
+            {%- if r.sortType == 'asc' -%}
+                {%- set part = part ~ "asc nulls first" -%}
+            {%- elif r.sortType == 'asc_nulls_last' -%}
+                {%- set part = part ~ "asc nulls last" -%}
+            {%- elif r.sortType == 'desc_nulls_first' -%}
+                {%- set part = part ~ "desc nulls first" -%}
+            {%- else -%}
+                {%- set part = part ~ "desc nulls last" -%}
+            {%- endif -%}
+            {%- do order_parts.append(part) -%}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endif -%}
+{%- set order_by_clause = order_parts | join(', ') -%}
 
 {%- if dataColumns | length > 0 -%}
+    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else quoted_group_cols -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (partition by " ~ quoted_group_cols ~ " order by " ~ quoted_group_cols ~ ") as rn,
+            row_number() over (partition by " ~ quoted_group_cols ~ " order by " ~ rn_order_by ~ ") as rn,
             row_number() over (partition by " ~ quoted_group_cols ~ " order by random(" ~ seed_value ~ ")) as random_rn,
             count(*) over (partition by " ~ quoted_group_cols ~ ") as group_rows,
             count(*) over () as total_rows
         from " ~ relation_str
         -%}
 {%- else -%}
+    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else "1" -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (order by 1) as rn,
+            row_number() over (order by " ~ rn_order_by ~ ") as rn,
             row_number() over (order by random(" ~ seed_value ~ ")) as random_rn,
             count(*) over () as total_rows
         from " ~ relation_str
