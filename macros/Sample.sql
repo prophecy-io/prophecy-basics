@@ -64,6 +64,11 @@
 {%- set sample_size = numberN | default(100) -%}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 {% set relation_sql = relation_list | join(', ') %}
+{%- set quoted_data_cols = [] -%}
+{%- for col in dataColumns -%}
+    {%- do quoted_data_cols.append(prophecy_basics.quote_identifier(col)) -%}
+{%- endfor -%}
+{%- set quoted_data_cols_str = quoted_data_cols | join(', ') -%}
 {%- set order_parts = [] -%}
 {%- if currentModeSelection == 'firstN' or currentModeSelection == 'lastN' -%}
     {%- for r in orderByColumns -%}
@@ -85,12 +90,12 @@
 {%- set order_by_clause = order_parts | join(', ') -%}
 
 {%- if dataColumns | length > 0 -%}
-    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else dataColumns | join(', ') -%}
+    {%- set rn_order_by = order_by_clause if order_by_clause | length > 0 else quoted_data_cols_str -%}
     {%- set innerQuery = "
         select *,
-            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by " ~ rn_order_by ~ ") as rn,
-            row_number() over (partition by " ~ dataColumns | join(', ') ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
-            count(*) over (partition by " ~ dataColumns | join(', ') ~ ") as group_rows,
+            row_number() over (partition by " ~ quoted_data_cols_str ~ " order by " ~ rn_order_by ~ ") as rn,
+            row_number() over (partition by " ~ quoted_data_cols_str ~ " order by rand(" ~ seed_value ~ ")) as random_rn,
+            count(*) over (partition by " ~ quoted_data_cols_str ~ ") as group_rows,
             count(*) over () as total_rows
         from " ~ relation_sql
         -%}
