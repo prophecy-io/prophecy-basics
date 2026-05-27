@@ -31,17 +31,6 @@
       UNION ALL
       SELECT `id`, 'q2' AS `metric`, CAST(`q2` AS STRING) AS `amount` FROM t
 #}
-{# Escape single quotes (and backslashes) for SQL string literals in UNION name column #}
-{%- macro transpose_escape_sql_literal(text) -%}
-    {{- text | replace("\\", "\\\\") | replace("'", "''") -}}
-{%- endmacro -%}
-
-{# Backtick-quoted identifiers for default__ (escape embedded backticks per Spark rules) #}
-{%- macro transpose_default_quote_col(col) -%}
-    {%- set clean = col | trim -%}
-    {{- "`" ~ (clean | replace("`", "``")) ~ "`" -}}
-{%- endmacro -%}
-
 {% macro Transpose(relation_name,
         keyColumns,
         dataColumns,
@@ -69,6 +58,7 @@
         customNames=false
 ) -%}
 
+    {% set bt = "`" %}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {%- if dataColumns and (nameColumn | length > 0) and (valueColumn | length > 0) -%}
@@ -81,18 +71,16 @@
             {# key columns (if any) #}
             {%- if keyColumns -%}
                 {%- for key in keyColumns -%}
-                    {%- do select_list.append(transpose_default_quote_col(key)) %}
+                    {%- do select_list.append(bt ~ key ~ bt) %}
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias (escape quotes in column names) #}
-            {%- do select_list.append(
-                    "'" ~ transpose_escape_sql_literal(data_col) ~ "' AS " ~ transpose_default_quote_col(nameColumn)
-                ) -%}
+            {# literal column name → nameColumn alias (escape single quotes in column names) #}
+            {%- do select_list.append("'" ~ (data_col | replace("\\", "\\\\") | replace("'", "''")) ~ "' AS " ~ bt ~ nameColumn ~ bt) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
-                    'CAST(' ~ transpose_default_quote_col(data_col) ~ ' AS STRING) AS ' ~ transpose_default_quote_col(valueColumn)
+                    'CAST(' ~ bt ~ data_col ~ bt ~ ' AS STRING) AS ' ~ bt ~ valueColumn ~ bt
                 ) -%}
 
             {%- set query = 'SELECT ' ~ (select_list | join(', ')) ~
@@ -133,10 +121,8 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias (escape quotes in column names) #}
-            {%- do select_list.append(
-                    "'" ~ transpose_escape_sql_literal(data_col) ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)
-                ) -%}
+            {# literal column name → nameColumn alias #}
+            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
@@ -181,10 +167,8 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias (escape quotes in column names) #}
-            {%- do select_list.append(
-                    "'" ~ transpose_escape_sql_literal(data_col) ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)
-                ) -%}
+            {# literal column name → nameColumn alias #}
+            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
