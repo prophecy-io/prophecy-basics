@@ -75,8 +75,9 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias #}
-            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ bt ~ nameColumn ~ bt) -%}
+            {# literal column name → nameColumn alias (escape quotes in column names) #}
+            {%- set escaped_data_col_name = prophecy_basics.escape_sql_string(data_col) -%}
+            {%- do select_list.append("'" ~ escaped_data_col_name ~ "' AS " ~ bt ~ nameColumn ~ bt) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
@@ -121,8 +122,9 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias #}
-            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
+            {# literal column name → nameColumn alias (escape quotes in column names) #}
+            {%- set escaped_data_col_name = prophecy_basics.escape_sql_string(data_col) -%}
+            {%- do select_list.append("'" ~ escaped_data_col_name ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
@@ -167,8 +169,9 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias #}
-            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
+            {# literal column name → nameColumn alias (escape quotes in column names) #}
+            {%- set escaped_data_col_name = prophecy_basics.escape_sql_string(data_col) -%}
+            {%- do select_list.append("'" ~ escaped_data_col_name ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
