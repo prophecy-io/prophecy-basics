@@ -268,17 +268,17 @@ class TextToColumns(MacroSpec):
             field["name"] for field in component.ports.inputs[0].schema["fields"]
         ]
 
-        if len(component.properties.columnNames) > 0:
-            schema_cols_lower = set(col["name"].lower() for col in field_names)
-
-            if component.properties.columnNames.lower() not in schema_cols_lower:
-                diagnostics.append(
-                    Diagnostic(
-                        "component.properties.columnNames",
-                        f"Selected columns {component.properties.columnNames} are not present in input schema.",
-                        SeverityLevelEnum.Error,
-                    )
-                )
+        # if len(component.properties.columnNames) > 0:
+        #     schema_cols_lower = set(col["name"].lower() for col in field_names)
+        #
+        #     if component.properties.columnNames.lower() not in schema_cols_lower:
+        #         diagnostics.append(
+        #             Diagnostic(
+        #                 "component.properties.columnNames",
+        #                 f"Selected columns {component.properties.columnNames} are not present in input schema.",
+        #                 SeverityLevelEnum.Error,
+        #             )
+        #         )
 
         return diagnostics
 
