@@ -269,7 +269,7 @@ class TextToColumns(MacroSpec):
         ]
 
         if len(component.properties.columnNames) > 0:
-            schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
+            schema_cols_lower = set(col["name"].lower() for col in field_names)
 
             if component.properties.columnNames.lower() not in schema_cols_lower:
                 diagnostics.append(
