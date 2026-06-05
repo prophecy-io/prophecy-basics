@@ -269,11 +269,13 @@ class TextToColumns(MacroSpec):
         ]
 
         if len(component.properties.columnNames) > 0:
-            if component.properties.columnNames not in field_names:
+            schema_cols_lower = set(col.lower() for col in field_names)
+
+            if component.properties.columnNames.lower() not in schema_cols_lower:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.columnNames",
-                        f"Selected column {component.properties.columnNames} is not present in input schema.",
+                        f"Selected columns {component.properties.columnNames} are not present in input schema.",
                         SeverityLevelEnum.Error,
                     )
                 )
