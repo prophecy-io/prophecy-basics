@@ -106,7 +106,7 @@
     SELECT *,
         {# Extract tokens positionally (Spark arrays are 0-indexed) #}
         {%- for i in range(1, noOfColumns) %}
-            regexp_replace(trim(tokens[{{ i - 1 }}]), '^"|"$', '')
+            regexp_replace((tokens[{{ i - 1 }}]), '^"|"$', '')
             AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix ~ quote_char }}{% if not loop.last or leaveExtraCharLastCol %}, {% endif %}
         {%- endfor %}
         {%- if leaveExtraCharLastCol %}
@@ -124,7 +124,7 @@
 
 {%- elif split_strategy == 'splitRows' -%}
     SELECT r.*,
-        trim(regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
+        (regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
     FROM {{ relation_list | join(', ') }} r
     LATERAL VIEW explode(
         split(
@@ -178,7 +178,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
         {%- for i in range(1, noOfColumns) %}
             CASE
                 WHEN ARRAY_LENGTH(tokens) > {{ i - 1 }}
-                    THEN REGEXP_REPLACE(TRIM(tokens[OFFSET({{ i - 1 }})]), r'^"|"$', '')
+                    THEN REGEXP_REPLACE((tokens[OFFSET({{ i - 1 }})]), r'^"|"$', '')
                 ELSE null
             END AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix ~ quote_char }}{% if not loop.last or leaveExtraCharLastCol %}, {% endif %}
         {%- endfor %}
@@ -191,7 +191,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
         {%- else %}
             CASE
                 WHEN ARRAY_LENGTH(tokens) > {{ noOfColumns - 1 }}
-                    THEN REGEXP_REPLACE(TRIM(tokens[OFFSET({{ noOfColumns - 1 }})]), r'^"|"$', '')
+                    THEN REGEXP_REPLACE((tokens[OFFSET({{ noOfColumns - 1 }})]), r'^"|"$', '')
                 ELSE null
             END AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix ~ quote_char }}
         {%- endif %}
@@ -201,7 +201,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
 
 {%- elif split_strategy == 'splitRows' -%}
     SELECT r.*,
-        REGEXP_REPLACE(TRIM(split_value), r'[{}_]', ' ') AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
+        REGEXP_REPLACE(split_value, r'[{}_]', ' ') AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
     FROM {{ relation_list | join(', ') }} r,
     UNNEST(SPLIT(COALESCE(r.{{ quoted_column_name }}, ''), '{{ pattern }}')) AS split_value
 
@@ -259,7 +259,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
     {%- set backslash_count = delimiter.count('\\') -%}
     {%- set pattern = delimiter.replace('\\\\', '') if backslash_count % 2 == 1 else delimiter.replace('\\', '') -%}
     SELECT r.*,
-        TRIM(REGEXP_REPLACE(s.value, '[{}_]', ' ')) AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
+        REGEXP_REPLACE(s.value, '[{}_]', ' ') AS {{ prophecy_basics.quote_identifier(splitRowsColumnName) }}
     FROM {{ relation_list | join(', ') }} r,
     LATERAL SPLIT_TO_TABLE(IFF({{ quoted_column_name }} IS NULL, '', {{ quoted_column_name }}), '{{ pattern }}') s
 
@@ -298,7 +298,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
     SELECT *,
         {# Extract tokens positionally (DuckDB arrays are 1-indexed) #}
         {%- for i in range(1, noOfColumns) %}
-            regexp_replace(trim(tokens[{{ i }}]), '^"|"$', '')
+            regexp_replace((tokens[{{ i }}]), '^"|"$', '')
             AS {{ prophecy_basics.quote_identifier(splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix) }}{% if not loop.last or leaveExtraCharLastCol == 'Leave extra in last column' %},{% endif %}
         {%- endfor %}
         {%- if leaveExtraCharLastCol == 'Leave extra in last column' %}
@@ -318,7 +318,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
   SELECT
     r.*,
     -- replace { } _ globally with spaces, collapse repeats, then trim
-    trim(
+    (
       regexp_replace(
         regexp_replace(s.col, '[{}_]', ' ', 'g'),
         '\s+',
