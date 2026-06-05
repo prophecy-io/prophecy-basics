@@ -123,8 +123,13 @@
     SELECT * EXCEPT(tokens) FROM all_data
 
 {%- elif split_strategy == 'splitRows' -%}
-    SELECT r.* {% if columnNames == splitRowsColumnName %}EXCEPT({{ quoted_column_name }}){% endif %},
-        (regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
+    {%- if columnNames == splitRowsColumnName -%}
+        {%- set except_clause = 'EXCEPT(' ~ quoted_column_name ~ ')' -%}
+    {%- else -%}
+        {%- set except_clause = '' -%}
+    {%- endif -%}
+    SELECT r.* {{ except_clause }},
+            (regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
     FROM {{ relation_list | join(', ') }} r
     LATERAL VIEW explode(
         split(
