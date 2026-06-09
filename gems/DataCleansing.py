@@ -49,25 +49,6 @@ class DataCleansing(MacroSpec):
         replaceNullTimeFields: bool = False
         replaceNullTimeWith: str = "1970-01-01 00:00:00.0"
 
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
-
     def dialog(self) -> Dialog:
         nullOpCheckBox = ColumnsLayout(gap="1rem", height="100%").addColumn(
             StackLayout(height="100%").addElement(
