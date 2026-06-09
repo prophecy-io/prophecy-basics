@@ -26,3 +26,4 @@ tests/expected/
 tests/compiled_output/
 tests/docs/
 .DS_Store
+/CLAUDE.md

@@ -8,8 +8,20 @@ from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
-from pyspark.sql import *
-from pyspark.sql.functions import *
+from pyspark.sql import SparkSession, Window, DataFrame
+from pyspark.sql.functions import row_number, count, lit, expr
+
+
+@dataclass(frozen=True)
+class ColumnExpr:
+    expression: str
+    format: Optional[str]
+
+
+@dataclass(frozen=True)
+class OrderByRule:
+    expression: ColumnExpr
+    sortType: str = "asc"
 
 
 class Sample(MacroSpec):
@@ -38,6 +50,7 @@ class Sample(MacroSpec):
         # From Create Samples Side
         currentModeSelection: str = "firstN"
         numberN: int = 80
+        orderByColumns: List[OrderByRule] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -55,6 +68,30 @@ class Sample(MacroSpec):
         return relation_name
 
     def dialog(self) -> Dialog:
+        order_by_table = BasicTable(
+            "OrderByTable",
+            height="200px",
+            columns=[
+                Column(
+                    "Order By Columns",
+                    "expression.expression",
+                    ExpressionBox(ignoreTitle=True, language="sql")
+                    .bindPlaceholders()
+                    .withSchemaSuggestions()
+                    .bindLanguage("${record.expression.format}"),
+                ),
+                Column(
+                    "Sort strategy",
+                    "sortType",
+                    SelectBox("")
+                    .addOption("ascending nulls first", "asc")
+                    .addOption("ascending nulls last", "asc_nulls_last")
+                    .addOption("descending nulls first", "desc_nulls_first")
+                    .addOption("descending nulls last", "desc"),
+                    width="25%",
+                ),
+            ],
+        )
 
         sample = (
             StackLayout(gap=("1rem"), height=("100bh"))
@@ -115,6 +152,38 @@ class Sample(MacroSpec):
                             .bindSchema("component.ports.inputs[0].schema")
                             .bindProperty("dataColumns")
                             .showErrorsFor("dataColumns")
+                        )
+                    )
+                )
+            )
+            .addElement(
+                Condition()
+                .ifEqual(
+                    PropExpr("component.properties.currentModeSelection"),
+                    StringExpr("firstN"),
+                )
+                .then(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%")
+                            .addElement(TitleElement("Order rows (optional)"))
+                            .addElement(order_by_table.bindProperty("orderByColumns"))
+                        )
+                    )
+                )
+                .otherwise(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.currentModeSelection"),
+                        StringExpr("lastN"),
+                    )
+                    .then(
+                        StepContainer().addElement(
+                            Step().addElement(
+                                StackLayout(height="100%")
+                                .addElement(TitleElement("Order rows (optional)"))
+                                .addElement(order_by_table.bindProperty("orderByColumns"))
+                            )
                         )
                     )
                 )
@@ -218,6 +287,17 @@ class Sample(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
+        if component.properties.currentModeSelection in ("firstN", "lastN"):
+            for idx, rule in enumerate(component.properties.orderByColumns):
+                expr_text = (rule.expression.expression or "").strip()
+                if rule.sortType and expr_text == "":
+                    diagnostics.append(
+                        Diagnostic(
+                            f"component.properties.orderByColumns[{idx}].expression.expression",
+                            "Order column expression is required when a sort direction is selected.",
+                            SeverityLevelEnum.Error,
+                        )
+                    )
         # Validate the component's state
         # 1. For 2 First N% of rows should be <= 100%
         # 2. For 1, Estimation and Validation estimates should be <= 1
@@ -250,6 +330,13 @@ class Sample(MacroSpec):
         else:
             dataColumns = props.dataColumns
 
+        order_rules: List[dict] = [
+            {"expression": {"expression": expr}, "sortType": r.sortType}
+            for r in props.orderByColumns
+            for expr in [(r.expression.expression or "").strip()]
+            if expr
+        ] if props.currentModeSelection in ("firstN", "lastN") else []
+
         def safe_str(val):
             if val is None or val == "":
                 return "''"
@@ -266,6 +353,7 @@ class Sample(MacroSpec):
                 str(props.randomSeed),
                 safe_str(props.currentModeSelection),
                 str(props.numberN),
+                safe_str(order_rules),
             ]
         )
 
@@ -285,6 +373,7 @@ class Sample(MacroSpec):
                 return json.loads(raw.replace("'", '"'))
 
         data_columns = _load_json_value(parametersMap.get("dataColumns"), [])
+        order_columns = _load_json_value(parametersMap.get("orderByColumns"), [])
         sample_level_selection = (
             (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
         )
@@ -299,6 +388,9 @@ class Sample(MacroSpec):
             randomSeed=int(str(parametersMap.get("randomSeed", 1002)).lstrip("'").rstrip("'")),
             currentModeSelection=(parametersMap.get("currentModeSelection") or "''").lstrip("'").rstrip("'"),
             numberN=int(str(parametersMap.get("numberN", 80)).lstrip("'").rstrip("'")),
+            orderByColumns=json.loads(
+                parametersMap.get("orderByColumns").replace("'", '"')
+            ),
         )
         return props
 
@@ -315,6 +407,9 @@ class Sample(MacroSpec):
                 MacroParameter("randomSeed", str(properties.randomSeed)),
                 MacroParameter("currentModeSelection", str(properties.currentModeSelection)),
                 MacroParameter("numberN", str(properties.numberN)),
+                MacroParameter(
+                    "orderByColumns", json.dumps(properties.orderByColumns)
+                ),
             ],
         )
 

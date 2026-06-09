@@ -75,8 +75,8 @@
                 {%- endfor -%}
             {%- endif -%}
 
-            {# literal column name → nameColumn alias #}
-            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ bt ~ nameColumn ~ bt) -%}
+            {# literal column name → nameColumn alias (escape single quotes in column names) #}
+            {%- do select_list.append("'" ~ (data_col | replace("\\", "\\\\") | replace("'", "''")) ~ "' AS " ~ bt ~ nameColumn ~ bt) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(

@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -31,6 +32,32 @@ class Transpose(MacroSpec):
         customNames: bool = False
         nameColumn: str = "Name"
         valueColumn: str = "Value"
+
+    @staticmethod
+    def _parse_port_schema(schema) -> dict:
+        raw = str(schema)
+        try:
+            return json.loads(raw.replace("'", '"'))
+        except json.JSONDecodeError:
+            return ast.literal_eval(raw)
+
+    @staticmethod
+    def _macro_list_arg(values) -> str:
+        if values and any("'" in str(v) for v in values):
+            return json.dumps(values)
+        return str(values)
+
+    @staticmethod
+    def _loads_column_list(raw: str) -> list:
+        if not raw:
+            return []
+        try:
+            return json.loads(raw.replace("'", '"'))
+        except json.JSONDecodeError:
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return ast.literal_eval(raw)
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -172,9 +199,7 @@ class Transpose(MacroSpec):
                 )
             )
 
-        schemaFields = json.loads(
-            str(component.ports.inputs[0].schema).replace("'", '"')
-        )
+        schemaFields = self._parse_port_schema(component.ports.inputs[0].schema)
         fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
         missingDataColumns = []
         for col in component.properties.dataColumns:
@@ -210,7 +235,7 @@ class Transpose(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = self._parse_port_schema(newState.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -243,8 +268,8 @@ class Transpose(MacroSpec):
 
         arguments = [
             str(props.relation_name),
-            str(props.keyColumns),
-            str(props.dataColumns),
+            self._macro_list_arg(props.keyColumns),
+            self._macro_list_arg(props.dataColumns),
             "'" + props.nameColumn + "'",
             "'" + props.valueColumn + "'",
             str(allColumnNames),
@@ -263,8 +288,8 @@ class Transpose(MacroSpec):
             schema=parametersMap.get("schema"),
             nameColumn=parametersMap.get("nameColumn").lstrip("'").rstrip("'"),
             valueColumn=parametersMap.get("valueColumn").lstrip("'").rstrip("'"),
-            keyColumns=json.loads(parametersMap.get("keyColumns").replace("'", '"')),
-            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
+            keyColumns=self._loads_column_list(parametersMap.get("keyColumns")),
+            dataColumns=self._loads_column_list(parametersMap.get("dataColumns")),
             customNames=parametersMap.get("customNames").lower()
             == "true",
         )
@@ -289,7 +314,7 @@ class Transpose(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = self._parse_port_schema(component.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
