@@ -167,8 +167,8 @@ class Imputation(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         try:
-            raw = str(newState.ports.inputs[0].schema).replace("'", '"')
-            schema = json.loads(raw)
+            _raw = newState.ports.inputs[0].schema
+            schema = json.loads(_raw) if isinstance(_raw, str) else (_raw or {})
         except Exception:
             schema = {"fields": []}
         fields_array = [
@@ -232,8 +232,8 @@ class Imputation(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         try:
-            raw = str(component.ports.inputs[0].schema).replace("'", '"')
-            schema = json.loads(raw)
+            _raw = component.ports.inputs[0].schema
+            schema = json.loads(_raw) if isinstance(_raw, str) else (_raw or {})
         except Exception:
             schema = {"fields": []}
         fields_array = [
