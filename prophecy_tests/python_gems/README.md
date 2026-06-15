@@ -1,6 +1,6 @@
-# PySpark Tests
+# Python Gem Tests
 
-This directory contains tests for PySpark/Databricks gem functionality.
+This directory contains tests for the Python gem implementations (the `applyPython` DataFrame runtime in `gems/*.py`).
 
 ## 🚀 How to Run Tests Locally
 
@@ -20,7 +20,7 @@ cd /path/to/prophecy-basics
 source venv/bin/activate
 
 # Navigate to test directory
-cd prophecy_tests/pyspark
+cd prophecy_tests/python_gems
 
 # Set PYTHONPATH to include gems directory
 export PYTHONPATH=../../gems:$PYTHONPATH
@@ -35,7 +35,7 @@ If you need to create a fresh environment:
 
 ```bash
 # From project root
-cd prophecy_tests/pyspark
+cd prophecy_tests/python_gems
 
 # Create virtual environment
 python3 -m venv venv
@@ -59,7 +59,7 @@ pytest -v
 
 ### Run All Tests
 ```bash
-cd prophecy_tests/pyspark
+cd prophecy_tests/python_gems
 export PYTHONPATH=../../gems:$PYTHONPATH
 pytest -v
 ```
@@ -114,14 +114,14 @@ pytest -s
 ## 🔍 One-Liner Commands (From Project Root)
 
 ```bash
-# Run all PySpark tests
-cd prophecy_tests/pyspark && PYTHONPATH=../../gems:$PYTHONPATH pytest -v
+# Run all Python gem tests
+cd prophecy_tests/python_gems && PYTHONPATH=../../gems:$PYTHONPATH pytest -v
 
 # Run specific file
-cd prophecy_tests/pyspark && PYTHONPATH=../../gems:$PYTHONPATH pytest test_data_cleansing.py -v
+cd prophecy_tests/python_gems && PYTHONPATH=../../gems:$PYTHONPATH pytest test_data_cleansing.py -v
 
 # Run specific test
-cd prophecy_tests/pyspark && PYTHONPATH=../../gems:$PYTHONPATH pytest test_data_cleansing.py::test_trim_whitespace -v
+cd prophecy_tests/python_gems && PYTHONPATH=../../gems:$PYTHONPATH pytest test_data_cleansing.py::test_trim_whitespace -v
 ```
 
 ## 📂 Test Files

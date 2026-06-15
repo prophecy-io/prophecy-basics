@@ -8,9 +8,9 @@ Usage:
     python run_tests.py [test_type] [options]
 
 Examples:
-    python run_tests.py pyspark
+    python run_tests.py python_gems
     python run_tests.py all --coverage
-    python run_tests.py pyspark --verbose --html
+    python run_tests.py python_gems --verbose --html
 """
 
 import argparse
@@ -33,7 +33,7 @@ class Colors:
 class TestRunner:
     """Manages test execution for different test suites"""
     
-    AVAILABLE_SUITES = ['pyspark', 'snowflake_sql', 'databricks_sql', 'duckdb_sql']
+    AVAILABLE_SUITES = ['python_gems', 'snowflake_sql', 'databricks_sql', 'duckdb_sql']
     DBT_SUITES = {'snowflake_sql', 'databricks_sql', 'duckdb_sql'}
     
     def __init__(self, script_dir: Path):
@@ -201,9 +201,9 @@ class TestRunner:
         if parallel:
             pytest_cmd.extend(["-n", "auto"])
         
-        # Set up environment for pyspark tests
+        # Set up environment for python gem tests
         env = os.environ.copy()
-        if suite_name == "pyspark":
+        if suite_name == "python_gems":
             gems_dir = str(self.project_root / "gems")
             pythonpath = env.get("PYTHONPATH", "")
             if pythonpath:
@@ -291,15 +291,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python run_tests.py pyspark
+  python run_tests.py python_gems
   python run_tests.py all --coverage
-  python run_tests.py pyspark --verbose --html
+  python run_tests.py python_gems --verbose --html
         """
     )
     
     parser.add_argument(
         "test_type",
-        choices=["pyspark", "snowflake_sql", "databricks_sql", "duckdb_sql", "all"],
+        choices=["python_gems", "snowflake_sql", "databricks_sql", "duckdb_sql", "all"],
         help="Type of tests to run"
     )
     

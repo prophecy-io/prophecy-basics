@@ -16,7 +16,7 @@ The workflow runs on:
 ```
 determine-tests (Job 1)
     ↓
-├─→ test-pyspark (Job 2)
+├─→ test-python-gems (Job 2)
 ├─→ test-snowflake-sql (Job 3)
 ├─→ test-databricks-sql (Job 4)
 └─→ test-duckdb-sql (Job 5)
@@ -33,8 +33,8 @@ test-summary (Job 6)
   - Changed files (auto-detection)
 - Sets output flags for each test suite
 
-#### 2. `test-pyspark` 🔥
-- Runs PySpark/Databricks tests
+#### 2. `test-python-gems` 🔥
+- Runs Python gem (applyPython) tests
 - Requirements:
   - Python 3.11
   - Java 11 (for Spark)
@@ -72,7 +72,7 @@ To run specific tests manually:
 2. Select **Prophecy Basics Test Suite**
 3. Click **Run workflow**
 4. Select test type from dropdown:
-   - `pyspark` - Only PySpark tests
+   - `python_gems` - Only Python gem tests
    - `snowflake_sql` - Only Snowflake tests
    - `databricks_sql` - Only Databricks SQL tests
    - `duckdb_sql` - Only DuckDB tests
@@ -83,7 +83,7 @@ To run specific tests manually:
 Each test job uploads the following artifacts:
 
 - **Test Results**: JUnit XML and HTML reports
-- **Coverage Reports**: XML and HTML coverage data (for PySpark)
+- **Coverage Reports**: XML and HTML coverage data (for Python gems)
 
 Artifacts are retained for 30 days.
 
@@ -97,7 +97,7 @@ PYTHON_VERSION: '3.11'  # Python version for all tests
 
 The workflow uses caching to speed up runs:
 - pip dependencies (per test suite)
-- PySpark dependencies
+- Python gem dependencies
 
 ### Test Summary
 
@@ -111,12 +111,12 @@ After each run, a formatted summary is displayed in the GitHub UI showing:
 #### Auto-run on Push
 ```bash
 git push origin deb/my-feature
-# Workflow runs automatically with pyspark tests
+# Workflow runs automatically with python_gems tests
 ```
 
 #### Manual Run - Specific Test
 1. Actions → Prophecy Basics Test Suite → Run workflow
-2. Select `pyspark`
+2. Select `python_gems`
 3. Click "Run workflow"
 
 #### Manual Run - All Tests

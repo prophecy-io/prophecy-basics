@@ -10,10 +10,10 @@
 #   ./run_tests.sh [test_type] [options]
 #
 # Examples:
-#   ./run_tests.sh pyspark              # Run PySpark tests
-#   ./run_tests.sh all                  # Run all available tests
-#   ./run_tests.sh pyspark --coverage   # Run with coverage
-#   ./run_tests.sh pyspark --verbose    # Run with verbose output
+#   ./run_tests.sh python_gems              # Run Python gem tests
+#   ./run_tests.sh all                      # Run all available tests
+#   ./run_tests.sh python_gems --coverage   # Run with coverage
+#   ./run_tests.sh python_gems --verbose    # Run with verbose output
 ###############################################################################
 
 set -e  # Exit on error
@@ -26,7 +26,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default values
-TEST_TYPE="${1:-pyspark}"
+TEST_TYPE="${1:-python_gems}"
 COVERAGE=false
 VERBOSE=false
 PARALLEL=false
@@ -177,8 +177,8 @@ run_pytest_tests() {
         pytest_args+=("-n" "auto")
     fi
     
-    # Add gems to PYTHONPATH for pyspark tests
-    if [ "$suite_name" = "pyspark" ]; then
+    # Add gems to PYTHONPATH for python gem tests
+    if [ "$suite_name" = "python_gems" ]; then
         export PYTHONPATH="$PROJECT_ROOT/gems:$PYTHONPATH"
         echo -e "${GREEN}Added gems to PYTHONPATH: $PROJECT_ROOT/gems${NC}"
     fi
@@ -227,10 +227,10 @@ run_test_suite() {
 
 # Main execution
 case $TEST_TYPE in
-    pyspark)
-        echo -e "${BLUE}Test Type: PySpark${NC}"
+    python_gems|pyspark)
+        echo -e "${BLUE}Test Type: Python Gems${NC}"
         echo ""
-        run_test_suite "pyspark"
+        run_test_suite "python_gems"
         ;;
     
     snowflake_sql|snowflake)
@@ -257,7 +257,7 @@ case $TEST_TYPE in
         
         failed_suites=()
         
-        for suite in pyspark snowflake_sql databricks_sql duckdb_sql; do
+        for suite in python_gems snowflake_sql databricks_sql duckdb_sql; do
             if has_tests "$suite"; then
                 echo ""
                 echo -e "${BLUE}----------------------------------------${NC}"
@@ -285,7 +285,7 @@ case $TEST_TYPE in
         echo -e "${RED}Unknown test type: $TEST_TYPE${NC}"
         echo ""
         echo "Available test types:"
-        echo "  - pyspark"
+        echo "  - python_gems"
         echo "  - snowflake_sql (snowflake)"
         echo "  - databricks_sql (databricks)"
         echo "  - duckdb_sql (duckdb)"

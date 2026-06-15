@@ -6,15 +6,12 @@ This directory contains the test framework for the Prophecy Basics dbt project, 
 
 ```
 prophecy_tests/
-├── pyspark/              # PySpark/Databricks tests (✅ Active - pytest)
+├── python_gems/          # Python gem (applyPython) tests (✅ Active - pytest)
 │   ├── conftest.py
 │   ├── pytest.ini
 │   ├── requirements.txt
-│   ├── test_data_cleansing.py
-│   ├── test_data_encoder_decoder.py
-│   ├── test_data_masking.py
-│   ├── test_json_parse.py
-│   └── test_text_to_columns.py
+│   ├── DataCleansing/
+│   └── DataMasking/
 ├── snowflake_sql/        # Snowflake SQL tests (✅ Active - LocalStack Snowflake)
 │   ├── requirements.txt
 │   ├── profiles.yml
@@ -49,7 +46,7 @@ prophecy_tests/
 
 This framework supports two types of testing:
 
-### 1. **pytest** (PySpark Tests)
+### 1. **pytest** (Python Gem Tests)
 - Tests Python gem implementations directly
 - Uses unittest.mock for Prophecy framework mocking
 - Runs with pytest test runner
@@ -67,14 +64,14 @@ This framework supports two types of testing:
 #### Option 1: Using Python Test Runner (Recommended - Cross-platform)
 
 ```bash
-# Run PySpark tests
-python run_tests.py pyspark
+# Run Python gem tests
+python run_tests.py python_gems
 
 # Run all tests
 python run_tests.py all
 
 # Run with verbose output and HTML report
-python run_tests.py pyspark --verbose --html
+python run_tests.py python_gems --verbose --html
 ```
 
 #### Option 2: Using Shell Script (Unix/Linux/macOS)
@@ -83,21 +80,21 @@ python run_tests.py pyspark --verbose --html
 # Make the script executable (first time only)
 chmod +x run_tests.sh
 
-# Run PySpark tests
-./run_tests.sh pyspark
+# Run Python gem tests
+./run_tests.sh python_gems
 
 # Run all tests
 ./run_tests.sh all
 
 # Run with options
-./run_tests.sh pyspark --verbose --html
+./run_tests.sh python_gems --verbose --html
 ```
 
 #### Option 3: Direct pytest (Manual)
 
 ```bash
 # Navigate to test directory
-cd pyspark
+cd python_gems
 
 # Create and activate virtual environment
 python -m venv venv
@@ -127,7 +124,7 @@ Both `run_tests.py` and `run_tests.sh` support the following options:
 
 | Type | Description | Test Framework | Status |
 |------|-------------|----------------|--------|
-| `pyspark` | PySpark/Databricks gem tests | pytest | ✅ Active |
+| `python_gems` | Python gem (applyPython) tests | pytest | ✅ Active |
 | `snowflake_sql` | Snowflake SQL macro tests | dbt singular tests | ✅ Active |
 | `databricks_sql` | Databricks SQL macro tests | dbt singular tests | ✅ Active |
 | `duckdb_sql` | DuckDB SQL macro tests | dbt singular tests | ✅ Active |
@@ -148,7 +145,7 @@ The project includes a comprehensive GitHub Actions workflow that automatically 
 2. Select **Prophecy Basics Test Suite**
 3. Click **Run workflow**
 4. Select test type from dropdown:
-   - `pyspark` - Run only PySpark tests
+   - `python_gems` - Run only Python gem tests
    - `snowflake_sql` - Run only Snowflake tests
    - `databricks_sql` - Run only Databricks SQL tests
    - `duckdb_sql` - Run only DuckDB tests
@@ -167,7 +164,7 @@ The project includes a comprehensive GitHub Actions workflow that automatically 
 - ✅ Automatic test result uploads
 - ✅ HTML test reports
 - ✅ Test summary in GitHub UI
-- ✅ Job-level emojis for visual hierarchy (🔥 PySpark, ❄️ Snowflake, 🧱 Databricks, 🦆 DuckDB)
+- ✅ Job-level emojis for visual hierarchy (🔥 Python Gems, ❄️ Snowflake, 🧱 Databricks, 🦆 DuckDB)
 
 ### Test Results and Artifacts
 
@@ -179,9 +176,9 @@ These can be downloaded from the workflow run page.
 
 ## 🧪 Writing New Tests
 
-### PySpark Tests (pytest)
+### Python Gem Tests (pytest)
 
-1. Create a new test file in `pyspark/` directory with name `test_*.py`
+1. Create a new test file in `python_gems/` directory with name `test_*.py`
 2. Import required fixtures from `conftest.py`
 3. Use the `spark` fixture for SparkSession
 4. Follow existing test patterns
@@ -252,7 +249,7 @@ Test configuration is managed in `test_config.yml`:
 
 ```yaml
 test_suites:
-  pyspark:
+  python_gems:
     enabled: true
     python_version: "3.11"
     requires_java: true
