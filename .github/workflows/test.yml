@@ -103,10 +103,10 @@ jobs:
             echo "databricks_sql=$(has_tests databricks_sql)" >> $GITHUB_OUTPUT
             echo "duckdb_sql=$(has_tests duckdb_sql)" >> $GITHUB_OUTPUT
           else
-            echo "python_gems=$( [ '$TEST_TYPE' = 'python_gems' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
-            echo "snowflake_sql=$( [ '$TEST_TYPE' = 'snowflake_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
-            echo "databricks_sql=$( [ '$TEST_TYPE' = 'databricks_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
-            echo "duckdb_sql=$( [ '$TEST_TYPE' = 'duckdb_sql' ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "python_gems=$( [ "$TEST_TYPE" = "python_gems" ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "snowflake_sql=$( [ "$TEST_TYPE" = "snowflake_sql" ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "databricks_sql=$( [ "$TEST_TYPE" = "databricks_sql" ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+            echo "duckdb_sql=$( [ "$TEST_TYPE" = "duckdb_sql" ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
           fi
 
   # Python Gems Tests
