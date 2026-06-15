@@ -57,7 +57,7 @@ on:
         required: false
         type: string
 
-# NOTE: Sensitive values (SNOWFLAKE_PASSWORD, DATABRICKS_TOKEN) must be
+# NOTE: Sensitive values (SNOWFLAKE_PASSWORD, DATABRICKS_CLIENT_SECRET) must be
 # configured as repo secrets — they should never be entered as workflow
 # inputs since inputs are visible in workflow run logs.
 
@@ -268,7 +268,8 @@ jobs:
 
     env:
       DATABRICKS_HOST: ${{ github.event.inputs.databricks_host || secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
       DATABRICKS_HTTP_PATH: ${{ github.event.inputs.databricks_http_path || secrets.DATABRICKS_HTTP_PATH }}
       DATABRICKS_CATALOG: ${{ github.event.inputs.databricks_catalog || secrets.DATABRICKS_CATALOG || 'hive_metastore' }}
       DATABRICKS_SCHEMA: ${{ github.event.inputs.databricks_schema || secrets.DATABRICKS_SCHEMA || 'default' }}
@@ -280,12 +281,13 @@ jobs:
       - name: Validate Databricks credentials
         run: |
           missing=""
-          [ -z "$DATABRICKS_HOST" ]      && missing="$missing DATABRICKS_HOST"
-          [ -z "$DATABRICKS_TOKEN" ]     && missing="$missing DATABRICKS_TOKEN(secret)"
-          [ -z "$DATABRICKS_HTTP_PATH" ] && missing="$missing DATABRICKS_HTTP_PATH"
+          [ -z "$DATABRICKS_HOST" ]          && missing="$missing DATABRICKS_HOST"
+          [ -z "$DATABRICKS_CLIENT_ID" ]     && missing="$missing DATABRICKS_CLIENT_ID(secret)"
+          [ -z "$DATABRICKS_CLIENT_SECRET" ] && missing="$missing DATABRICKS_CLIENT_SECRET(secret)"
+          [ -z "$DATABRICKS_HTTP_PATH" ]     && missing="$missing DATABRICKS_HTTP_PATH"
           if [ -n "$missing" ]; then
             echo "::error::Missing Databricks credentials:$missing"
-            echo "Provide config via workflow inputs (manual run) and set DATABRICKS_TOKEN as a repo secret."
+            echo "Provide config via workflow inputs (manual run) and set DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET as repo secrets."
             exit 1
           fi
           echo "✅ Databricks credentials OK (host=$DATABRICKS_HOST, catalog=$DATABRICKS_CATALOG, schema=$DATABRICKS_SCHEMA)"
@@ -317,7 +319,9 @@ jobs:
                 type: databricks
                 host: "{{ env_var('DATABRICKS_HOST') }}"
                 http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
-                token: "{{ env_var('DATABRICKS_TOKEN') }}"
+                auth_type: oauth
+                client_id: "{{ env_var('DATABRICKS_CLIENT_ID') }}"
+                client_secret: "{{ env_var('DATABRICKS_CLIENT_SECRET') }}"
                 catalog: "{{ env_var('DATABRICKS_CATALOG', 'hive_metastore') }}"
                 schema: "{{ env_var('DATABRICKS_SCHEMA', 'default') }}"
                 threads: 1
