@@ -119,12 +119,12 @@ run_dbt_tests() {
         cp "$test_dir/profiles.yml" "$PROJECT_ROOT/profiles.yml"
     fi
     
-    # Run dbt unit tests
-    cd "$PROJECT_ROOT"
-    echo -e "${GREEN}Running: dbt test --select test_type:unit${NC}"
+    # Run dbt tests
+    cd "$test_dir"
+    echo -e "${GREEN}Running: dbt test --project-dir ../..${NC}"
     echo ""
-    
-    if dbt test --select test_type:unit; then
+
+    if dbt test --project-dir ../.. ; then
         echo ""
         echo -e "${GREEN}✓ $suite_name dbt tests passed${NC}"
         deactivate
