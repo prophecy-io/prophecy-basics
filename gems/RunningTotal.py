@@ -191,14 +191,21 @@ class RunningTotal(MacroSpec):
 
         return diagnostics
 
+    @staticmethod
+    def _fields_from_port_schema(port_schema) -> List[dict]:
+        if isinstance(port_schema, str):
+            schema = json.loads(port_schema or "{}")
+        else:
+            schema = port_schema or {}
+        return [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema.get("fields", [])
+        ]
+
     def onChange(
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._fields_from_port_schema(newState.ports.inputs[0].schema)
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -308,11 +315,7 @@ class RunningTotal(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._fields_from_port_schema(component.ports.inputs[0].schema)
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(

@@ -254,9 +254,7 @@ class Sample(MacroSpec):
         diagnostics = super(Sample, self).validate(context, component)
 
         missingDataColumns = []
-        schemaFields = json.loads(
-            str(component.ports.inputs[0].schema).replace("'", '"')
-        )
+        schemaFields = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
 
         for col in component.properties.dataColumns:
@@ -292,7 +290,7 @@ class Sample(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -398,7 +396,7 @@ class Sample(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]

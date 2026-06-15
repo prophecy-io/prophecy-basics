@@ -200,7 +200,7 @@ class MultiColumnEdit(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -277,7 +277,7 @@ class MultiColumnEdit(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]

@@ -64,7 +64,7 @@ class UnionByName(MacroSpec):
         """Return list[str] – one compact JSON blob per input port."""
         schema_blobs = []
         for in_port in component.ports.inputs:
-            raw_schema = json.loads(str(in_port.schema).replace("'", '"'))
+            raw_schema = (json.loads(in_port.schema) if isinstance(in_port.schema, str) else (in_port.schema or {}))
             fields_arr = [
                 {"name": f["name"], "dataType": f["dataType"]["type"]}
                 for f in raw_schema["fields"]
