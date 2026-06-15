@@ -1,3 +1,42 @@
+{#
+  MultiColumnEdit Macro Gem
+  =========================
+
+  Applies the same kind of expression to many columns at once—uppercasing, math,
+  concatenation, or any SQL you template—using placeholders for the current column
+  name and value. You can replace columns in place or emit new names with a prefix
+  or suffix.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - expressionToBeApplied: SQL fragment with column_value and column_name tokens.
+    - allColumnNames (list): Full column list in output order.
+    - columnNames (list): Subset to transform when changeOutputFieldName is false.
+    - changeOutputFieldName (bool): If true, emit all allColumnNames as-is then append transformed
+        columns with prefix/suffix aliases; if false, replace in place for columnNames only.
+    - prefixSuffixOption: "prefix" or other (suffix) when changeOutputFieldName is true.
+    - prefixSuffixToBeAdded: Prefix or suffix string for new names.
+
+  Adapter Support:
+    - default__, snowflake__, duckdb__ (quoting differences for column_name replacement)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.MultiColumnEdit(['t'], 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+    {{ prophecy_basics.MultiColumnEdit(['t'], 'concat(column_name, column_value)', ['a','b'], ['a'], True, 'prefix', 'new_') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.MultiColumnEdit(['t'], 'upper(column_value)', ['a','b'], ['a'], False, 'prefix', '') }}
+
+    Resolved query (default__):
+      select
+          upper(`a`) as `a`,
+          `b`
+      from t
+#}
 {% macro MultiColumnEdit(relation_name,
     expressionToBeApplied,
     allColumnNames=[],

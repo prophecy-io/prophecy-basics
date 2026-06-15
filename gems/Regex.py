@@ -47,6 +47,7 @@ class Regex(MacroSpec):
         # Replace
         replacementText: Optional[str] = ""
         copyUnmatchedText: bool = False
+        replaceOutputSuffix: Optional[str] = "_replaced"
         # Tokenize
         tokenizeOutputMethod: str = "splitColumns"
         noOfColumns: int = 1
@@ -271,6 +272,11 @@ class Regex(MacroSpec):
                                         Checkbox("Copy Unmatched Text to Output")
                                         .bindProperty("copyUnmatchedText")
                                     )
+                                    .addElement(
+                                        TextBox("Output Column Suffix")
+                                        .bindPlaceholder("Enter suffix for output column")
+                                        .bindProperty("replaceOutputSuffix")
+                                    )
                                 )
                             ).otherwise(
                                 # Tokenize Method Configuration
@@ -460,33 +466,6 @@ class Regex(MacroSpec):
                 diagnostics.append(
                     Diagnostic("component.properties.selectedColumnName", f"Selected column '{props.selectedColumnName}' is not present in input schema.", SeverityLevelEnum.Error))
 
-        # Helper: Check if output method is tokenize
-        is_tokenize = (hasattr(props, 'outputMethod') and props.outputMethod and
-                       props.outputMethod.lower() == 'tokenize')
-
-        # Helper: Check if regex expression exists
-        has_regex = (hasattr(props, 'regexExpression') and props.regexExpression)
-
-        # Helper: Get capturing groups count if regex exists
-        capturing_groups_count = 0
-        if has_regex:
-            capturing_groups = self.extract_capturing_groups(props.regexExpression)
-            capturing_groups_count = len(capturing_groups)
-
-        # Validate splitColumns with multiple capturing groups (splitRows case handled by AlertBox for BigQuery)
-        if is_tokenize and has_regex:
-            tokenize_method = (hasattr(props, 'tokenizeOutputMethod') and
-                               props.tokenizeOutputMethod and
-                               props.tokenizeOutputMethod.lower())
-
-            if tokenize_method == 'splitcolumns' and capturing_groups_count > 1:
-                diagnostics.append(
-                    Diagnostic(
-                        "component.properties.outputMethod",
-                        f"splitColumns with multiple capturing groups ({capturing_groups_count} groups found) may not work for BigQuery SQL dialect. Consider using the 'parse' output method instead, which properly extracts each capturing group using REGEXP_EXTRACT with group indices from parseColumns.",
-                        SeverityLevelEnum.Warning
-                    )
-                )
         return diagnostics
 
     def extract_capturing_groups(self, pattern):
@@ -548,7 +527,7 @@ class Regex(MacroSpec):
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(newState, context)
 
@@ -696,6 +675,7 @@ class Regex(MacroSpec):
             safe_str(props.outputRootName),
             safe_str(props.matchColumnName),
             str(props.errorIfNotMatched).lower(),
+            safe_str(props.replaceOutputSuffix),
         ]
         # Join all parameters - don't filter out empty strings, use "''" instead
         non_empty_param = ",".join(parameter_list)
@@ -736,6 +716,7 @@ class Regex(MacroSpec):
             matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
             errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
                               == "true",
+            replaceOutputSuffix=parametersMap.get("replaceOutputSuffix", "'_replaced'").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -767,12 +748,13 @@ class Regex(MacroSpec):
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
                 MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
+                MacroParameter("replaceOutputSuffix", str(properties.replaceOutputSuffix)),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(component, context)
 
@@ -798,6 +780,9 @@ class Regex(MacroSpec):
         match_column_name = self.props.matchColumnName
         error_if_not_matched = self.props.errorIfNotMatched
         extra_columns_handling = self.props.extraColumnsHandling
+        replace_output_suffix = self.props.replaceOutputSuffix
+        if not replace_output_suffix:
+            replace_output_suffix = "_replaced"
 
         regex_pattern = regex_expression
         if case_insensitive:
@@ -815,7 +800,7 @@ class Regex(MacroSpec):
                 ).otherwise(col(selected_column))
 
             result_df = result_df.withColumn(
-                f"{selected_column}_replaced",
+                f"{selected_column}{replace_output_suffix}",
                 replaced_col
             )
 
@@ -978,4 +963,3 @@ class Regex(MacroSpec):
                 result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
         return result_df
-

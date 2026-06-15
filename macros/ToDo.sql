@@ -1,3 +1,33 @@
+{#
+  ToDo Macro Gem
+  ==============
+
+  Marks unfinished work in a model: when this runs, the query stops with a clear
+  message so you do not silently ship placeholder logic to production.
+
+  Parameters:
+    - diag_message (string): Message embedded in the raised error.
+
+  Adapter Support:
+    - default__ (raise_error), duckdb__ (error), bigquery__ (ERROR), snowflake__ (invalid cast)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples:
+    {{ prophecy_basics.ToDo('Replace this model with real logic') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.ToDo('Replace this model with real logic') }}
+
+    Resolved query (default__):
+      SELECT *
+      FROM (
+          SELECT cast(1 as string) as error_message
+      ) AS dummy
+      WHERE raise_error('ToDo: Replace this model with real logic') IS NULL
+#}
 {% macro ToDo(diag_message) -%}
     {{ return(adapter.dispatch('ToDo', 'prophecy_basics')(diag_message)) }}
 {% endmacro %}

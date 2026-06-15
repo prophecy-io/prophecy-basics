@@ -1,3 +1,42 @@
+{#
+  Regex Macro Gem
+  ===============
+
+  Uses a regular expression on one text column to replace content, pull out
+  structured fields, split text into multiple new columns or extra rows, or add a
+  yes/no match flag—so you can standardize messy strings without hand-written SQL
+  for every edge case.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - parseColumns: JSON string or list of {columnName, dataType, ...} for parse mode.
+    - selectedColumnName: Column to run regex on.
+    - regexExpression: Pattern (escaped via helpers).
+    - outputMethod: 'replace' | 'parse' | 'tokenize' | 'match'.
+    - caseInsensitive, allowBlankTokens, replacementText, copyUnmatchedText: replace/match behavior.
+    - tokenizeOutputMethod: 'splitColumns' | 'splitRows' | other (numbered extract groups).
+    - noOfColumns, extraColumnsHandling, outputRootName, matchColumnName, errorIfNotMatched: tokenize/match options.
+
+  Adapter Support:
+    - default__ (Spark regexp_*), snowflake__, bigquery__, duckdb__
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.Regex(['t'], [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+    {{ prophecy_basics.Regex(['t'], parse_cols_json, 'text', '(\\d+)', 'parse', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'r', 'm', False) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.Regex(['t'], [], 'col', '^[0-9]+$', 'replace', True, False, '', False, 'splitColumns', 3, 'dropExtraWithoutWarning', 'tok', 'm', False) }}
+
+    Resolved query (default__ — replace mode; pattern escaped per helpers, shown here with (?i) for case-insensitive):
+      select
+          *,
+          regexp_replace(`col`, '(?i)^[0-9]+$', '') as `col_replaced`
+      from t
+#}
 {% macro Regex(relation_name,
     parseColumns,
     schema='',
@@ -13,7 +52,8 @@
     extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
-    errorIfNotMatched=false) -%}
+    errorIfNotMatched=false,
+    replaceOutputSuffix='_replaced') -%}
     {{ return(adapter.dispatch('Regex', 'prophecy_basics')(relation_name,
     parseColumns,
     schema,
@@ -29,7 +69,8 @@
     extraColumnsHandling,
     outputRootName,
     matchColumnName,
-    errorIfNotMatched)) }}
+    errorIfNotMatched,
+    replaceOutputSuffix)) }}
 {% endmacro %}
 
 {# ============================================ #}
@@ -51,7 +92,8 @@
     extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
-    errorIfNotMatched=false
+    errorIfNotMatched=false,
+    replaceOutputSuffix='_replaced'
 ) %}
 
 {# Input validation #}
@@ -92,9 +134,9 @@
             when {{ quoted_selected }} rlike '{{ regex_pattern }}' then
                 regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
             else {{ quoted_selected }}
-        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% endif %}
     from {{ source_table }}
 
@@ -262,9 +304,9 @@
             from exploded_tokens
         )
         select
-            * except (token_value_new),
+            * except (token_value_new, token_position),
             token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_position as token_sequence
+            token_position
         from numbered_tokens
         {% if not allowBlankTokens %}
         where token_value_new != '' and token_value_new is not null
@@ -326,7 +368,8 @@
     extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
-    errorIfNotMatched=false
+    errorIfNotMatched=false,
+    replaceOutputSuffix='_replaced'
 ) %}
 
 {# Input validation #}
@@ -365,9 +408,9 @@
             WHEN REGEXP_LIKE({{ quoted_selected }}, '{{ escaped_regex }}', '{{ regex_params }}') THEN
                 REGEXP_REPLACE({{ quoted_selected }}, '{{ escaped_regex }}', '{{ escaped_replacement }}', 1, 0, '{{ regex_params }}')
             ELSE {{ quoted_selected }}
-        END AS {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        END AS {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% else %}
-        REGEXP_REPLACE({{ quoted_selected }}, '{{ escaped_regex }}', '{{ escaped_replacement }}', 1, 0, '{{ regex_params }}') AS {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        REGEXP_REPLACE({{ quoted_selected }}, '{{ escaped_regex }}', '{{ escaped_replacement }}', 1, 0, '{{ regex_params }}') AS {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% endif %}
     FROM {{ source_table }}
 
@@ -514,14 +557,14 @@
             SELECT
                 * EXCLUDE (split_tokens),
                 f.value::VARCHAR AS token_value_new,
-                f.index + 1 AS token_sequence
+                f.index + 1 AS token_position
             FROM regex_matches,
             LATERAL FLATTEN(input => split_tokens) f
         )
         SELECT
-            * EXCLUDE (token_value_new, token_sequence),
+            * EXCLUDE (token_value_new, token_position),
             token_value_new AS {{ prophecy_basics.quote_identifier(outputRootName) }},
-            token_sequence
+            token_position
         FROM exploded_tokens
         {% if not allowBlankTokens %}
         WHERE TRIM(COALESCE(token_value_new, '')) != '' AND token_value_new IS NOT NULL
@@ -584,7 +627,8 @@
     extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
-    errorIfNotMatched=false
+    errorIfNotMatched=false,
+    replaceOutputSuffix='_replaced'
 ) %}
 
 {# Input validation #}
@@ -626,9 +670,9 @@
             when REGEXP_CONTAINS({{ quoted_selected }}, r'{{ regex_pattern }}') then
                 REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}')
             else {{ quoted_selected }}
-        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% else %}
-        REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        REGEXP_REPLACE({{ quoted_selected }}, r'{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% endif %}
     from {{ source_table }}
 
@@ -805,7 +849,7 @@
         select
             numbered_tokens.* EXCEPT (token_value_new, token_position),
             numbered_tokens.token_value_new as {{ prophecy_basics.quote_identifier(outputRootName) }},
-            numbered_tokens.token_position as token_sequence
+            numbered_tokens.token_position
         from numbered_tokens
         {% if not allowBlankTokens %}
         where numbered_tokens.token_value_new != '' and numbered_tokens.token_value_new is not null
@@ -866,7 +910,8 @@
     extraColumnsHandling='dropExtraWithoutWarning',
     outputRootName='regex_col',
     matchColumnName='regex_match',
-    errorIfNotMatched=false
+    errorIfNotMatched=false,
+    replaceOutputSuffix='_replaced'
 ) %}
 
 {# Input validation #}
@@ -907,9 +952,9 @@
             when REGEXP_MATCHES({{ quoted_selected }}, '{{ regex_pattern }}') then
                 regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}')
             else {{ quoted_selected }}
-        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        end as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% else %}
-        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ '_replaced') }}
+        regexp_replace({{ quoted_selected }}, '{{ regex_pattern }}', '{{ escaped_replacement }}') as {{ prophecy_basics.quote_identifier(selectedColumnName ~ (replaceOutputSuffix if replaceOutputSuffix else '_replaced')) }}
         {% endif %}
     from {{ source_table }}
 

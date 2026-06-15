@@ -1,3 +1,62 @@
+{#
+  DataCleansing Macro Gem
+  =======================
+
+  Cleans and standardizes your dataset: optionally remove rows where every field
+  is empty, fill missing text and numbers, trim and fix whitespace, strip letters,
+  punctuation, or digits where configured, change case, and substitute default
+  dates or timestamps. Only the columns you list are transformed; the rest stay
+  as-is.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - schema (list): Column metadata with name and dataType (used for typing and column order).
+    - modifyCase (string): For string columns — '' (no change), 'makeLowercase', 'makeUppercase', 'makeTitlecase'.
+    - columnNames (list): Columns to transform; [] returns SELECT * FROM cleansed_data only.
+    - replaceNullTextFields, replaceNullTextWith: COALESCE strings to replaceNullTextWith.
+    - replaceNullForNumericFields, replaceNullNumericWith: COALESCE numeric types.
+    - trimWhiteSpace, removeTabsLineBreaksAndDuplicateWhitespace, allWhiteSpace: string whitespace handling.
+    - cleanLetters, cleanPunctuations, cleanNumbers: REGEXP_REPLACE-based string cleaning (string columns).
+    - removeRowNullAllCols (bool): WHERE col IS NOT NULL OR ... for all schema columns.
+    - replaceNullDateFields, replaceNullDateWith, replaceNullTimeFields, replaceNullTimeWith: date/timestamp COALESCE.
+
+  Adapter Support:
+    - default__ (Databricks/Spark-style backticks; REGEXP_REPLACE patterns as implemented)
+    - snowflake__, duckdb__, bigquery__ (see respective implementations for type names and regex).
+
+  Depends on schema parameter:
+    Yes
+
+  Macro Call Example (default__ — all parameters; adjust flags for your case):
+    {{ prophecy_basics.DataCleansing(
+        ['my_table'], schema, 'makeLowercase', ['email'],
+        True, 'NA', False, 0,
+        True, False, False, False, False, False, False,
+        False, '1970-01-01', False, '1970-01-01 00:00:00'
+    ) }}
+
+  CTE Usage Example:
+    Macro call (see "Macro Call Example" above):
+      {{ prophecy_basics.DataCleansing(
+          ['my_table'], schema, 'makeLowercase', ['email'],
+          True, 'NA', False, 0,
+          True, False, False, False, False, False, False,
+          False, '1970-01-01', False, '1970-01-01 00:00:00'
+      ) }}
+
+    Resolved query (default__ — illustrative; schema has `id` and `email` (string); only `email` in columnNames; removeRowNullAllCols false):
+      WITH cleansed_data AS (
+          SELECT * FROM `my_table`
+      )
+      SELECT
+          `id`,
+          CAST(
+              LOWER(
+                  LTRIM(RTRIM(COALESCE(`email`, 'NA')))
+              ) AS string
+          ) AS `email`
+      FROM cleansed_data
+#}
 {% macro DataCleansing(relation_name,
         schema,
         modifyCase,
@@ -90,26 +149,31 @@
         "integer","smallint","tinyint"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
-        {% set col_expr = bt ~ col_name ~ bt %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
+        {% set col_expr = bt ~ actual_name ~ bt %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -142,10 +206,10 @@
         {% endif %}
 
         {# date / timestamp null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
 
@@ -231,22 +295,28 @@
     {%- if columnNames | length > 0 -%}
         {%- set columns_to_select = [] -%}
         {%- set col_type_map = {} -%}
+        {%- set col_name_map = {} -%}
         {%- for col in schema -%}
-            {%- set col_type_map = col_type_map.update({ col.name: col.dataType | lower }) -%}
+            {%- set col_type_map = col_type_map.update({ col.name | lower: col.dataType | lower }) -%}
+            {%- set col_name_map = col_name_map.update({ col.name | lower: col.name }) -%}
         {%- endfor -%}
         {%- set numeric_types = ["number", "float"] -%}
 
         {{ log(col_type_map, info = True) }}
         {%- for col_name in columnNames -%}
-            {%- set col_expr = '"' ~ col_name ~ '"' -%}
+            {%- set lookup_key = col_name | lower -%}
+            {%- set actual_name = col_name_map.get(lookup_key, col_name) -%}
+            {%- set col_expr = '"' ~ actual_name ~ '"' -%}
+            {%- set dtype = col_type_map.get(lookup_key) -%}
+            {%- set base_type = (dtype or '').split('(')[0] | trim -%}
 
-            {%- if col_type_map.get(col_name) in numeric_types -%}
+            {%- if base_type in numeric_types -%}
                 {%- if replaceNullForNumericFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ replaceNullNumericWith | string ~ ")" -%}
                 {%- endif -%}
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "string" -%}
+            {%- if base_type == "string" -%}
 
                 {%- if replaceNullTextFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" -%}
@@ -290,21 +360,21 @@
 
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "date" -%}
+            {%- if base_type == "date" -%}
                 {%- if replaceNullDateFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" -%}
                 {%- endif -%}
             {%- endif -%}
 
-            {%- if col_type_map.get(col_name) == "timestamp" -%}
+            {%- if base_type == "timestamp" -%}
                 {%- if replaceNullTimeFields -%}
                     {%- set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" -%}
                 {%- endif -%}
             {%- endif -%}
 
             {{ log("Appending transformed column expression", info=True) }}
-            {%- set col_expr = col_expr ~ "::" ~ col_type_map.get(col_name) -%}
-            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ col_name ~ '"') -%}
+            {%- set col_expr = col_expr ~ "::" ~ dtype -%}
+            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ actual_name ~ '"') -%}
         {%- endfor -%}
 
         {# Get the schema of cleansed data #}
@@ -402,26 +472,31 @@
         "integer","smallint","tinyint"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
-        {% set col_expr = prophecy_basics.quote_identifier(col_name) %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
+        {% set col_expr = prophecy_basics.quote_identifier(actual_name) %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -458,10 +533,10 @@
         {% endif %}
 
         {# date / timestamp null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", CAST('" ~ replaceNullTimeWith ~ "' AS TIMESTAMP))" %}
         {% endif %}
 
@@ -541,26 +616,31 @@
         "numeric","decimal","bignumeric","bigdecimal","float64","float"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
-        {% set col_expr = bt ~ col_name ~ bt %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
+        {% set base_type = (dtype or '').split('(')[0] | trim %}
+        {% set col_expr = bt ~ actual_name ~ bt %}
 
         {# numeric null replacement #}
-        {% if dtype in numeric_types and replaceNullForNumericFields %}
+        {% if base_type in numeric_types and replaceNullForNumericFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", " ~ (replaceNullNumericWith | string) ~ ")" %}
         {% endif %}
 
         {# string rules #}
-        {% if dtype == "string" %}
+        {% if base_type == "string" %}
             {% if replaceNullTextFields %}
                 {% set col_expr = "COALESCE(" ~ col_expr ~ ", '" ~ replaceNullTextWith ~ "')" %}
             {% endif %}
@@ -593,20 +673,20 @@
         {% endif %}
 
         {# date null replacement #}
-        {% if dtype == 'date' and replaceNullDateFields %}
+        {% if base_type == 'date' and replaceNullDateFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATE '" ~ replaceNullDateWith ~ "')" %}
         {% endif %}
 
         {# timestamp / datetime null replacement #}
-        {% if dtype == 'timestamp' and replaceNullTimeFields %}
+        {% if base_type == 'timestamp' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", TIMESTAMP '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
-        {% if dtype == 'datetime' and replaceNullTimeFields %}
+        {% if base_type == 'datetime' and replaceNullTimeFields %}
             {% set col_expr = "COALESCE(" ~ col_expr ~ ", DATETIME '" ~ replaceNullTimeWith ~ "')" %}
         {% endif %}
 
         {# BigQuery requires FLOAT64, not FLOAT #}
-        {% set cast_type = "FLOAT64" if dtype == "float" else dtype %}
+        {% set cast_type = "FLOAT64" if base_type == "float" else dtype %}
         {# final cast back to original dtype; store override #}
         {% set final_expr = "CAST(" ~ col_expr ~ " AS " ~ cast_type ~ ")" %}
         {% do override_map.update({ (col_name | upper): final_expr }) %}

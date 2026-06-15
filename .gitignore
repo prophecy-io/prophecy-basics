@@ -24,3 +24,7 @@ requirements.txt
 scripts/
 tests/bigquery_expected/
 tests/expected/
+tests/compiled_output/
+tests/docs/
+.DS_Store
+/CLAUDE.md

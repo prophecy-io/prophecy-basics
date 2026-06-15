@@ -1,3 +1,49 @@
+{#
+  DataMasking Macro Gem
+  =====================
+
+  Masks or hashes sensitive values so you can share or analyze data without
+  exposing originals—character masking, one-way hashes, SHA-2 digests, or a single
+  hash across multiple columns. New column names can replace fields in place or
+  use a prefix or suffix.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - column_names (list): Target columns.
+    - remaining_columns: Unquoted column list for default__ SELECT list when not using SELECT * pattern
+        (snowflake__/duckdb__ use quote_column_list where applicable).
+    - masking_method (string): "mask" (Databricks mask() with char params), "hash"
+      (multi-arg hash for combinedHash_substitute), "sha2" (sha2(..., sha2_bit_length)),
+      or any other function name used as literal SQL function for per-column calls.
+    - upper_char_substitute, lower_char_substitute, digit_char_substitute, other_char_substitute:
+        Passed to mask(); use "NULL" to skip a category (default__).
+    - sha2_bit_length: Bits for sha2 (e.g. 256).
+    - masked_column_add_method: "inplace_substitute" | "prefix_suffix_substitute" |
+        "combinedHash_substitute" (hash across column_names into combined_hash_column_name).
+    - prefix_suffix_opt / prefix_suffix_val: New column naming when not inplace.
+    - combined_hash_column_name: Output alias for combined hash.
+
+  Adapter Support:
+    - default__ (Databricks mask/hash/sha2), snowflake__, duckdb__ (regex-based mask, HASH/SHA2/sha256, etc.)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__):
+    {{ prophecy_basics.DataMasking(['t'], ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+    {{ prophecy_basics.DataMasking(['t'], ['a','b'], '', 'hash', '', '', '', '', 256, 'combinedHash_substitute', 'Prefix', '', 'combined_h') }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.DataMasking(['t'], ['email'], '"id"', 'mask', 'X', 'x', '0', '', 256, 'inplace_substitute', 'Prefix', '', '') }}
+
+    Resolved query (default__ — mask on email; remaining id column kept):
+      WITH final_cte AS (
+          SELECT `id`, mask(`email`, upperChar => 'X', lowerChar => 'x', digitChar => '0') AS `email`
+          FROM t
+      )
+      SELECT * FROM final_cte
+#}
 {% macro DataMasking(relation_name,
     column_names,
     remaining_columns,

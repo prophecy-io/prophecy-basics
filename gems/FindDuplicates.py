@@ -10,7 +10,7 @@ from pyspark.sql.functions import row_number, count, lit, expr
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -426,7 +426,7 @@ class FindDuplicates(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -447,10 +447,10 @@ class FindDuplicates(MacroSpec):
         schema_columns = []
         schema_js = json.loads(props.schema)
         for js in schema_js:
-            schema_columns.append(js["name"].lower())
+            schema_columns.append(js["name"])
 
         order_rules: List[dict] = [
-            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
+            {"expression": {"expression": expr}, "sortType": r.sortType}
             for r in props.orderByColumns
             for expr in [(r.expression.expression or "").strip()]  # temp var
             if expr  # keep non-empty
@@ -531,7 +531,7 @@ class FindDuplicates(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
