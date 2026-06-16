@@ -30,24 +30,29 @@
     Macro call (first example above):
       {{ prophecy_basics.TextToColumns(['t'], 'payload', ',', 'splitColumns', 4, False, 'c', 'out', 'token') }}
 
-    Resolved query (default__ — splitColumns; pattern uses %%DELIM%% placeholder; abbreviated column list):
-      WITH source AS (
-          SELECT *,
-              split(
-                  regexp_replace(`payload`, ',', '%%DELIM%%'),
-                  '%%DELIM%%'
-              ) AS tokens
+    Resolved query (default__ — splitColumns; abbreviated column list):
+      WITH params AS (
+          SELECT *, ',' AS delimiter, 4 AS num_cols
           FROM t
       ),
-      all_data AS (
+      split_result AS (
           SELECT *,
-              regexp_replace(trim(tokens[0]), '^"|"$', '') AS `c_1_out`,
-              regexp_replace(trim(tokens[1]), '^"|"$', '') AS `c_2_out`,
-              regexp_replace(trim(tokens[2]), '^"|"$', '') AS `c_3_out`,
-              tokens[3] AS `c_4_out`
-          FROM source
+              SPLIT(
+                  `payload`,
+                  CONCAT('[', REGEXP_REPLACE(delimiter, '([\\\\\\]\\[\\^\\-])', '\\\\$1'), ']'),
+                  num_cols
+              ) AS parts
+          FROM params
+      ),
+      final AS (
+          SELECT * EXCEPT(delimiter, num_cols, parts),
+              parts[0] AS `c_1_out`,
+              parts[1] AS `c_2_out`,
+              parts[2] AS `c_3_out`,
+              parts[3] AS `c_4_out`
+          FROM split_result
       )
-      SELECT * EXCEPT (tokens) FROM all_data
+      SELECT * FROM final
 #}
 {% macro TextToColumns(relation_name,
     columnNames,
@@ -81,62 +86,66 @@
     splitRowsColumnName
     ) %}
 
-{#
-  Build the regex pattern for matching the delimiter.
-#}
-{%- set pattern = delimiter -%}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
 {# Helper to quote column names inline #}
 {%- set quote_char = '`' -%}
 
 {# Quote the column name properly #}
-{%- set quoted_column_name = prophecy_basics.quote_identifier(columnNames) -%}
+{%- set quoted_column_name = prophecy_basics.quote_identifier(columnNames) | trim -%}
+{%- set delimiter_literal = prophecy_basics.escape_sql_string(delimiter) -%}
+{%- set split_pattern_expr = "CONCAT('[', REGEXP_REPLACE(delimiter, '([\\\\\\\\\\\\]\\\\[\\\\^\\\\-])', '\\\\\\\\$1'), ']')" -%}
 
 {%- if split_strategy == 'splitColumns' -%}
-    WITH source AS (
+    WITH params AS (
         SELECT *,
-            split(
-                regexp_replace({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
-                '%%DELIM%%'
-            ) AS tokens
+            '{{ delimiter_literal }}' AS delimiter,
+            {{ noOfColumns }} AS num_cols
         FROM {{ relation_list | join(', ') }}
     ),
-    all_data AS (
-    SELECT *,
+    split_result AS (
+        SELECT *,
+            SPLIT(
+                {{ quoted_column_name }},
+                {{ split_pattern_expr }},
+                num_cols
+            ) AS parts
+        FROM params
+    ),
+    final AS (
+        SELECT * EXCEPT(delimiter, num_cols, parts),
         {# Extract tokens positionally (Spark arrays are 0-indexed) #}
         {%- for i in range(1, noOfColumns) %}
-            regexp_replace((tokens[{{ i - 1 }}]), '^"|"$', '')
-            AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix ~ quote_char }}{% if not loop.last or leaveExtraCharLastCol %}, {% endif %}
+            parts[{{ i - 1 }}] AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ i ~ '_' ~ splitColumnSuffix ~ quote_char }},
         {%- endfor %}
-        {%- if leaveExtraCharLastCol %}
-            CASE
-                WHEN size(tokens) >= {{ noOfColumns }}
-                    THEN array_join(slice(tokens, {{ noOfColumns }}, greatest(size(tokens) - {{ noOfColumns }} + 1, 0)), '{{ delimiter }}')
-                ELSE null
-            END AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix ~ quote_char }}
-        {%- else %}
-            tokens[{{ noOfColumns - 1 }}] AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix ~ quote_char }}
-        {%- endif %}
-    FROM source
+            parts[{{ noOfColumns - 1 }}] AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix ~ quote_char }}
+        FROM split_result
     )
-    SELECT * EXCEPT(tokens) FROM all_data
+    SELECT * FROM final
 
 {%- elif split_strategy == 'splitRows' -%}
+    {%- set split_rows_except_columns = ['delimiter', 'num_cols', 'parts'] -%}
     {%- if columnNames == splitRowsColumnName -%}
-        {%- set except_clause = 'EXCEPT(' ~ quoted_column_name ~ ')' -%}
-    {%- else -%}
-        {%- set except_clause = '' -%}
+        {%- do split_rows_except_columns.append(quoted_column_name) -%}
     {%- endif -%}
-    SELECT r.* {{ except_clause }},
+    WITH params AS (
+        SELECT *,
+            '{{ delimiter_literal }}' AS delimiter,
+            {{ noOfColumns }} AS num_cols
+        FROM {{ relation_list | join(', ') }}
+    ),
+    split_result AS (
+        SELECT *,
+            SPLIT(
+                if({{ quoted_column_name }} IS NULL, '', {{ quoted_column_name }}),
+                {{ split_pattern_expr }}
+            ) AS parts
+        FROM params
+    )
+    SELECT r.* EXCEPT({{ split_rows_except_columns | join(', ') }}),
             (regexp_replace(s.col, '[{}_]', ' ')) AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
-    FROM {{ relation_list | join(', ') }} r
-    LATERAL VIEW explode(
-        split(
-            if({{ quoted_column_name }} IS NULL, '', {{ quoted_column_name }}),
-            '{{ pattern }}'
-        )
-    ) s AS col
+    FROM split_result r
+    LATERAL VIEW explode(parts) s AS col
 
 {%- else -%}
 SELECT * FROM {{ relation_list | join(', ') }}
