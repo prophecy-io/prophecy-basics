@@ -149,19 +149,23 @@
         "integer","smallint","tinyint"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
         {% set base_type = (dtype or '').split('(')[0] | trim %}
-        {% set col_expr = bt ~ col_name ~ bt %}
+        {% set col_expr = bt ~ actual_name ~ bt %}
 
         {# numeric null replacement #}
         {% if base_type in numeric_types and replaceNullForNumericFields %}
@@ -291,15 +295,19 @@
     {%- if columnNames | length > 0 -%}
         {%- set columns_to_select = [] -%}
         {%- set col_type_map = {} -%}
+        {%- set col_name_map = {} -%}
         {%- for col in schema -%}
-            {%- set col_type_map = col_type_map.update({ col.name: col.dataType | lower }) -%}
+            {%- set col_type_map = col_type_map.update({ col.name | lower: col.dataType | lower }) -%}
+            {%- set col_name_map = col_name_map.update({ col.name | lower: col.name }) -%}
         {%- endfor -%}
         {%- set numeric_types = ["number", "float"] -%}
 
         {{ log(col_type_map, info = True) }}
         {%- for col_name in columnNames -%}
-            {%- set col_expr = '"' ~ col_name ~ '"' -%}
-            {%- set dtype = col_type_map.get(col_name) -%}
+            {%- set lookup_key = col_name | lower -%}
+            {%- set actual_name = col_name_map.get(lookup_key, col_name) -%}
+            {%- set col_expr = '"' ~ actual_name ~ '"' -%}
+            {%- set dtype = col_type_map.get(lookup_key) -%}
             {%- set base_type = (dtype or '').split('(')[0] | trim -%}
 
             {%- if base_type in numeric_types -%}
@@ -366,7 +374,7 @@
 
             {{ log("Appending transformed column expression", info=True) }}
             {%- set col_expr = col_expr ~ "::" ~ dtype -%}
-            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ col_name ~ '"') -%}
+            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ actual_name ~ '"') -%}
         {%- endfor -%}
 
         {# Get the schema of cleansed data #}
@@ -464,19 +472,23 @@
         "integer","smallint","tinyint"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
         {% set base_type = (dtype or '').split('(')[0] | trim %}
-        {% set col_expr = prophecy_basics.quote_identifier(col_name) %}
+        {% set col_expr = prophecy_basics.quote_identifier(actual_name) %}
 
         {# numeric null replacement #}
         {% if base_type in numeric_types and replaceNullForNumericFields %}
@@ -604,19 +616,23 @@
         "numeric","decimal","bignumeric","bigdecimal","float64","float"
     ] %}
 
-    {# Map: column name -> lowercased data type #}
+    {# Map: lowercased column name -> lowercased data type; and lowercased name -> actual name #}
     {% set col_type_map = {} %}
+    {% set col_name_map = {} %}
     {% for c in schema %}
-        {% do col_type_map.update({ c.name: c.dataType | lower }) %}
+        {% do col_type_map.update({ c.name | lower: c.dataType | lower }) %}
+        {% do col_name_map.update({ c.name | lower: c.name }) %}
     {% endfor %}
 
     {# ───────────── 3) Build per-column override expressions ───────────── #}
     {% set override_map = {} %}
 
     {% for col_name in columnNames %}
-        {% set dtype = col_type_map.get(col_name) %}
+        {% set lookup_key = col_name | lower %}
+        {% set actual_name = col_name_map.get(lookup_key, col_name) %}
+        {% set dtype = col_type_map.get(lookup_key) %}
         {% set base_type = (dtype or '').split('(')[0] | trim %}
-        {% set col_expr = bt ~ col_name ~ bt %}
+        {% set col_expr = bt ~ actual_name ~ bt %}
 
         {# numeric null replacement #}
         {% if base_type in numeric_types and replaceNullForNumericFields %}
