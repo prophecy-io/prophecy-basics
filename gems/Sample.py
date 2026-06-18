@@ -344,7 +344,11 @@ class Sample(MacroSpec):
                 return "''"
             if isinstance(val, list):
                 return str(val)
-            return f"'{val}'"
+            # Escape backslashes and single quotes so values containing
+            # apostrophes (e.g. column names like "Feb' 24" in the schema)
+            # remain a valid Jinja string literal in the generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
 
         non_empty_param = ",".join(
             [
