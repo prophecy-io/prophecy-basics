@@ -1,6 +1,7 @@
 import dataclasses
 import json
 
+import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import DataFrame, SparkSession
@@ -38,6 +39,21 @@ class DataEncoderDecoder(MacroSpec):
         aes_enc_dec_secretKey_aad: str = ""
         aes_enc_dec_secretScope_iv: str = ""
         aes_enc_dec_secretKey_iv: str = ""
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         aes_encrypt_condition = Condition().ifEqual(

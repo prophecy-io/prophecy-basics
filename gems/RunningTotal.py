@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import re
 from dataclasses import dataclass, field
 
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -41,6 +42,21 @@ class RunningTotal(MacroSpec):
         runningTotalColumnNames: List[str] = field(default_factory=list)
         orderByColumns: List[OrderByRule] = field(default_factory=list)
         outputPrefix: Optional[str] = None
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         order_by_table = BasicTable(
