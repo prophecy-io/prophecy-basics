@@ -169,6 +169,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
   Build the regex pattern for matching the delimiter.
 #}
 {%- set pattern = delimiter -%}
+{%- set literal_delimiter = delimiter.replace('\\', '') -%}
 {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
 {# Helper to quote column names inline #}
@@ -181,7 +182,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
     WITH source AS (
         SELECT *,
             SPLIT(
-                REGEXP_REPLACE({{ quoted_column_name }}, {{ "'" ~ pattern ~ "'" }}, '%%DELIM%%'),
+                REGEXP_REPLACE({{ quoted_column_name }}, {{ "r'" ~ pattern ~ "'" }}, '%%DELIM%%'),
                 '%%DELIM%%'
             ) AS tokens
         FROM {{ relation_list | join(', ') }}
@@ -199,7 +200,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
         {%- if leaveExtraCharLastCol %}
             CASE
                 WHEN ARRAY_LENGTH(tokens) >= {{ noOfColumns }}
-                    THEN ARRAY_TO_STRING(ARRAY(SELECT tokens[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns - 1 }}, ARRAY_LENGTH(tokens) - 1)) AS i), '{{ delimiter }}')
+                    THEN ARRAY_TO_STRING(ARRAY(SELECT tokens[OFFSET(i)] FROM UNNEST(GENERATE_ARRAY({{ noOfColumns - 1 }}, ARRAY_LENGTH(tokens) - 1)) AS i), '{{ literal_delimiter }}')
                 ELSE null
             END AS {{ quote_char ~ splitColumnPrefix ~ '_' ~ noOfColumns ~ '_' ~ splitColumnSuffix ~ quote_char }}
         {%- else %}
@@ -217,7 +218,7 @@ SELECT * FROM {{ relation_list | join(', ') }}
     SELECT r.*,
         REGEXP_REPLACE(split_value, r'[{}_]', ' ') AS {{ quote_char ~ splitRowsColumnName ~ quote_char }}
     FROM {{ relation_list | join(', ') }} r,
-    UNNEST(SPLIT(COALESCE(r.{{ quoted_column_name }}, ''), '{{ pattern }}')) AS split_value
+    UNNEST(SPLIT(COALESCE(r.{{ quoted_column_name }}, ''), '{{ literal_delimiter }}')) AS split_value
 
 {%- else -%}
 SELECT * FROM {{ relation_list | join(', ') }}
