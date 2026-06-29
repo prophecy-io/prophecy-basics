@@ -167,9 +167,6 @@ SELECT * FROM {{ relation_list | join(', ') }}
 
 {#
   Build the regex pattern for matching the delimiter.
-  `pattern` keeps the (regex-escaped) delimiter for regex contexts (REGEXP_REPLACE) and is
-  emitted as a BigQuery raw string to avoid "Illegal escape sequence" errors (e.g. '\|').
-  `literal_delimiter` strips the regex escaping for literal contexts (ARRAY_TO_STRING / SPLIT).
 #}
 {%- set pattern = delimiter -%}
 {%- set literal_delimiter = delimiter.replace('\\', '') -%}
