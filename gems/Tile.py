@@ -18,6 +18,7 @@ class ColumnExpr:
 class OrderByRule:
     expression: ColumnExpr
     sortType: str = "asc"
+    _row_id: Optional[str] = None
 
 class Tile(MacroSpec):
     name: str = "Tile"
