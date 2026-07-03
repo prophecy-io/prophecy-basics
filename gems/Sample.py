@@ -16,13 +16,13 @@ from pyspark.sql.functions import row_number, count, lit, expr
 class ColumnExpr:
     expression: str
     format: Optional[str]
-    _row_id: Optional[str]
 
 
 @dataclass(frozen=True)
 class OrderByRule:
     expression: ColumnExpr
     sortType: str = "asc"
+    _row_id: Optional[str]
 
 
 class Sample(MacroSpec):
