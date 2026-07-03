@@ -12,13 +12,13 @@ from prophecy.cb.ui.uispec import *
 class ColumnExpr:
     expression: str
     format: Optional[str]
-    _row_id: Optional[str]
 
 
 @dataclass(frozen=True)
 class OrderByRule:
     expression: ColumnExpr
     sortType: str = "asc"
+    _row_id: Optional[str]
 
 class Tile(MacroSpec):
     name: str = "Tile"
