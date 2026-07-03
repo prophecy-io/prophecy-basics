@@ -16,7 +16,7 @@ from pyspark.sql.functions import row_number, count, lit, expr
 class ColumnExpr:
     expression: str
     format: Optional[str]
-    _row_id: Option[str]
+    _row_id: Optional[str]
 
 
 @dataclass(frozen=True)
