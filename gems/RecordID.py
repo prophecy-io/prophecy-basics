@@ -19,6 +19,7 @@ class ColumnExpr:
 class OrderByRule:
     expression: ColumnExpr
     sortType: str = "asc"
+    _row_id: Optional[str] = None
 
 
 class RecordID(MacroSpec):
