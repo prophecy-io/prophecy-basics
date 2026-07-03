@@ -19,6 +19,7 @@ class ColumnParse:
     columnName: str
     dataType: str
     rgxExpression: str
+    _row_id: Optional[str] = None
 
 
 class Regex(MacroSpec):
