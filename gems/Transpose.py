@@ -33,7 +33,6 @@ class Transpose(MacroSpec):
         nameColumn: str = "Name"
         valueColumn: str = "Value"
 
-    @staticmethod
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
         for input_port in component.ports.inputs:
@@ -49,6 +48,7 @@ class Transpose(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
     def _parse_port_schema(schema) -> dict:
         raw = str(schema)
         try:
