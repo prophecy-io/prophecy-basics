@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 from dataclasses import dataclass, field
 import json
@@ -680,9 +681,24 @@ class Regex(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list/tuple params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads with a
+            # naive .replace("'", '"'), which corrupts any regex containing a
+            # double-quote (e.g. ([^"]+), common in Alteryx-transpiled pipelines)
+            # and raises JSONDecodeError, wiping the gem's config. literal_eval
+            # accepts both single- and double-quoted literals, so JSON also works.
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         parseColumns = []
-        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
-        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
+        parseCols = _parse_py_literal(parametersMap.get('parseColumns'), [])
         for fld in parseCols:
             parseColumns.append(
                 ColumnParse(
@@ -692,7 +708,7 @@ class Regex(MacroSpec):
                 )
             )
         return Regex.RegexProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             parseColumns=parseColumns,
             schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
