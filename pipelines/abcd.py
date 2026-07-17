@@ -8,4 +8,9 @@ with Pipeline(args) as pipeline:
         properties = ModelTransform(modelName = "abcd__TestTrainSplit_1"),
         input_ports = None
     )
+    abcd__sqlstatement_0_1 = Process(
+        name = "abcd__sqlstatement_0_1",
+        properties = ModelTransform(modelName = "abcd__sqlstatement_0_1"),
+        input_ports = None
+    )
 

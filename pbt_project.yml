@@ -1334,5 +1334,6 @@ sqlOrchestratorPipelines:
     - .prophecy/ide/pipelines/abcd.json
     - models/abcd/schema.yml
     - models/abcd/abcd__TestTrainSplit_1.sql
+    - models/abcd/abcd__sqlstatement_0_1.sql
     createdAt: '2026-07-17 09:18:02'
 sqlBusinessApps: {}
