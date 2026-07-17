@@ -1394,7 +1394,7 @@ sqlOrchestratorPipelines:
     files:
     - pipelines/abcd.py
     - .prophecy/ide/pipelines/abcd.json
-    - models/abcd/schema.yml
     - models/abcd/abcd__TestTrainSplit_1.sql
+    - models/abcd/schema.yml
     createdAt: '2026-07-17 09:18:02'
 sqlBusinessApps: {}
