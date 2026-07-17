@@ -6,19 +6,6 @@ from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 
 
-# Single-row wrapper for the column-or-expression fields (Rate, NPER, PMT, ...).
-# Modeled as a 1-row table (like RunningTotal's order-by list) instead of a plain
-# str bound directly to the ExpressionBox, since the platform's "Add Column" on
-# hover only wires up for table-cell ExpressionBoxes, not ones bound via `value`.
-@dataclass(frozen=True)
-class ScalarExpr:
-    value: str = ""
-
-
-def _scalar_text(rows: List[ScalarExpr]) -> str:
-    return (rows[0].value if rows else "") or ""
-
-
 class Finance(MacroSpec):
     name: str = "Finance"
     projectName: str = "prophecy_basics"
@@ -39,23 +26,23 @@ class Finance(MacroSpec):
         schema: str = ""
         functionType: str = "FV"
         outputColumn: str = "finance_result"
-        rateCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        nperCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        pmtCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        pvCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        fvCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        principalCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        beginValueCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        endValueCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        periodsCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        nominalRateCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        effectRateCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        nperyCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        financeRateCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        reinvestRateCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        loBoundCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        hiBoundCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
-        nIterCol: List[ScalarExpr] = field(default_factory=lambda: [ScalarExpr()])
+        rateCol: str = ""
+        nperCol: str = ""
+        pmtCol: str = ""
+        pvCol: str = ""
+        fvCol: str = ""
+        principalCol: str = ""
+        beginValueCol: str = ""
+        endValueCol: str = ""
+        periodsCol: str = ""
+        nominalRateCol: str = ""
+        effectRateCol: str = ""
+        nperyCol: str = ""
+        financeRateCol: str = ""
+        reinvestRateCol: str = ""
+        loBoundCol: str = ""
+        hiBoundCol: str = ""
+        nIterCol: str = ""
         valueColumns: List[str] = field(default_factory=list)
         dateColumns: List[str] = field(default_factory=list)
         paymentType: str = "0"
@@ -90,21 +77,10 @@ class Finance(MacroSpec):
             return (StackLayout(height="100%")
                     .addElement(TitleElement(label))
                     .addElement(
-                        BasicTable(
-                            f"{prop}Table",
-                            height="70px",
-                            delete=False,
-                            appendNewRow=False,
-                            columns=[
-                                Column(
-                                    "",
-                                    "value",
-                                    ExpressionBox(ignoreTitle=True, language="sql")
-                                    .bindPlaceholder("Column name or a value/expression, e.g. rate_col or 0.05")
-                                    .withSchemaSuggestions(),
-                                )
-                            ],
-                        ).bindProperty(prop)
+                        ExpressionBox(ignoreTitle=True, language="sql")
+                        .bindPlaceholder("Column name or a value/expression, e.g. rate_col or 0.05")
+                        .withSchemaSuggestions()
+                        .bindProperty(prop)
                     ))
 
         def colsdd(title, prop):
@@ -297,7 +273,7 @@ class Finance(MacroSpec):
             err("valueColumns", f"{ft} needs at least two cash-flow columns.")
 
         for prop, label in self.REQUIRED_FIELDS_BY_FUNCTION.get(ft, []):
-            if not _scalar_text(getattr(p, prop)).strip():
+            if not (getattr(p, prop) or "").strip():
                 err(prop, f"{label} is required for {ft}.")
 
         return diagnostics
@@ -340,26 +316,26 @@ class Finance(MacroSpec):
             str(props.relation_name),   # 1  relation_name (list, like CountRecords)
             q(props.functionType),
             q(props.outputColumn if props.outputColumn.strip() != "" else "finance_result"),
-            q(_scalar_text(props.rateCol)),
-            q(_scalar_text(props.nperCol)),
-            q(_scalar_text(props.pmtCol)),
-            q(_scalar_text(props.pvCol)),
-            q(_scalar_text(props.fvCol)),
+            q(props.rateCol),
+            q(props.nperCol),
+            q(props.pmtCol),
+            q(props.pvCol),
+            q(props.fvCol),
             q(props.paymentType),
-            q(_scalar_text(props.principalCol)),
+            q(props.principalCol),
             q(value_list),
             q(date_list),
-            q(_scalar_text(props.beginValueCol)),
-            q(_scalar_text(props.endValueCol)),
-            q(_scalar_text(props.periodsCol)),
-            q(_scalar_text(props.nominalRateCol)),
-            q(_scalar_text(props.effectRateCol)),
-            q(_scalar_text(props.nperyCol)),
-            q(_scalar_text(props.financeRateCol)),
-            q(_scalar_text(props.reinvestRateCol)),
-            q(_scalar_text(props.loBoundCol)),
-            q(_scalar_text(props.hiBoundCol)),
-            q(_scalar_text(props.nIterCol)),
+            q(props.beginValueCol),
+            q(props.endValueCol),
+            q(props.periodsCol),
+            q(props.nominalRateCol),
+            q(props.effectRateCol),
+            q(props.nperyCol),
+            q(props.financeRateCol),
+            q(props.reinvestRateCol),
+            q(props.loBoundCol),
+            q(props.hiBoundCol),
+            q(props.nIterCol),
             q(props.dateDiffStyle),
             q(props.excludeKeyword),
         ]
@@ -388,45 +364,28 @@ class Finance(MacroSpec):
                 return ""
             return str(v).lstrip("'").rstrip("'")
 
-        def load_scalar(key):
-            # Accepts the new 1-row-table JSON (`[{"value": "..."}]`) as well as
-            # the older flat quoted-string format, for components saved before
-            # this field became a table-backed list.
-            raw = m.get(key)
-            if raw is None:
-                return [ScalarExpr()]
-            raw_stripped = raw.strip()
-            if raw_stripped.startswith('['):
-                try:
-                    rows = json.loads(raw_stripped.replace("'", '"'))
-                    out = [ScalarExpr(value=(r.get("value", "") if isinstance(r, dict) else str(r))) for r in rows]
-                    return out if out else [ScalarExpr()]
-                except Exception:
-                    return [ScalarExpr()]
-            return [ScalarExpr(value=cleancol(raw))]
-
         return Finance.FinanceProperties(
             relation_name=jload('relation_name'),
             schema=m.get('schema', ''),
             functionType=clean(m.get('functionType'), 'FV'),
             outputColumn=clean(m.get('outputColumn'), 'finance_result'),
-            rateCol=load_scalar('rateCol'),
-            nperCol=load_scalar('nperCol'),
-            pmtCol=load_scalar('pmtCol'),
-            pvCol=load_scalar('pvCol'),
-            fvCol=load_scalar('fvCol'),
-            principalCol=load_scalar('principalCol'),
-            beginValueCol=load_scalar('beginValueCol'),
-            endValueCol=load_scalar('endValueCol'),
-            periodsCol=load_scalar('periodsCol'),
-            nominalRateCol=load_scalar('nominalRateCol'),
-            effectRateCol=load_scalar('effectRateCol'),
-            nperyCol=load_scalar('nperyCol'),
-            financeRateCol=load_scalar('financeRateCol'),
-            reinvestRateCol=load_scalar('reinvestRateCol'),
-            loBoundCol=load_scalar('loBoundCol'),
-            hiBoundCol=load_scalar('hiBoundCol'),
-            nIterCol=load_scalar('nIterCol'),
+            rateCol=cleancol(m.get('rateCol')),
+            nperCol=cleancol(m.get('nperCol')),
+            pmtCol=cleancol(m.get('pmtCol')),
+            pvCol=cleancol(m.get('pvCol')),
+            fvCol=cleancol(m.get('fvCol')),
+            principalCol=cleancol(m.get('principalCol')),
+            beginValueCol=cleancol(m.get('beginValueCol')),
+            endValueCol=cleancol(m.get('endValueCol')),
+            periodsCol=cleancol(m.get('periodsCol')),
+            nominalRateCol=cleancol(m.get('nominalRateCol')),
+            effectRateCol=cleancol(m.get('effectRateCol')),
+            nperyCol=cleancol(m.get('nperyCol')),
+            financeRateCol=cleancol(m.get('financeRateCol')),
+            reinvestRateCol=cleancol(m.get('reinvestRateCol')),
+            loBoundCol=cleancol(m.get('loBoundCol')),
+            hiBoundCol=cleancol(m.get('hiBoundCol')),
+            nIterCol=cleancol(m.get('nIterCol')),
             valueColumns=jload('valueColumns'),
             dateColumns=jload('dateColumns'),
             paymentType=clean(m.get('paymentType'), '0'),
@@ -436,10 +395,6 @@ class Finance(MacroSpec):
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # Convert component's state to default macro property representation
-        def dump_scalar(rows):
-            vals = [{"value": (r.value or "")} for r in (rows or [])]
-            return json.dumps(vals if vals else [{"value": ""}])
-
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -448,23 +403,23 @@ class Finance(MacroSpec):
                 MacroParameter("schema", str(properties.schema)),
                 MacroParameter("functionType", str(properties.functionType)),
                 MacroParameter("outputColumn", str(properties.outputColumn)),
-                MacroParameter("rateCol", dump_scalar(properties.rateCol)),
-                MacroParameter("nperCol", dump_scalar(properties.nperCol)),
-                MacroParameter("pmtCol", dump_scalar(properties.pmtCol)),
-                MacroParameter("pvCol", dump_scalar(properties.pvCol)),
-                MacroParameter("fvCol", dump_scalar(properties.fvCol)),
-                MacroParameter("principalCol", dump_scalar(properties.principalCol)),
-                MacroParameter("beginValueCol", dump_scalar(properties.beginValueCol)),
-                MacroParameter("endValueCol", dump_scalar(properties.endValueCol)),
-                MacroParameter("periodsCol", dump_scalar(properties.periodsCol)),
-                MacroParameter("nominalRateCol", dump_scalar(properties.nominalRateCol)),
-                MacroParameter("effectRateCol", dump_scalar(properties.effectRateCol)),
-                MacroParameter("nperyCol", dump_scalar(properties.nperyCol)),
-                MacroParameter("financeRateCol", dump_scalar(properties.financeRateCol)),
-                MacroParameter("reinvestRateCol", dump_scalar(properties.reinvestRateCol)),
-                MacroParameter("loBoundCol", dump_scalar(properties.loBoundCol)),
-                MacroParameter("hiBoundCol", dump_scalar(properties.hiBoundCol)),
-                MacroParameter("nIterCol", dump_scalar(properties.nIterCol)),
+                MacroParameter("rateCol", str(properties.rateCol)),
+                MacroParameter("nperCol", str(properties.nperCol)),
+                MacroParameter("pmtCol", str(properties.pmtCol)),
+                MacroParameter("pvCol", str(properties.pvCol)),
+                MacroParameter("fvCol", str(properties.fvCol)),
+                MacroParameter("principalCol", str(properties.principalCol)),
+                MacroParameter("beginValueCol", str(properties.beginValueCol)),
+                MacroParameter("endValueCol", str(properties.endValueCol)),
+                MacroParameter("periodsCol", str(properties.periodsCol)),
+                MacroParameter("nominalRateCol", str(properties.nominalRateCol)),
+                MacroParameter("effectRateCol", str(properties.effectRateCol)),
+                MacroParameter("nperyCol", str(properties.nperyCol)),
+                MacroParameter("financeRateCol", str(properties.financeRateCol)),
+                MacroParameter("reinvestRateCol", str(properties.reinvestRateCol)),
+                MacroParameter("loBoundCol", str(properties.loBoundCol)),
+                MacroParameter("hiBoundCol", str(properties.hiBoundCol)),
+                MacroParameter("nIterCol", str(properties.nIterCol)),
                 MacroParameter("valueColumns", json.dumps(properties.valueColumns)),
                 MacroParameter("dateColumns", json.dumps(properties.dateColumns)),
                 MacroParameter("paymentType", str(properties.paymentType)),
