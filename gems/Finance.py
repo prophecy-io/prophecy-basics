@@ -224,6 +224,24 @@ class Finance(MacroSpec):
             )
         )
 
+    # Single-value (column-or-expression) fields required per function, keyed by
+    # property name -> label shown in the dialog.
+    REQUIRED_FIELDS_BY_FUNCTION = {
+        "CAGR": [("beginValueCol", "Beginning Value column"), ("endValueCol", "Ending Value column"), ("periodsCol", "Periods column")],
+        "EffectiveRate": [("nominalRateCol", "Nominal Rate column"), ("nperyCol", "Compounding Periods / Year column")],
+        "NominalRate": [("effectRateCol", "Effective Rate column"), ("nperyCol", "Compounding Periods / Year column")],
+        "FV": [("rateCol", "Rate column"), ("nperCol", "Number of Periods column"), ("pmtCol", "Payment column"), ("pvCol", "Present Value column")],
+        "PV": [("rateCol", "Rate column"), ("nperCol", "Number of Periods column"), ("pmtCol", "Payment column"), ("fvCol", "Future Value column")],
+        "PMT": [("rateCol", "Rate column"), ("nperCol", "Number of Periods column"), ("pvCol", "Present Value column"), ("fvCol", "Future Value column")],
+        "NPER": [("rateCol", "Rate column"), ("pmtCol", "Payment column"), ("pvCol", "Present Value column"), ("fvCol", "Future Value column")],
+        "NPV": [("rateCol", "Discount Rate column")],
+        "XNPV": [("rateCol", "Discount Rate column")],
+        "FVSchedule": [("principalCol", "Principal column")],
+        "MIRR": [("financeRateCol", "Finance Rate column"), ("reinvestRateCol", "Reinvest Rate column")],
+        "MXIRR": [("financeRateCol", "Finance Rate column"), ("reinvestRateCol", "Reinvest Rate column")],
+        "Rate": [("nperCol", "Number of Periods column"), ("pmtCol", "Payment column"), ("pvCol", "Present Value column"), ("fvCol", "Future Value column")],
+    }
+
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         # Validate the component's state
         diagnostics = super().validate(context, component)
@@ -249,6 +267,10 @@ class Finance(MacroSpec):
 
         if ft in ("MIRR", "MXIRR") and 0 < len(p.valueColumns) < 2:
             err("valueColumns", f"{ft} needs at least two cash-flow columns.")
+
+        for prop, label in self.REQUIRED_FIELDS_BY_FUNCTION.get(ft, []):
+            if not (getattr(p, prop) or "").strip():
+                err(prop, f"{label} is required for {ft}.")
 
         return diagnostics
 
