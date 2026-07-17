@@ -74,8 +74,9 @@ class Finance(MacroSpec):
                     .then(stack))
 
         def colpick(label, prop):
-            return (SchemaColumnsDropdown(label)
-                    .bindSchema("component.ports.inputs[0].schema")
+            return (ExpressionBox(label, language="sql")
+                    .withSchemaSuggestions()
+                    .bindPlaceholder("Column name or a value/expression, e.g. rate_col or 0.05")
                     .bindProperty(prop))
 
         def colsdd(title, prop):

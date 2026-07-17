@@ -56,7 +56,7 @@
 {%- endmacro -%}
 
 {%- macro _xnpv_at(r, cols, dts, dd_style) -%}
-( {% for c in cols %}{{ ' + ' if not loop.first else '' }}({{ c | trim }}) / power(1 + ({{ r }}), ({{ _dd(dts[loop.index0] | trim, dts[0] | trim, dd_style) }}) / 365.0){% endfor %} )
+( {% for c in cols %}{{ ' + ' if not loop.first else '' }}({{ c | trim }}) / power(1 + ({{ r }}), ({{ prophecy_basics._dd(dts[loop.index0] | trim, dts[0] | trim, dd_style) }}) / 365.0){% endfor %} )
 {%- endmacro -%}
 
 {%- macro _rate_f(r, nper, pmt, pv, fv, pay_type) -%}
@@ -68,9 +68,9 @@
 {%- endmacro -%}
 
 {%- macro _fin_obj(fn, r, cols, dts, dd_style, nper, pmt, pv, fv, pay_type) -%}
-{%- if fn == 'irr' -%}{{ _npv0_at(r, cols) }}
-{%- elif fn == 'xirr' -%}{{ _xnpv_at(r, cols, dts, dd_style) }}
-{%- elif fn == 'rate' -%}{{ _rate_f(r, nper, pmt, pv, fv, pay_type) }}
+{%- if fn == 'irr' -%}{{ prophecy_basics._npv0_at(r, cols) }}
+{%- elif fn == 'xirr' -%}{{ prophecy_basics._xnpv_at(r, cols, dts, dd_style) }}
+{%- elif fn == 'rate' -%}{{ prophecy_basics._rate_f(r, nper, pmt, pv, fv, pay_type) }}
 {%- endif -%}
 {%- endmacro -%}
 
@@ -165,8 +165,8 @@
 
 {# ---------- ITERATIVE: IRR / RATE / XIRR (bisection) ---------- #}
 {%- if fn in ['irr', 'rate', 'xirr'] -%}
-{%- set N   = (n_iter | default(60) | int) -%}
-{%- set xkw = (exclude_keyword | default('EXCLUDE') | trim) -%}
+{%- set N   = (n_iter | trim | int) if (n_iter and n_iter | trim != '') else 60 -%}
+{%- set xkw = (exclude_keyword | trim) if (exclude_keyword and exclude_keyword | trim != '') else 'EXCLUDE' -%}
 {%- set cols = value_list.split(',') if (value_list and value_list | trim != '') else [] -%}
 {%- set dts  = date_list.split(',')  if (date_list  and date_list  | trim != '') else [] -%}
 {%- set query -%}
@@ -174,7 +174,7 @@ with _fin_b0 as (
     select *,
         ({{ lo_bound if lo_bound | trim != '' else '-0.99' }}) as _fin_lo,
         ({{ hi_bound if hi_bound | trim != '' else '10' }}) as _fin_hi,
-        ({{ _fin_obj(fn, '_fin_lo', cols, dts, dd_style, n_val, p_val, pv_val, fv_val, type_val) }}) as _fin_flo
+        ({{ prophecy_basics._fin_obj(fn, '_fin_lo', cols, dts, dd_style, n_val, p_val, pv_val, fv_val, type_val) }}) as _fin_flo
     from {{ src }}
 )
 {%- for i in range(N) %}
@@ -182,7 +182,7 @@ with _fin_b0 as (
     select *, ((_fin_lo + _fin_hi) / 2.0) as _fin_mid from _fin_b{{ i }}
 )
 , _fin_q{{ i }} as (
-    select *, ({{ _fin_obj(fn, '_fin_mid', cols, dts, dd_style, n_val, p_val, pv_val, fv_val, type_val) }}) as _fin_fmid
+    select *, ({{ prophecy_basics._fin_obj(fn, '_fin_mid', cols, dts, dd_style, n_val, p_val, pv_val, fv_val, type_val) }}) as _fin_fmid
     from _fin_p{{ i }}
 )
 , _fin_b{{ i + 1 }} as (
@@ -240,7 +240,7 @@ from _fin_b{{ N }}
     {%- set cols = value_list.split(',') if (value_list and value_list | trim != '') else ['0'] -%}
     {%- set dts = date_list.split(',') if (date_list and date_list | trim != '') else ['current_date()'] -%}
     {%- set d0 = dts[0] | trim -%}
-    ( {% for c in cols %}{{ ' + ' if not loop.first else '' }}({{ c | trim }}) / power(1 + ({{ r_val }}), ({{ _dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0){% endfor %} )
+    ( {% for c in cols %}{{ ' + ' if not loop.first else '' }}({{ c | trim }}) / power(1 + ({{ r_val }}), ({{ prophecy_basics._dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0){% endfor %} )
 {%- elif fn == 'fvschedule' -%}
     ({{ pr_val }}) {%- set cols = value_list.split(',') if (value_list and value_list | trim != '') else [] -%} {%- for c in cols %} * (1 + ({{ c | trim }})){% endfor %}
 {%- elif fn == 'mirr' -%}
@@ -256,9 +256,9 @@ from _fin_b{{ N }}
     {%- set d0 = dts[0] | trim -%}
     {%- set dlast = dts[cols | length - 1] | trim -%}
     power(
-      -( {% for c in cols %}{{ ' + ' if not loop.first else '' }}case when ({{ c | trim }}) > 0 then ({{ c | trim }}) * power(1 + ({{ rr_val }}), ({{ _dd(dlast, d0, dd_style) }} - {{ _dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0) else 0 end{% endfor %} )
-      / nullif(( {% for c in cols %}{{ ' + ' if not loop.first else '' }}case when ({{ c | trim }}) < 0 then ({{ c | trim }}) / power(1 + ({{ fr_val }}), ({{ _dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0) else 0 end{% endfor %} ), 0)
-    , 365.0 / nullif({{ _dd(dlast, d0, dd_style) }}, 0)) - 1
+      -( {% for c in cols %}{{ ' + ' if not loop.first else '' }}case when ({{ c | trim }}) > 0 then ({{ c | trim }}) * power(1 + ({{ rr_val }}), ({{ prophecy_basics._dd(dlast, d0, dd_style) }} - {{ prophecy_basics._dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0) else 0 end{% endfor %} )
+      / nullif(( {% for c in cols %}{{ ' + ' if not loop.first else '' }}case when ({{ c | trim }}) < 0 then ({{ c | trim }}) / power(1 + ({{ fr_val }}), ({{ prophecy_basics._dd(dts[loop.index0] | trim, d0, dd_style) }}) / 365.0) else 0 end{% endfor %} ), 0)
+    , 365.0 / nullif({{ prophecy_basics._dd(dlast, d0, dd_style) }}, 0)) - 1
 {%- else -%}
     null
 {%- endif -%}
