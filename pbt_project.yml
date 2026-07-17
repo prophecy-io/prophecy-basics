@@ -311,6 +311,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/Imputation.py
     createdAt: '2025-10-13 04:59:46'
+  .prophecy/metadata/sqlmacros/TestTrainSplit:
+    name: TestTrainSplit
+    macroType: query
+    description: null
+    author: ayadav@prophecy.io
+    files:
+      - macros/TestTrainSplit.sql
+      - .prophecy/ide/macros/TestTrainSplit.json
+      - macros/macros.yml
+      - gems/TestTrainSplit.py
+    createdAt: '2026-07-17 00:00:00'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
