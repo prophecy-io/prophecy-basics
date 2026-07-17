@@ -1310,7 +1310,69 @@ sqlMacros:
     - .prophecy/ide/macros/prophecy_tmp_source.json
     createdAt: '2026-07-17 09:18:02'
 sqlSeeds: {}
-sqlSources: {}
+sqlSources:
+  .prophecy/metadata/sqlsources/main_anurag:
+    name: main_anurag
+    description: null
+    author: ayadav@prophecy.io
+    files:
+    - prophecy-sources/sources.yml
+    createdAt: '2026-07-17 09:26:10'
+    tables:
+    - name: abcd
+      schema:
+        entityType: ''
+        providerType: databricks
+        fields:
+        - name: c_tinyint
+          dataType:
+            type: Bigint
+        - name: c_smallint
+          dataType:
+            type: Bigint
+        - name: c_int
+          dataType:
+            type: Bigint
+        - name: c_bigint
+          dataType:
+            type: Bigint
+        - name: c_float
+          dataType:
+            type: Decimal(8, 4)
+        - name: c_double
+          dataType:
+            type: Decimal(6, 2)
+        - name: c_string
+          dataType:
+            type: String
+        - name: c_boolean
+          dataType:
+            type: Boolean
+        - name: c_array
+          dataType:
+            type: String
+        - name: c_struct
+          dataType:
+            type: String
+        - name: c_id
+          dataType:
+            type: Bigint
+        - name: dbt_scd_id
+          dataType:
+            type: String
+        - name: dbt_updated_at
+          dataType:
+            type: Decimal(8, 4)
+        - name: dbt_valid_from
+          dataType:
+            type: Decimal(8, 4)
+        - name: dbt_valid_to
+          dataType:
+            type: Decimal(8, 4)
+      description: null
+      author: ayadav@prophecy.io
+      createdAt: '2026-07-17 09:26:10'
+      tableType: table
 sqlUnreferencedSources: {}
 sqlPipeline:
   name: sqlPipeline
@@ -1334,6 +1396,5 @@ sqlOrchestratorPipelines:
     - .prophecy/ide/pipelines/abcd.json
     - models/abcd/schema.yml
     - models/abcd/abcd__TestTrainSplit_1.sql
-    - models/abcd/abcd__sqlstatement_0_1.sql
     createdAt: '2026-07-17 09:18:02'
 sqlBusinessApps: {}

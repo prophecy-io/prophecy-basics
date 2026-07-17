@@ -5,12 +5,6 @@ args = PipelineArgs(label = "abcd", version = 1, auto_layout = False)
 with Pipeline(args) as pipeline:
     abcd__testtrainsplit_1 = Process(
         name = "abcd__TestTrainSplit_1",
-        properties = ModelTransform(modelName = "abcd__TestTrainSplit_1"),
-        input_ports = None
-    )
-    abcd__sqlstatement_0_1 = Process(
-        name = "abcd__sqlstatement_0_1",
-        properties = ModelTransform(modelName = "abcd__sqlstatement_0_1"),
-        input_ports = None
+        properties = ModelTransform(modelName = "abcd__TestTrainSplit_1")
     )
 
