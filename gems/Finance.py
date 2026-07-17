@@ -74,10 +74,14 @@ class Finance(MacroSpec):
                     .then(stack))
 
         def colpick(label, prop):
-            return (ExpressionBox(label, language="sql")
-                    .withSchemaSuggestions()
-                    .bindPlaceholder("Column name or a value/expression, e.g. rate_col or 0.05")
-                    .bindProperty(prop))
+            return (StackLayout(height="100%")
+                    .addElement(TitleElement(label))
+                    .addElement(
+                        ExpressionBox(ignoreTitle=True, language="sql")
+                        .bindPlaceholder("Column name or a value/expression, e.g. rate_col or 0.05")
+                        .withSchemaSuggestions()
+                        .bindProperty(prop)
+                    ))
 
         def colsdd(title, prop):
             return (StackLayout(height="100%")
