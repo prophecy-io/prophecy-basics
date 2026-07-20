@@ -353,8 +353,31 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _load_json_value(raw: str, default):
+            raw = raw or ""
+            if raw == "":
+                return default
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return json.loads(raw.replace("'", '"'))
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _load_json_value(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
         return RecordID.RecordIDProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_load_json_value(parametersMap.get('relation_name'), []),
             method=parametersMap.get('method').lstrip("'").rstrip("'"),
             incremental_id_column_name=parametersMap.get('incremental_id_column_name').lstrip("'").rstrip("'"),
             incremental_id_type=parametersMap.get('incremental_id_type').lstrip("'").rstrip("'"),
@@ -364,15 +387,23 @@ class RecordID(MacroSpec):
             ),
             generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
             position=parametersMap.get('position').lstrip("'").rstrip("'"),
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames").replace("'", '"')
-            ),
-            orders=json.loads(
-                parametersMap.get("orders").replace("'", '"')
-            ),
+            groupByColumnNames=_load_json_value(parametersMap.get("groupByColumnNames"), []),
+            orders=_parse_order_columns(parametersMap.get("orders")),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orders or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -395,9 +426,7 @@ class RecordID(MacroSpec):
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
-                MacroParameter(
-                    "orders", json.dumps(properties.orders)
-                ),
+                MacroParameter("orders", order_by_json),
             ],
         )
 

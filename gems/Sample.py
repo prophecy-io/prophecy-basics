@@ -375,8 +375,20 @@ class Sample(MacroSpec):
             except json.JSONDecodeError:
                 return json.loads(raw.replace("'", '"'))
 
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _load_json_value(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
         data_columns = _load_json_value(parametersMap.get("dataColumns"), [])
-        order_columns = _load_json_value(parametersMap.get("orderByColumns"), [])
         sample_level_selection = (
             (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
         )
@@ -391,14 +403,24 @@ class Sample(MacroSpec):
             randomSeed=int(str(parametersMap.get("randomSeed", 1002)).lstrip("'").rstrip("'")),
             currentModeSelection=(parametersMap.get("currentModeSelection") or "''").lstrip("'").rstrip("'"),
             numberN=int(str(parametersMap.get("numberN", 80)).lstrip("'").rstrip("'")),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns").replace("'", '"')
-            ),
+            orderByColumns=_parse_order_columns(parametersMap.get("orderByColumns")),
         )
         return props
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -410,9 +432,7 @@ class Sample(MacroSpec):
                 MacroParameter("randomSeed", str(properties.randomSeed)),
                 MacroParameter("currentModeSelection", str(properties.currentModeSelection)),
                 MacroParameter("numberN", str(properties.numberN)),
-                MacroParameter(
-                    "orderByColumns", json.dumps(properties.orderByColumns)
-                ),
+                MacroParameter("orderByColumns", order_by_json),
             ],
         )
 

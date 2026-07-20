@@ -33,6 +33,7 @@ class FuzzyMatch(MacroSpec):
     class AddMatchField(MatchField):
         columnName: str = ""
         matchFunction: str = "custom"
+        _row_id: Optional[str] = None
 
     @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):

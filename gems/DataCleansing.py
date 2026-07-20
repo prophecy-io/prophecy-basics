@@ -44,7 +44,7 @@ class DataCleansing(MacroSpec):
         cleanLetters: bool = False
         cleanPunctuations: bool = False
         cleanNumbers: bool = False
-        modifyCase: str = "Keep original"
+        modifyCase: str = "keepOriginal"
         replaceNullDateFields: bool = False
         replaceNullDateWith: str = "1970-01-01"
         replaceNullTimeFields: bool = False
@@ -274,7 +274,7 @@ class DataCleansing(MacroSpec):
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(DataCleansing, self).validate(context, component)
 
-        if len(component.properties.columnNames) > 0:
+        if len(component.properties.columnNames) > 0 and component.properties.schema:
             schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
             
             missingKeyColumns = [
@@ -338,13 +338,21 @@ class DataCleansing(MacroSpec):
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
+
+        def safe_str(val):
+            # Escape backslashes and single quotes so values containing
+            # apostrophes remain a valid Jinja string literal in the
+            # generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
+
         arguments = [
             str(props.relation_name),
             props.schema,
-            "'" + props.modifyCase + "'",
+            safe_str(props.modifyCase),
             str(props.columnNames),
             str(props.replaceNullTextFields).lower(),
-            "'" + str(props.replaceNullTextWith) + "'",
+            safe_str(props.replaceNullTextWith),
             str(props.replaceNullForNumericFields).lower(),
             str(props.replaceNullNumericWith),
             str(props.trimWhiteSpace).lower(),
@@ -355,9 +363,9 @@ class DataCleansing(MacroSpec):
             str(props.cleanNumbers).lower(),
             str(props.removeRowNullAllCols).lower(),
             str(props.replaceNullDateFields).lower(),
-            "'" + str(props.replaceNullDateWith) + "'",
+            safe_str(props.replaceNullDateWith),
             str(props.replaceNullTimeFields).lower(),
-            "'" + str(props.replaceNullTimeWith) + "'",
+            safe_str(props.replaceNullTimeWith),
         ]
 
         params = ",".join([param for param in arguments])
@@ -366,38 +374,58 @@ class DataCleansing(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        print("parametersMapisHere")
-        print(parametersMap)
+
+        def _load_json_value(raw: str, default):
+            raw = raw or ""
+            if raw == "":
+                return default
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return json.loads(raw.replace("'", '"'))
+
+        def _unquote(raw: str, default: str = "") -> str:
+            # Strip the surrounding single quotes emitted by apply() and
+            # reverse its backslash/apostrophe escaping.
+            if raw is None or raw == "":
+                return default
+            if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'"):
+                raw = raw[1:-1]
+            return raw.replace("\\'", "'").replace("\\\\", "\\")
+
+        def _bool(name: str) -> bool:
+            return (parametersMap.get(name) or "").lower() == "true"
+
+        # Keep integral values as int so the generated code round-trips
+        # without rewriting e.g. 0 as 0.0.
+        numeric_with = float(_unquote(parametersMap.get("replaceNullNumericWith"), "0") or "0")
+        if numeric_with.is_integer():
+            numeric_with = int(numeric_with)
+
         return DataCleansing.DataCleansingProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            schema=parametersMap.get("schema"),
-            modifyCase=parametersMap.get('modifyCase').lstrip("'").rstrip("'"),
-            columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            replaceNullTextFields=parametersMap.get("replaceNullTextFields").lower()
-            == "true",
-            replaceNullTextWith=parametersMap.get("replaceNullTextWith")[1:-1],
-            replaceNullForNumericFields=parametersMap.get(
-                "replaceNullForNumericFields"
-            ).lower()
-            == "true",
-            replaceNullNumericWith=float(parametersMap.get("replaceNullNumericWith")),
-            trimWhiteSpace=parametersMap.get("trimWhiteSpace").lower() == "true",
-            removeTabsLineBreaksAndDuplicateWhitespace=parametersMap.get(
+            relation_name=_load_json_value(parametersMap.get("relation_name"), []),
+            schema=parametersMap.get("schema") or "",
+            modifyCase=_unquote(parametersMap.get("modifyCase"), "keepOriginal") or "keepOriginal",
+            columnNames=_load_json_value(parametersMap.get("columnNames"), []),
+            replaceNullTextFields=_bool("replaceNullTextFields"),
+            replaceNullTextWith=_unquote(parametersMap.get("replaceNullTextWith"), "NA"),
+            replaceNullForNumericFields=_bool("replaceNullForNumericFields"),
+            replaceNullNumericWith=numeric_with,
+            trimWhiteSpace=_bool("trimWhiteSpace"),
+            removeTabsLineBreaksAndDuplicateWhitespace=_bool(
                 "removeTabsLineBreaksAndDuplicateWhitespace"
-            ).lower()
-            == "true",
-            allWhiteSpace=parametersMap.get("allWhiteSpace").lower() == "true",
-            cleanLetters=parametersMap.get("cleanLetters").lower() == "true",
-            cleanPunctuations=parametersMap.get("cleanPunctuations").lower() == "true",
-            cleanNumbers=parametersMap.get("cleanNumbers").lower() == "true",
-            removeRowNullAllCols=parametersMap.get("removeRowNullAllCols").lower()
-            == "true",
-            replaceNullDateFields=parametersMap.get("replaceNullDateFields").lower()
-            == "true",
-            replaceNullDateWith=parametersMap.get("replaceNullDateWith")[1:-1],
-            replaceNullTimeFields=parametersMap.get("replaceNullTimeFields").lower()
-            == "true",
-            replaceNullTimeWith=parametersMap.get('replaceNullTimeWith').lstrip("'").rstrip("'")
+            ),
+            allWhiteSpace=_bool("allWhiteSpace"),
+            cleanLetters=_bool("cleanLetters"),
+            cleanPunctuations=_bool("cleanPunctuations"),
+            cleanNumbers=_bool("cleanNumbers"),
+            removeRowNullAllCols=_bool("removeRowNullAllCols"),
+            replaceNullDateFields=_bool("replaceNullDateFields"),
+            replaceNullDateWith=_unquote(parametersMap.get("replaceNullDateWith"), "1970-01-01"),
+            replaceNullTimeFields=_bool("replaceNullTimeFields"),
+            replaceNullTimeWith=_unquote(
+                parametersMap.get("replaceNullTimeWith"), "1970-01-01 00:00:00.0"
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
