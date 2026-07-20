@@ -45,7 +45,7 @@
 #}
 {%- macro _dd(a, b, style) -%}
 {%- set style_clean = style | trim | lower -%}
-{%- if style_clean == 'databricks' -%}datediff(day, cast({{ b }} as date), cast({{ a }} as date))
+{%- if style_clean == 'databricks' -%}datediff('day', cast({{ b }} as date), cast({{ a }} as date))
 {%- elif style_clean == 'snowflake' -%}datediff('day', cast({{ b }} as date), cast({{ a }} as date))
 {%- elif style_clean == 'bigquery' -%}date_diff(cast({{ a }} as date), cast({{ b }} as date), day)
 {%- else -%}(cast({{ a }} as date) - cast({{ b }} as date))
