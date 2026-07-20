@@ -47,7 +47,7 @@ class Finance(MacroSpec):
         dateColumns: List[str] = field(default_factory=list)
         paymentType: str = "0"
         dateDiffStyle: str = "databricks"
-        excludeKeyword: str = "EXCLUDE"
+        excludeKeyword: str = "EXCEPT"
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -109,8 +109,8 @@ class Finance(MacroSpec):
                 colpick("Upper bound column", "hiBoundCol"),
                 colpick("Iterations column", "nIterCol"),
                 (SelectBox("SELECT * keyword")
-                 .addOption("EXCLUDE (Databricks/Snowflake/DuckDB)", "EXCLUDE")
-                 .addOption("EXCEPT (BigQuery)", "EXCEPT")
+                 .addOption("EXCEPT (Databricks/BigQuery)", "EXCEPT")
+                 .addOption("EXCLUDE (Snowflake/DuckDB)", "EXCLUDE")
                  .bindProperty("excludeKeyword")),
             ]
 
@@ -390,7 +390,7 @@ class Finance(MacroSpec):
             dateColumns=jload('dateColumns'),
             paymentType=clean(m.get('paymentType'), '0'),
             dateDiffStyle=clean(m.get('dateDiffStyle'), 'databricks'),
-            excludeKeyword=clean(m.get('excludeKeyword'), 'EXCLUDE'),
+            excludeKeyword=clean(m.get('excludeKeyword'), 'EXCEPT'),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

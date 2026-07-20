@@ -28,7 +28,8 @@
     - date_diff_style (string): Date-difference dialect for date-based functions.
         One of "databricks", "snowflake", "bigquery" or "ansi". Defaults to "databricks".
     - exclude_keyword (string): SELECT * exclusion keyword for the iterative solvers.
-        "EXCLUDE" (Databricks/Snowflake/DuckDB) or "EXCEPT" (BigQuery). Defaults to "EXCLUDE".
+        "EXCLUDE" (Snowflake/DuckDB) or "EXCEPT" (Databricks/BigQuery). Defaults to "EXCEPT"
+        when left blank, unless date_diff_style is snowflake/ansi, which default to "EXCLUDE".
 
   Adapter Support:
     - Default (Databricks / Spark / Snowflake / DuckDB / BigQuery). Dialect-specific
@@ -39,12 +40,12 @@
 
   Macro Call Example:
     -- Future Value (FV)
-    {{ prophecy_basics.Finance(['source_table'], 'FV', 'finance_result', 'rate', 'nper', 'pmt', 'pv', '0', '0', '0', '', '', '', '', '', '', '', '', '', '', '', '', '', 'databricks', 'EXCLUDE') }}
+    {{ prophecy_basics.Finance(['source_table'], 'FV', 'finance_result', 'rate', 'nper', 'pmt', 'pv', '0', '0', '0', '', '', '', '', '', '', '', '', '', '', '', '', '', 'databricks', 'EXCEPT') }}
     -- Generated SQL: SELECT *, <fv expression> AS finance_result FROM source_table
 #}
 {%- macro _dd(a, b, style) -%}
 {%- set style_clean = style | trim | lower -%}
-{%- if style_clean == 'databricks' -%}datediff(cast({{ a }} as date), cast({{ b }} as date))
+{%- if style_clean == 'databricks' -%}datediff(day, cast({{ b }} as date), cast({{ a }} as date))
 {%- elif style_clean == 'snowflake' -%}datediff('day', cast({{ b }} as date), cast({{ a }} as date))
 {%- elif style_clean == 'bigquery' -%}date_diff(cast({{ a }} as date), cast({{ b }} as date), day)
 {%- else -%}(cast({{ a }} as date) - cast({{ b }} as date))
@@ -166,7 +167,7 @@
 {# ---------- ITERATIVE: IRR / RATE / XIRR (bisection) ---------- #}
 {%- if fn in ['irr', 'rate', 'xirr'] -%}
 {%- set N   = (n_iter | trim | int) if (n_iter and n_iter | trim != '') else 60 -%}
-{%- set xkw = (exclude_keyword | trim) if (exclude_keyword and exclude_keyword | trim != '') else 'EXCLUDE' -%}
+{%- set xkw = (exclude_keyword | trim) if (exclude_keyword and exclude_keyword | trim != '') else ('EXCEPT' if dd_style in ['databricks', 'bigquery'] else 'EXCLUDE') -%}
 {%- set cols = value_list.split(',') if (value_list and value_list | trim != '') else [] -%}
 {%- set dts  = date_list.split(',')  if (date_list  and date_list  | trim != '') else [] -%}
 {%- set query -%}
