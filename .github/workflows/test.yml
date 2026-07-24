@@ -166,6 +166,40 @@ jobs:
             test-results/python-gems-*.html
       
 
+  # Code-to-visual tester
+  test-code-to-visual:
+    name: 🔁 Code-to-Visual Tester
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: .github/workflows/test.yml
+
+      # Two steps so the two indexes never mix: public packages come only from
+      # PyPI, Prophecy's packages only from Prophecy's index.
+      - name: Install public dependencies
+        run: |
+          pip install jinja2 pyyaml pytest "pyspark>=3.5.0" jsonpickle \
+            dataclasses_json delta-spark==3.2.0 "pyparsing>=3.3.0"
+
+      - name: Install Prophecy SDK
+        run: |
+          pip install --no-deps ComponentBuilderPython==1.8.75 \
+            --index-url https://prophecyio.jfrog.io/artifactory/api/pypi/pypi-local/simple
+
+      - name: Run unit tests
+        run: pytest -v prophecy_tests/code_to_visual
+
+      - name: Round-trip app-generated models
+        run: python prophecy_tests/code_to_visual/code_to_visual_runner.py prophecy_tests/
+
   # Snowflake SQL Tests
   # Config inputs (workflow UI) + password (repo secret)
   test-snowflake-sql:
@@ -409,7 +443,7 @@ jobs:
   test-summary:
     name: 📊 Test Summary
     runs-on: ubuntu-latest
-    needs: [determine-tests, test-python-gems, test-duckdb-sql, test-snowflake-sql, test-databricks-sql]
+    needs: [determine-tests, test-python-gems, test-code-to-visual, test-duckdb-sql, test-snowflake-sql, test-databricks-sql]
     if: always()
     
     steps:
@@ -429,6 +463,8 @@ jobs:
             echo "| 🔥 Python Gems | ${{ needs.test-python-gems.result }} |" >> $GITHUB_STEP_SUMMARY
           fi
           
+          echo "| 🔁 Code-to-Visual | ${{ needs.test-code-to-visual.result }} |" >> $GITHUB_STEP_SUMMARY
+
           if [ "${{ needs.test-duckdb-sql.result }}" != "skipped" ]; then
             echo "| 🦆 DuckDB SQL | ${{ needs.test-duckdb-sql.result }} |" >> $GITHUB_STEP_SUMMARY
           fi
