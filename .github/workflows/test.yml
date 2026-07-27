@@ -42,6 +42,10 @@ on:
         description: 'Snowflake schema (default: PUBLIC)'
         required: false
         type: string
+      snowflake_role:
+        description: 'Snowflake role (default: SYSADMIN)'
+        required: false
+        type: string
       databricks_host:
         description: 'Databricks host (e.g. adb-123.4.azuredatabricks.net)'
         required: false
@@ -177,7 +181,7 @@ jobs:
       SNOWFLAKE_DATABASE: ${{ github.event.inputs.snowflake_database || secrets.SNOWFLAKE_DATABASE }}
       SNOWFLAKE_WAREHOUSE: ${{ github.event.inputs.snowflake_warehouse || secrets.SNOWFLAKE_WAREHOUSE }}
       SNOWFLAKE_SCHEMA: ${{ github.event.inputs.snowflake_schema || secrets.SNOWFLAKE_SCHEMA || 'PUBLIC' }}
-      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE || 'ACCOUNTADMIN' }}
+      SNOWFLAKE_ROLE: ${{ github.event.inputs.snowflake_role || secrets.SNOWFLAKE_ROLE || 'SYSADMIN' }}
 
     steps:
       - name: Checkout code
