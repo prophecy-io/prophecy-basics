@@ -1,6 +1,8 @@
+import ast
 import dataclasses
 import json
 
+import re
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
@@ -30,22 +32,18 @@ class UnionByName(MacroSpec):
         missingColumnOps: str = "allowMissingColumns"
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def dialog(self) -> Dialog:
@@ -117,9 +115,26 @@ class UnionByName(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         pm = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted repr),
+            # so the inverse is ast.literal_eval — NOT json.loads with a naive
+            # .replace("'", ...). For `schemas` each element is itself a JSON string
+            # (e.g. '[{"name": "A", ...}]'); stripping quotes then str()-ing the parsed
+            # value re-serialized it as a Python repr, corrupting the embedded JSON to
+            # single quotes. literal_eval preserves each element verbatim (and accepts
+            # both single- and double-quoted literals, so JSON also works).
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return UnionByName.UnionByNameProperties(
-            relation_name=json.loads(pm.get("relation_name", "[]").replace("'", '"')),
-            schemas=[str(x) for x in json.loads(pm.get("schemas", "[]").replace("'", ''))],
+            relation_name=_parse_py_literal(pm.get("relation_name", "[]"), []),
+            schemas=_parse_py_literal(pm.get("schemas", "[]"), []),
             missingColumnOps=pm.get("missingColumnOps", "nameBasedUnionOperation").lstrip("'").rstrip("'"),
         )
 
