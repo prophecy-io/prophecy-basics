@@ -7,7 +7,7 @@ This workflow provides comprehensive CI/CD testing for the Prophecy Basics proje
 ### Triggers
 
 The workflow runs on:
-- **Push**: to `main`, `develop`, or `deb/**` branches
+- **Push**: to `main` or `develop` branches
 - **Pull Request**: to `main` or `develop` branches
 - **Manual Dispatch**: via GitHub Actions UI
 
@@ -110,7 +110,7 @@ After each run, a formatted summary is displayed in the GitHub UI showing:
 
 #### Auto-run on Push
 ```bash
-git push origin deb/my-feature
+git push origin develop
 # Workflow runs automatically with python_gems tests
 ```
 

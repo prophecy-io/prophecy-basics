@@ -181,7 +181,7 @@ jobs:
       SNOWFLAKE_DATABASE: ${{ github.event.inputs.snowflake_database || secrets.SNOWFLAKE_DATABASE }}
       SNOWFLAKE_WAREHOUSE: ${{ github.event.inputs.snowflake_warehouse || secrets.SNOWFLAKE_WAREHOUSE }}
       SNOWFLAKE_SCHEMA: ${{ github.event.inputs.snowflake_schema || secrets.SNOWFLAKE_SCHEMA || 'PUBLIC' }}
-      SNOWFLAKE_ROLE: ${{ github.event.inputs.snowflake_role || secrets.SNOWFLAKE_ROLE || 'SYSADMIN' }}
+      SNOWFLAKE_ROLE: ${{ github.event.inputs.snowflake_role || secrets.SNOWFLAKE_ROLE || 'PUBLIC' }}
 
     steps:
       - name: Checkout code
@@ -230,7 +230,7 @@ jobs:
                 account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
                 user: "{{ env_var('SNOWFLAKE_USER') }}"
                 password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
-                role: "{{ env_var('SNOWFLAKE_ROLE', 'ACCOUNTADMIN') }}"
+                role: "{{ env_var('SNOWFLAKE_ROLE', 'PUBLIC') }}"
                 database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
                 warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
                 schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'PUBLIC') }}"

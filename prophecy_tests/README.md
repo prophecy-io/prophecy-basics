@@ -38,8 +38,7 @@ prophecy_tests/
 │   ├── example_unit_tests.yml
 │   └── README.md
 ├── run_tests.sh          # Shell test runner
-├── run_tests.py          # Python test runner (cross-platform)
-└── test_config.yml       # Test configuration
+└── run_tests.py          # Python test runner (cross-platform)
 ```
 
 ## 🧪 Test Approaches
@@ -242,19 +241,6 @@ See example files in each test directory:
 3. Create your unit tests in the main dbt project (in `models/` or `tests/` directory)
 4. Ensure `profiles.yml` is correctly configured
 5. Run tests using the test runner or `dbt test --select test_type:unit`
-
-## 🔍 Test Configuration
-
-Test configuration is managed in `test_config.yml`:
-
-```yaml
-test_suites:
-  python_gems:
-    enabled: true
-    python_version: "3.11"
-    requires_java: true
-  # ... other suites
-```
 
 ## 🐛 Troubleshooting
 
