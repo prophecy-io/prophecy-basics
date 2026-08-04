@@ -289,12 +289,27 @@ class TextToColumns(MacroSpec):
         )
         return newState.bindProperties(newProperties)
 
+    def _is_regex_delimiter(self, delimiter: str) -> bool:
+        # Auto-detect whether the delimiter is meant as a regex pattern or a plain literal.
+        # Regex intent is assumed when the delimiter contains a character class [...],
+        # a group (...), or a backslash escape (\t, \n, \d, \s, \|, ...). Everything else
+        # (e.g. |, ., ,, ;, plain text) is treated as a literal.
+        return bool(
+            re.search(r"\[.+?\]", delimiter)
+            or re.search(r"\(.+?\)", delimiter)
+            or "\\" in delimiter
+        )
+
     def apply(self, props: TextToColumnsProperties) -> str:
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Handle delimiter with special characters
-        escaped_delimiter = re.escape(props.delimiter).replace('\\ ', ' ')
+        # Regex delimiters (e.g. [,], \d+) are passed through untouched; literal delimiters
+        # (e.g. |, ., ;) are re.escaped so their regex-special characters match literally.
+        if self._is_regex_delimiter(props.delimiter):
+            escaped_delimiter = props.delimiter
+        else:
+            escaped_delimiter = re.escape(props.delimiter).replace('\\ ', ' ')
 
         arguments = [
             str(props.relation_name),
