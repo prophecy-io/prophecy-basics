@@ -379,7 +379,7 @@ class FuzzyMatch(MacroSpec):
             col_name = field.columnName
 
             if key in ("custom", "name", "address"):
-                column_value = upper(regexp_replace(col(col_name).cast("string"), r"[^\w\s]", ""))
+                column_value = upper(col(col_name).cast("string"))
             else:
                 column_value = col(col_name).cast("string")
 
