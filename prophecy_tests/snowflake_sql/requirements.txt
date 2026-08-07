@@ -1,0 +1,8 @@
+# Snowflake SQL test dependencies
+# dbt with Snowflake adapter
+dbt-core==1.10.11
+dbt-snowflake==1.10.1
+
+# Optional: Testing utilities
+pytest==7.4.3
+pytest-html==4.1.1
