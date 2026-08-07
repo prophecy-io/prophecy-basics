@@ -1,7 +1,7 @@
 # Finance Macro Tests (DuckDB)
 
-dbt tests for the `Finance` macro (`macros/Finance.sql`), covering all 15 finance
-functions on DuckDB.
+dbt tests for the `Finance` macro (`macros/Finance.sql`), covering the 12
+closed-form finance functions on DuckDB.
 
 Runs on DuckDB; the duckdb__ adapter emits date_diff('day', ...) and SELECT * EXCLUDE.
 
@@ -10,7 +10,12 @@ Runs on DuckDB; the duckdb__ adapter emits date_diff('day', ...) and SELECT * EX
 1. **`test_time_value_of_money.sql`** - FV, PV, PMT, NPER
 2. **`test_rate_conversions.sql`** - CAGR, EffectiveRate, NominalRate, FVSchedule
 3. **`test_cashflow_discounting.sql`** - NPV, XNPV, MIRR, MXIRR
-4. **`test_iterative_solvers.sql`** - IRR, XIRR, Rate
+
+IRR, XIRR and Rate are not covered here. DuckDB itself runs them in milliseconds
+because it keeps the per-iteration CTEs as separate operators, but Databricks and
+Snowflake inline them and hang, so a green DuckDB result here would be misleading
+rather than reassuring. Those three functions are covered by the Spark tests in
+`prophecy_tests/python_gems/Finance/`, which loop in Python instead.
 
 ## How These Tests Work
 
@@ -50,4 +55,4 @@ See parent README (`../README.md`) for full setup instructions.
 
 ## Status
 
-✅ All 4 tests passing
+✅ All 3 tests passing

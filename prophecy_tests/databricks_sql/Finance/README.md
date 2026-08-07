@@ -1,7 +1,7 @@
 # Finance Macro Tests (Databricks SQL)
 
-dbt tests for the `Finance` macro (`macros/Finance.sql`), covering all 15 finance
-functions on Databricks SQL.
+dbt tests for the `Finance` macro (`macros/Finance.sql`), covering the 12
+closed-form finance functions on Databricks SQL.
 
 Runs on a real Databricks cluster; the default__ adapter emits unix_date() arithmetic and SELECT * EXCEPT.
 
@@ -10,7 +10,13 @@ Runs on a real Databricks cluster; the default__ adapter emits unix_date() arith
 1. **`test_time_value_of_money.sql`** - FV, PV, PMT, NPER
 2. **`test_rate_conversions.sql`** - CAGR, EffectiveRate, NominalRate, FVSchedule
 3. **`test_cashflow_discounting.sql`** - NPV, XNPV, MIRR, MXIRR
-4. **`test_iterative_solvers.sql`** - IRR, XIRR, Rate
+
+IRR, XIRR and Rate are not covered here. They are solved by bisection, which emits
+one CTE per iteration, and Databricks inlines every one of those CTEs because each
+is referenced exactly once. The resulting expression grows about 12.5x per
+iteration, so the planner never finishes and the query hangs before it executes.
+Those three functions are covered by the Spark tests in
+`prophecy_tests/python_gems/Finance/`, which loop in Python instead.
 
 ## How These Tests Work
 
@@ -50,4 +56,4 @@ See parent README (`../README.md`) for full setup instructions.
 
 ## Status
 
-✅ All 4 tests passing
+✅ All 3 tests passing

@@ -1,7 +1,7 @@
 # Finance Macro Tests (Snowflake)
 
-dbt tests for the `Finance` macro (`macros/Finance.sql`), covering all 15 finance
-functions on Snowflake.
+dbt tests for the `Finance` macro (`macros/Finance.sql`), covering the 12
+closed-form finance functions on Snowflake.
 
 Runs on Snowflake; the snowflake__ adapter emits datediff('day', ...) and SELECT * EXCLUDE.
 
@@ -10,7 +10,13 @@ Runs on Snowflake; the snowflake__ adapter emits datediff('day', ...) and SELECT
 1. **`test_time_value_of_money.sql`** - FV, PV, PMT, NPER
 2. **`test_rate_conversions.sql`** - CAGR, EffectiveRate, NominalRate, FVSchedule
 3. **`test_cashflow_discounting.sql`** - NPV, XNPV, MIRR, MXIRR
-4. **`test_iterative_solvers.sql`** - IRR, XIRR, Rate
+
+IRR, XIRR and Rate are not covered here. They are solved by bisection, which emits
+one CTE per iteration, and Snowflake expands every one of those non-recursive CTEs
+rather than materialising them. The resulting expression grows about 12.5x per
+iteration, so the query hangs in planning before it executes. Those three functions
+are covered by the Spark tests in `prophecy_tests/python_gems/Finance/`, which loop
+in Python instead.
 
 ## How These Tests Work
 
@@ -50,4 +56,4 @@ See parent README (`../README.md`) for full setup instructions.
 
 ## Status
 
-✅ All 4 tests passing
+✅ All 3 tests passing
