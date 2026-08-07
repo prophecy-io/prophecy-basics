@@ -643,7 +643,10 @@ class Finance(MacroSpec):
         value_text = [str(c).strip() for c in (props.valueColumns or []) if str(c).strip()]
         date_text = [str(c).strip() for c in (props.dateColumns or []) if str(c).strip()]
         values = [F.expr(c).cast("double") for c in value_text]
-        gap_text = [f"(datediff(cast({d} as date), cast({date_text[0]} as date)))"
+        # The first date is pulled out into a name because Prophecy's code generator
+        # mangles a subscript written inside an f-string.
+        first_date = date_text[0] if date_text else "0"
+        gap_text = [f"(datediff(cast({d} as date), cast({first_date} as date)))"
                     for d in date_text]
         gaps = [F.expr(g).cast("double") for g in gap_text]
 
@@ -746,12 +749,11 @@ class Finance(MacroSpec):
             result = F.when(sum(values, zero).isNull(), null).otherwise(solved)
 
         elif fn == "xirr":
-            offsets = [gap_text[i] if i < len(gap_text) else "0"
-                       for i in range(len(value_text))]
-            f_lo = " + ".join([f"({c}) / power(1 + ({lo_text}), ({offsets[i]}) / 365.0)"
-                               for i, c in enumerate(value_text)] or ["0"])
-            f_mid = " + ".join([f"({c}) / power(1 + {mid_text}, ({offsets[i]}) / 365.0)"
-                                for i, c in enumerate(value_text)] or ["0"])
+            offsets = gap_text + ["0"] * (len(value_text) - len(gap_text))
+            f_lo = " + ".join([f"({c}) / power(1 + ({lo_text}), ({g}) / 365.0)"
+                               for c, g in zip(value_text, offsets)] or ["0"])
+            f_mid = " + ".join([f"({c}) / power(1 + {mid_text}, ({g}) / 365.0)"
+                                for c, g in zip(value_text, offsets)] or ["0"])
             solved = F.expr(bisect_text.format(rounds=rounds_text, lo=lo_text, hi=hi_text,
                                                mid=mid_text, f_lo=f_lo, f_mid=f_mid))
             result = F.when(sum(values, zero).isNull(), null).otherwise(solved)
