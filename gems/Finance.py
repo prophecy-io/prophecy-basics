@@ -655,14 +655,16 @@ class Finance(MacroSpec):
         n_text = (props.nIterCol or "").strip() or "60"
         rounds_text = f"if(cast({n_text} as int) > 0, cast({n_text} as int), 60)"
         mid_text = "((acc.lo + acc.hi) / 2.0)"
+        # Pieces are joined with an explicit +: Prophecy's parser rejects the implicit
+        # concatenation you get from writing adjacent string literals.
         bisect_text = (
             "aggregate(sequence(1, {rounds}),"
-            " named_struct('lo', {lo}, 'hi', {hi}, 'flo', {f_lo}),"
-            " (acc, i) -> named_struct("
-            "'lo', if(sign({f_mid}) = sign(acc.flo), {mid}, acc.lo),"
-            " 'hi', if(sign({f_mid}) = sign(acc.flo), acc.hi, {mid}),"
-            " 'flo', if(sign({f_mid}) = sign(acc.flo), {f_mid}, acc.flo)),"
-            " acc -> (acc.lo + acc.hi) / 2.0)"
+            + " named_struct('lo', {lo}, 'hi', {hi}, 'flo', {f_lo}),"
+            + " (acc, i) -> named_struct("
+            + "'lo', if(sign({f_mid}) = sign(acc.flo), {mid}, acc.lo),"
+            + " 'hi', if(sign({f_mid}) = sign(acc.flo), acc.hi, {mid}),"
+            + " 'flo', if(sign({f_mid}) = sign(acc.flo), {f_mid}, acc.flo)),"
+            + " acc -> (acc.lo + acc.hi) / 2.0)"
         )
 
         if fn == "cagr":
@@ -761,17 +763,17 @@ class Finance(MacroSpec):
             fv_text = (props.fvCol or "").strip() or "0"
             type_text = (props.paymentType or "").strip() or "0"
             f_lo = (f"case when ({lo_text}) = 0"
-                    f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
-                    f" else ({pv_text}) * power(1 + ({lo_text}), ({nper_text}))"
-                    f" + ({pmt_text}) * (1 + ({lo_text}) * ({type_text}))"
-                    f" * (power(1 + ({lo_text}), ({nper_text})) - 1) / ({lo_text})"
-                    f" + ({fv_text}) end")
+                    + f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
+                    + f" else ({pv_text}) * power(1 + ({lo_text}), ({nper_text}))"
+                    + f" + ({pmt_text}) * (1 + ({lo_text}) * ({type_text}))"
+                    + f" * (power(1 + ({lo_text}), ({nper_text})) - 1) / ({lo_text})"
+                    + f" + ({fv_text}) end")
             f_mid = (f"case when {mid_text} = 0"
-                     f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
-                     f" else ({pv_text}) * power(1 + {mid_text}, ({nper_text}))"
-                     f" + ({pmt_text}) * (1 + {mid_text} * ({type_text}))"
-                     f" * (power(1 + {mid_text}, ({nper_text})) - 1) / {mid_text}"
-                     f" + ({fv_text}) end")
+                     + f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
+                     + f" else ({pv_text}) * power(1 + {mid_text}, ({nper_text}))"
+                     + f" + ({pmt_text}) * (1 + {mid_text} * ({type_text}))"
+                     + f" * (power(1 + {mid_text}, ({nper_text})) - 1) / {mid_text}"
+                     + f" + ({fv_text}) end")
             solved = F.expr(bisect_text.format(rounds=rounds_text, lo=lo_text, hi=hi_text,
                                                mid=mid_text, f_lo=f_lo, f_mid=f_mid))
             result = F.when((nper + pmt + pv + fv + pay_type).isNull(), null).otherwise(solved)
