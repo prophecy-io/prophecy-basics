@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import math
 
 import re
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -644,6 +645,10 @@ class Finance(MacroSpec):
                 result = result + term
             return result
 
+        # Powers go through math.pow rather than the ** operator: Prophecy's Python parser
+        # reads ** as keyword-argument unpacking and fails to build the project when the
+        # expression to its left is anything more complex than a name.
+        #
         # The three solvers below stay local on purpose. A UDF that calls a module-level
         # function is shipped to the workers as a reference, which makes every worker
         # import this file and therefore the whole Prophecy package. Defined here they
@@ -681,7 +686,7 @@ class Finance(MacroSpec):
 
             def npv(candidate):
                 try:
-                    return sum(v / (1.0 + candidate) ** i for i, v in enumerate(flows))
+                    return sum(v / math.pow(1.0 + candidate, i) for i, v in enumerate(flows))
                 except (ValueError, ZeroDivisionError, OverflowError):
                     return None
 
@@ -695,7 +700,7 @@ class Finance(MacroSpec):
 
             def xnpv(candidate):
                 try:
-                    return sum(v / (1.0 + candidate) ** (offsets[i] / 365.0)
+                    return sum(v / math.pow(1.0 + candidate, offsets[i] / 365.0)
                                for i, v in enumerate(flows))
                 except (ValueError, ZeroDivisionError, OverflowError):
                     return None
@@ -710,7 +715,7 @@ class Finance(MacroSpec):
                 try:
                     if candidate == 0:
                         return present + payment * periods + future
-                    growth = (1.0 + candidate) ** periods
+                    growth = math.pow(1.0 + candidate, periods)
                     return (present * growth
                             + payment * (1 + candidate * due) * (growth - 1) / candidate
                             + future)
