@@ -5,7 +5,6 @@ import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
 
 
 class Finance(MacroSpec):
@@ -620,6 +619,8 @@ class Finance(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        from pyspark.sql import functions as F
+        
         props = self.props
         fn = (props.functionType or "FV").strip().lower()
         out_col = (props.outputColumn or "").strip() or "finance_result"
@@ -643,8 +644,6 @@ class Finance(MacroSpec):
         value_text = [str(c).strip() for c in (props.valueColumns or []) if str(c).strip()]
         date_text = [str(c).strip() for c in (props.dateColumns or []) if str(c).strip()]
         values = [F.expr(c).cast("double") for c in value_text]
-        # The first date is pulled out into a name because Prophecy's code generator
-        # mangles a subscript written inside an f-string.
         first_date = date_text[0] if date_text else "0"
         gap_text = [f"(datediff(cast({d} as date), cast({first_date} as date)))"
                     for d in date_text]
@@ -658,17 +657,15 @@ class Finance(MacroSpec):
         n_text = (props.nIterCol or "").strip() or "60"
         rounds_text = f"if(cast({n_text} as int) > 0, cast({n_text} as int), 60)"
         mid_text = "((acc.lo + acc.hi) / 2.0)"
-        # Pieces are joined with an explicit +: Prophecy's parser rejects the implicit
-        # concatenation you get from writing adjacent string literals.
-        bisect_text = (
-            "aggregate(sequence(1, {rounds}),"
-            + " named_struct('lo', {lo}, 'hi', {hi}, 'flo', {f_lo}),"
-            + " (acc, i) -> named_struct("
-            + "'lo', if(sign({f_mid}) = sign(acc.flo), {mid}, acc.lo),"
-            + " 'hi', if(sign({f_mid}) = sign(acc.flo), acc.hi, {mid}),"
-            + " 'flo', if(sign({f_mid}) = sign(acc.flo), {f_mid}, acc.flo)),"
-            + " acc -> (acc.lo + acc.hi) / 2.0)"
-        )
+        bisect_text = "".join([
+            "aggregate(sequence(1, {rounds}),",
+            " named_struct('lo', {lo}, 'hi', {hi}, 'flo', {f_lo}),",
+            " (acc, i) -> named_struct(",
+            "'lo', if(sign({f_mid}) = sign(acc.flo), {mid}, acc.lo),",
+            " 'hi', if(sign({f_mid}) = sign(acc.flo), acc.hi, {mid}),",
+            " 'flo', if(sign({f_mid}) = sign(acc.flo), {f_mid}, acc.flo)),",
+            " acc -> (acc.lo + acc.hi) / 2.0)",
+        ])
 
         if fn == "cagr":
             result = F.pow(end_value / F.when(begin_value == 0, null).otherwise(begin_value),
@@ -722,13 +719,14 @@ class Finance(MacroSpec):
                 result = result * (1 + schedule_rate)
 
         elif fn == "mirr":
-            last = len(values) - 1
-            gains = sum([F.when(v > 0, v * F.pow(1 + reinvest_rate, F.lit(float(last - i))))
+            gains = sum([F.when(v > 0,
+                                v * F.pow(1 + reinvest_rate,
+                                          F.lit(float(len(values) - 1 - i))))
                          .otherwise(zero) for i, v in enumerate(values)], zero)
             costs = sum([F.when(v < 0, v / F.pow(1 + finance_rate, F.lit(float(i))))
                          .otherwise(zero) for i, v in enumerate(values)], zero)
             result = F.pow((zero - gains) / F.when(costs == 0, null).otherwise(costs),
-                           F.lit(1.0 / last)) - 1
+                           F.lit(1.0 / (len(values) - 1))) - 1
 
         elif fn == "mxirr":
             span = gaps[len(values) - 1]
