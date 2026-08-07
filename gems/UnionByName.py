@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -114,9 +115,26 @@ class UnionByName(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         pm = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted repr),
+            # so the inverse is ast.literal_eval — NOT json.loads with a naive
+            # .replace("'", ...). For `schemas` each element is itself a JSON string
+            # (e.g. '[{"name": "A", ...}]'); stripping quotes then str()-ing the parsed
+            # value re-serialized it as a Python repr, corrupting the embedded JSON to
+            # single quotes. literal_eval preserves each element verbatim (and accepts
+            # both single- and double-quoted literals, so JSON also works).
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return UnionByName.UnionByNameProperties(
-            relation_name=json.loads(pm.get("relation_name", "[]").replace("'", '"')),
-            schemas=[str(x) for x in json.loads(pm.get("schemas", "[]").replace("'", ''))],
+            relation_name=_parse_py_literal(pm.get("relation_name", "[]"), []),
+            schemas=_parse_py_literal(pm.get("schemas", "[]"), []),
             missingColumnOps=pm.get("missingColumnOps", "nameBasedUnionOperation").lstrip("'").rstrip("'"),
         )
 

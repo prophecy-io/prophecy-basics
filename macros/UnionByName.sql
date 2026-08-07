@@ -7,7 +7,7 @@
   are filled with nulls, or you can require every table to match the first exactly.
 
   Parameters:
-    - relation_names (list): Relation identifiers to union (e.g. `['a', 'b']`).
+    - relation_name (list): Relation identifiers to union (e.g. `['a', 'b']`).
     - schemas (list): Parallel list of schemas (JSON string or list of {name, ...} fields).
     - missingColumnOps: 'allowMissingColumns' (union of all columns, NULL where absent) or
         'nameBasedUnionOperation' (strict: compiler error on extra/missing vs first relation).
@@ -34,21 +34,21 @@
       )
       select * from union_query
 #}
-{% macro UnionByName(relation_names,
+{% macro UnionByName(relation_name,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
-    {{ return(adapter.dispatch('UnionByName', 'prophecy_basics')(relation_names, schemas, missingColumnOps)) }}
+    {{ return(adapter.dispatch('UnionByName', 'prophecy_basics')(relation_name, schemas, missingColumnOps)) }}
 {% endmacro %}
 
-{% macro default__UnionByName(relation_names,
+{% macro default__UnionByName(relation_name,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
 
     {# Step 1: Normalize relation list #}
-    {%- if relation_names is string -%}
-        {%- set relations = relation_names.split(',') | map('trim') | list -%}
+    {%- if relation_name is string -%}
+        {%- set relations = relation_name.split(',') | map('trim') | list -%}
     {%- else -%}
-        {%- set relations = relation_names | list -%}
+        {%- set relations = relation_name | list -%}
     {%- endif -%}
 
     {# Step 2: Capture column names AND build norm→actual dict per relation #}
@@ -162,15 +162,15 @@
 
 {%- endmacro %}
 
-{% macro snowflake__UnionByName(relation_names,
+{% macro snowflake__UnionByName(relation_name,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
 
     {# Step 1: Normalize relation list #}
-    {%- if relation_names is string -%}
-        {%- set relations = relation_names.split(',') | map('trim') | list -%}
+    {%- if relation_name is string -%}
+        {%- set relations = relation_name.split(',') | map('trim') | list -%}
     {%- else -%}
-        {%- set relations = relation_names | list -%}
+        {%- set relations = relation_name | list -%}
     {%- endif -%}
 
     {# Step 2: Capture column names AND build norm→actual dict per relation #}
@@ -284,15 +284,15 @@
 
 {%- endmacro %}
 
-{% macro duckdb__UnionByName(relation_names,
+{% macro duckdb__UnionByName(relation_name,
                      schemas,
                      missingColumnOps='allowMissingColumns') -%}
 
     {# Step 1: Normalize relation list #}
-    {%- if relation_names is string -%}
-        {%- set relations = relation_names.split(',') | map('trim') | list -%}
+    {%- if relation_name is string -%}
+        {%- set relations = relation_name.split(',') | map('trim') | list -%}
     {%- else -%}
-        {%- set relations = relation_names | list -%}
+        {%- set relations = relation_name | list -%}
     {%- endif -%}
 
     {# Step 2: Capture column names AND build norm→actual dict per relation #}
