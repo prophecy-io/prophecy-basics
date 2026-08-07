@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -366,17 +367,19 @@ class Sample(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def _load_json_value(raw: str, default):
-            raw = raw or ""
-            if raw == "":
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
                 return default
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return json.loads(raw.replace("'", '"'))
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
 
         def _parse_order_columns(raw: str) -> List[OrderByRule]:
-            order_list = _load_json_value(raw, [])
+            order_list = _parse_py_literal(raw, [])
             return [
                 OrderByRule(
                     expression=ColumnExpr(
@@ -388,7 +391,7 @@ class Sample(MacroSpec):
                 for r in order_list
             ]
 
-        data_columns = _load_json_value(parametersMap.get("dataColumns"), [])
+        data_columns = _parse_py_literal(parametersMap.get("dataColumns"), [])
         sample_level_selection = (
             (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
         )
@@ -396,7 +399,7 @@ class Sample(MacroSpec):
             sample_level_selection = "sampleGroup" if data_columns else "sampleDataset"
 
         props = Sample.SampleProperties(
-            relation_name=_load_json_value(parametersMap.get("relation_name"), []),
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
             schema=(parametersMap.get("schema") or "").lstrip("'").rstrip("'"),
             sampleLevelSelection=sample_level_selection,
             dataColumns=data_columns,

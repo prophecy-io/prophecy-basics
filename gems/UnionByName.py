@@ -118,12 +118,7 @@ class UnionByName(MacroSpec):
 
         def _parse_py_literal(raw, default):
             # apply() emits list params as str(<python value>) (single-quoted repr),
-            # so the inverse is ast.literal_eval — NOT json.loads with a naive
-            # .replace("'", ...). For `schemas` each element is itself a JSON string
-            # (e.g. '[{"name": "A", ...}]'); stripping quotes then str()-ing the parsed
-            # value re-serialized it as a Python repr, corrupting the embedded JSON to
-            # single quotes. literal_eval preserves each element verbatim (and accepts
-            # both single- and double-quoted literals, so JSON also works).
+            # so the inverse is ast.literal_eval — NOT json.loads
             raw = (raw or "").strip()
             if not raw:
                 return default

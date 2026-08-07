@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -354,17 +355,19 @@ class RecordID(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def _load_json_value(raw: str, default):
-            raw = raw or ""
-            if raw == "":
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
                 return default
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return json.loads(raw.replace("'", '"'))
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
 
         def _parse_order_columns(raw: str) -> List[OrderByRule]:
-            order_list = _load_json_value(raw, [])
+            order_list = _parse_py_literal(raw, [])
             return [
                 OrderByRule(
                     expression=ColumnExpr(
@@ -377,7 +380,7 @@ class RecordID(MacroSpec):
             ]
 
         return RecordID.RecordIDProperties(
-            relation_name=_load_json_value(parametersMap.get('relation_name'), []),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             method=parametersMap.get('method').lstrip("'").rstrip("'"),
             incremental_id_column_name=parametersMap.get('incremental_id_column_name').lstrip("'").rstrip("'"),
             incremental_id_type=parametersMap.get('incremental_id_type').lstrip("'").rstrip("'"),
@@ -387,7 +390,7 @@ class RecordID(MacroSpec):
             ),
             generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
             position=parametersMap.get('position').lstrip("'").rstrip("'"),
-            groupByColumnNames=_load_json_value(parametersMap.get("groupByColumnNames"), []),
+            groupByColumnNames=_parse_py_literal(parametersMap.get("groupByColumnNames"), []),
             orders=_parse_order_columns(parametersMap.get("orders")),
         )
 
