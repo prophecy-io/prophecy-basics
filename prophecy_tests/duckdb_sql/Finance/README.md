@@ -15,7 +15,10 @@ IRR, XIRR and Rate are not covered here. DuckDB itself runs them in milliseconds
 because it keeps the per-iteration CTEs as separate operators, but Databricks and
 Snowflake inline them and hang, so a green DuckDB result here would be misleading
 rather than reassuring. Those three functions are covered by the Spark tests in
-`prophecy_tests/python_gems/Finance/`, which loop in Python instead.
+`prophecy_tests/python_gems/Finance/`. The gem's `applyPython` runs the same bisection
+through Spark's `aggregate()` higher-order function, which builds the step once and
+applies it per round at runtime, so its plan stays one size however many rounds are
+asked for. Bringing that shape back to the macro is what would let these tests return.
 
 ## How These Tests Work
 

@@ -13,6 +13,19 @@ import pytest
 from pyspark.sql import SparkSession
 
 
+def pin_worker_interpreter():
+    """Point Spark's Python workers at the interpreter running the tests.
+
+    Left alone, Spark launches workers with whatever `python3` comes first on PATH.
+    When that is a different minor version from the one running pytest, Spark refuses
+    to run and every Spark-backed test fails with PYTHON_VERSION_MISMATCH, which reads
+    like a pile of broken gems rather than one wrong environment variable. An explicit
+    setting in the shell still wins.
+    """
+    os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
+    os.environ.setdefault("PYSPARK_DRIVER_PYTHON", sys.executable)
+
+
 def setup_prophecy_mocks():
     """Mock Prophecy framework so gems can be imported."""
     # Create minimal mock classes
@@ -80,6 +93,7 @@ def setup_prophecy_mocks():
 
 
 # Setup mocks before any imports
+pin_worker_interpreter()
 setup_prophecy_mocks()
 
 

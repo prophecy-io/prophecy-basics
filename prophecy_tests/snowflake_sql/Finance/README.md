@@ -15,8 +15,11 @@ IRR, XIRR and Rate are not covered here. They are solved by bisection, which emi
 one CTE per iteration, and Snowflake expands every one of those non-recursive CTEs
 rather than materialising them. The resulting expression grows about 12.5x per
 iteration, so the query hangs in planning before it executes. Those three functions
-are covered by the Spark tests in `prophecy_tests/python_gems/Finance/`, which loop
-in Python instead.
+are covered by the Spark tests in `prophecy_tests/python_gems/Finance/`. The gem's
+`applyPython` runs the same bisection through Spark's `aggregate()` higher-order
+function, which builds the step once and applies it per round at runtime, so its plan
+stays one size however many rounds are asked for. Bringing that shape back to the
+macro is what would let these tests return.
 
 ## How These Tests Work
 

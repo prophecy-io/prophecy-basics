@@ -1,13 +1,11 @@
 import dataclasses
 import json
-import math
 
 import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType
 
 
 class Finance(MacroSpec):
@@ -626,197 +624,157 @@ class Finance(MacroSpec):
         fn = (props.functionType or "FV").strip().lower()
         out_col = (props.outputColumn or "").strip() or "finance_result"
 
-        def num(value, blank="0"):
-            """A dialog field as a numeric column.
+        rate = F.expr((props.rateCol or "").strip() or "0").cast("double")
+        nper = F.expr((props.nperCol or "").strip() or "0").cast("double")
+        pmt = F.expr((props.pmtCol or "").strip() or "0").cast("double")
+        pv = F.expr((props.pvCol or "").strip() or "0").cast("double")
+        fv = F.expr((props.fvCol or "").strip() or "0").cast("double")
+        pay_type = F.expr((props.paymentType or "").strip() or "0").cast("double")
+        principal = F.expr((props.principalCol or "").strip() or "0").cast("double")
+        begin_value = F.expr((props.beginValueCol or "").strip() or "0").cast("double")
+        end_value = F.expr((props.endValueCol or "").strip() or "0").cast("double")
+        periods = F.expr((props.periodsCol or "").strip() or "1").cast("double")
+        nominal_rate = F.expr((props.nominalRateCol or "").strip() or "0").cast("double")
+        effect_rate = F.expr((props.effectRateCol or "").strip() or "0").cast("double")
+        npery = F.expr((props.nperyCol or "").strip() or "1").cast("double")
+        finance_rate = F.expr((props.financeRateCol or "").strip() or "0").cast("double")
+        reinvest_rate = F.expr((props.reinvestRateCol or "").strip() or "0").cast("double")
 
-            Fields hold either a column name or an expression, the same way the macro
-            treats them, so the text is parsed rather than looked up as a name.
-            """
-            text = "" if value is None else str(value).strip()
-            return F.expr(text or blank).cast("double")
+        value_text = [str(c).strip() for c in (props.valueColumns or []) if str(c).strip()]
+        date_text = [str(c).strip() for c in (props.dateColumns or []) if str(c).strip()]
+        values = [F.expr(c).cast("double") for c in value_text]
+        gap_text = [f"(datediff(cast({d} as date), cast({date_text[0]} as date)))"
+                    for d in date_text]
+        gaps = [F.expr(g).cast("double") for g in gap_text]
 
-        def nz(column):
-            """Zero becomes null, so dividing by it yields null instead of failing."""
-            return F.when(column == 0, F.lit(None).cast("double")).otherwise(column)
+        zero = F.lit(0.0)
+        null = F.lit(None).cast("double")
 
-        def total(terms):
-            result = F.lit(0.0)
-            for term in terms:
-                result = result + term
-            return result
-
-        # Powers go through math.pow rather than the ** operator: Prophecy's Python parser
-        # reads ** as keyword-argument unpacking and fails to build the project when the
-        # expression to its left is anything more complex than a name.
-        #
-        # The three solvers below stay local on purpose. A UDF that calls a module-level
-        # function is shipped to the workers as a reference, which makes every worker
-        # import this file and therefore the whole Prophecy package. Defined here they
-        # travel by value instead, so the workers need nothing but the standard library.
-        def sign(value):
-            return (value > 0) - (value < 0)
-
-        def bisect(objective, low, high, iterations):
-            """Drive objective(x) to zero exactly the way the SQL macro does.
-
-            Each round keeps the half of the bracket where the sign flips. The macro
-            runs a fixed number of rounds rather than testing for convergence, so this
-            does too, which is what lets both sides agree digit for digit.
-            """
-            if low is None or high is None:
-                return None
-            count = int(iterations) if iterations and int(iterations) > 0 else 60
-            f_low = objective(low)
-            if f_low is None:
-                return None
-            for _ in range(count):
-                mid = (low + high) / 2.0
-                f_mid = objective(mid)
-                if f_mid is None:
-                    return None
-                if sign(f_mid) == sign(f_low):
-                    low, f_low = mid, f_mid
-                else:
-                    high = mid
-            return (low + high) / 2.0
-
-        def irr_value(flows, low, high, iterations):
-            if not flows or any(v is None for v in flows):
-                return None
-
-            def npv(candidate):
-                try:
-                    return sum(v / math.pow(1.0 + candidate, i) for i, v in enumerate(flows))
-                except (ValueError, ZeroDivisionError, OverflowError):
-                    return None
-
-            return bisect(npv, low, high, iterations)
-
-        def xirr_value(flows, offsets, low, high, iterations):
-            if not flows or any(v is None for v in flows):
-                return None
-            if not offsets or any(d is None for d in offsets):
-                return None
-
-            def xnpv(candidate):
-                try:
-                    return sum(v / math.pow(1.0 + candidate, offsets[i] / 365.0)
-                               for i, v in enumerate(flows))
-                except (ValueError, ZeroDivisionError, OverflowError):
-                    return None
-
-            return bisect(xnpv, low, high, iterations)
-
-        def rate_value(periods, payment, present, future, due, low, high, iterations):
-            if None in (periods, payment, present, future, due):
-                return None
-
-            def residual(candidate):
-                try:
-                    if candidate == 0:
-                        return present + payment * periods + future
-                    growth = math.pow(1.0 + candidate, periods)
-                    return (present * growth
-                            + payment * (1 + candidate * due) * (growth - 1) / candidate
-                            + future)
-                except (ValueError, ZeroDivisionError, OverflowError):
-                    return None
-
-            return bisect(residual, low, high, iterations)
-
-        values = [F.expr(str(c).strip()).cast("double")
-                  for c in (props.valueColumns or []) if str(c).strip()]
-        date_cols = [F.to_date(F.expr(str(c).strip()))
-                     for c in (props.dateColumns or []) if str(c).strip()]
-
-        def gap(i):
-            """Whole days from the first date column to the i-th one."""
-            return F.datediff(date_cols[i], date_cols[0]).cast("double")
-
-        rate = num(props.rateCol)
-        nper = num(props.nperCol)
-        pmt = num(props.pmtCol)
-        pv = num(props.pvCol)
-        fv = num(props.fvCol)
-        pay_type = num(props.paymentType)
-        lo = num(props.loBoundCol, "-0.99")
-        hi = num(props.hiBoundCol, "10")
-        rounds = num(props.nIterCol, "60").cast("int")
+        lo_text = "cast(" + ((props.loBoundCol or "").strip() or "-0.99") + " as double)"
+        hi_text = "cast(" + ((props.hiBoundCol or "").strip() or "10") + " as double)"
+        n_text = (props.nIterCol or "").strip() or "60"
+        rounds_text = f"if(cast({n_text} as int) > 0, cast({n_text} as int), 60)"
+        mid_text = "((acc.lo + acc.hi) / 2.0)"
+        bisect_text = (
+            "aggregate(sequence(1, {rounds}),"
+            " named_struct('lo', {lo}, 'hi', {hi}, 'flo', {f_lo}),"
+            " (acc, i) -> named_struct("
+            "'lo', if(sign({f_mid}) = sign(acc.flo), {mid}, acc.lo),"
+            " 'hi', if(sign({f_mid}) = sign(acc.flo), acc.hi, {mid}),"
+            " 'flo', if(sign({f_mid}) = sign(acc.flo), {f_mid}, acc.flo)),"
+            " acc -> (acc.lo + acc.hi) / 2.0)"
+        )
 
         if fn == "cagr":
-            result = F.pow(num(props.endValueCol) / nz(num(props.beginValueCol)),
-                           F.lit(1.0) / num(props.periodsCol, "1")) - 1
+            result = F.pow(end_value / F.when(begin_value == 0, null).otherwise(begin_value),
+                           F.lit(1.0) / periods) - 1
 
         elif fn == "effectiverate":
-            npery = num(props.nperyCol, "1")
-            result = F.pow(1 + num(props.nominalRateCol) / nz(npery), npery) - 1
+            result = F.pow(1 + nominal_rate / F.when(npery == 0, null).otherwise(npery),
+                           npery) - 1
 
         elif fn == "nominalrate":
-            npery = num(props.nperyCol, "1")
-            result = npery * (F.pow(1 + num(props.effectRateCol), F.lit(1.0) / nz(npery)) - 1)
+            result = npery * (F.pow(1 + effect_rate,
+                                    F.lit(1.0) / F.when(npery == 0, null).otherwise(npery)) - 1)
 
         elif fn == "fv":
             growth = F.pow(1 + rate, nper)
-            result = F.when(rate == 0, -(pv + pmt * nper)).otherwise(
-                -(pv * growth + pmt * (1 + rate * pay_type) * (growth - 1) / rate))
+            result = F.when(rate == 0, zero - (pv + pmt * nper)).otherwise(
+                zero - (pv * growth + pmt * (1 + rate * pay_type) * (growth - 1) / rate))
 
         elif fn == "pv":
             growth = F.pow(1 + rate, nper)
-            result = F.when(rate == 0, -(fv + pmt * nper)).otherwise(
-                -(fv + pmt * (1 + rate * pay_type) * (growth - 1) / rate) / growth)
+            result = F.when(rate == 0, zero - (fv + pmt * nper)).otherwise(
+                (zero - (fv + pmt * (1 + rate * pay_type) * (growth - 1) / rate)) / growth)
 
         elif fn == "pmt":
             growth = F.pow(1 + rate, nper)
-            result = F.when(rate == 0, -(pv + fv) / nz(nper)).otherwise(
-                -(pv * growth + fv) / ((1 + rate * pay_type) * (growth - 1) / rate))
+            result = F.when(rate == 0,
+                            (zero - (pv + fv))
+                            / F.when(nper == 0, null).otherwise(nper)).otherwise(
+                (zero - (pv * growth + fv)) / ((1 + rate * pay_type) * (growth - 1) / rate))
 
         elif fn == "nper":
             due = pmt * (1 + rate * pay_type)
-            result = F.when(rate == 0, -(pv + fv) / nz(pmt)).otherwise(
-                F.log((due - fv * rate) / nz(due + pv * rate)) / F.log(1 + rate))
+            base = due + pv * rate
+            result = F.when(rate == 0,
+                            (zero - (pv + fv))
+                            / F.when(pmt == 0, null).otherwise(pmt)).otherwise(
+                F.log((due - fv * rate) / F.when(base == 0, null).otherwise(base))
+                / F.log(1 + rate))
 
         elif fn == "npv":
-            result = total([v / F.pow(1 + rate, F.lit(float(i + 1)))
-                            for i, v in enumerate(values)])
+            result = sum([v / F.pow(1 + rate, F.lit(float(i + 1)))
+                          for i, v in enumerate(values)], zero)
 
         elif fn == "xnpv":
-            result = total([v / F.pow(1 + rate, gap(i) / 365.0)
-                            for i, v in enumerate(values)])
+            result = sum([v / F.pow(1 + rate, gaps[i] / 365.0)
+                          for i, v in enumerate(values)], zero)
 
         elif fn == "fvschedule":
-            result = num(props.principalCol)
+            result = principal
             for schedule_rate in values:
                 result = result * (1 + schedule_rate)
 
         elif fn == "mirr":
-            finance_rate = num(props.financeRateCol)
-            reinvest_rate = num(props.reinvestRateCol)
             last = len(values) - 1
-            gains = total([F.when(v > 0, v * F.pow(1 + reinvest_rate, F.lit(float(last - i))))
-                           .otherwise(F.lit(0.0)) for i, v in enumerate(values)])
-            costs = total([F.when(v < 0, v / F.pow(1 + finance_rate, F.lit(float(i))))
-                           .otherwise(F.lit(0.0)) for i, v in enumerate(values)])
-            result = F.pow(-gains / nz(costs), F.lit(1.0 / last)) - 1
+            gains = sum([F.when(v > 0, v * F.pow(1 + reinvest_rate, F.lit(float(last - i))))
+                         .otherwise(zero) for i, v in enumerate(values)], zero)
+            costs = sum([F.when(v < 0, v / F.pow(1 + finance_rate, F.lit(float(i))))
+                         .otherwise(zero) for i, v in enumerate(values)], zero)
+            result = F.pow((zero - gains) / F.when(costs == 0, null).otherwise(costs),
+                           F.lit(1.0 / last)) - 1
 
         elif fn == "mxirr":
-            finance_rate = num(props.financeRateCol)
-            reinvest_rate = num(props.reinvestRateCol)
-            span = gap(len(values) - 1)
-            gains = total([F.when(v > 0, v * F.pow(1 + reinvest_rate, (span - gap(i)) / 365.0))
-                           .otherwise(F.lit(0.0)) for i, v in enumerate(values)])
-            costs = total([F.when(v < 0, v / F.pow(1 + finance_rate, gap(i) / 365.0))
-                           .otherwise(F.lit(0.0)) for i, v in enumerate(values)])
-            result = F.pow(-gains / nz(costs), F.lit(365.0) / nz(span)) - 1
+            span = gaps[len(values) - 1]
+            gains = sum([F.when(v > 0, v * F.pow(1 + reinvest_rate, (span - gaps[i]) / 365.0))
+                         .otherwise(zero) for i, v in enumerate(values)], zero)
+            costs = sum([F.when(v < 0, v / F.pow(1 + finance_rate, gaps[i] / 365.0))
+                         .otherwise(zero) for i, v in enumerate(values)], zero)
+            result = F.pow((zero - gains) / F.when(costs == 0, null).otherwise(costs),
+                           F.lit(365.0) / F.when(span == 0, null).otherwise(span)) - 1
 
         elif fn == "irr":
-            result = F.udf(irr_value, DoubleType())(F.array(*values), lo, hi, rounds)
+            f_lo = " + ".join([f"({c}) / power(1 + ({lo_text}), {i})"
+                               for i, c in enumerate(value_text)] or ["0"])
+            f_mid = " + ".join([f"({c}) / power(1 + {mid_text}, {i})"
+                                for i, c in enumerate(value_text)] or ["0"])
+            solved = F.expr(bisect_text.format(rounds=rounds_text, lo=lo_text, hi=hi_text,
+                                               mid=mid_text, f_lo=f_lo, f_mid=f_mid))
+            result = F.when(sum(values, zero).isNull(), null).otherwise(solved)
 
         elif fn == "xirr":
-            offsets = F.array(*[gap(i) for i in range(len(values))])
-            result = F.udf(xirr_value, DoubleType())(F.array(*values), offsets, lo, hi, rounds)
+            offsets = [gap_text[i] if i < len(gap_text) else "0"
+                       for i in range(len(value_text))]
+            f_lo = " + ".join([f"({c}) / power(1 + ({lo_text}), ({offsets[i]}) / 365.0)"
+                               for i, c in enumerate(value_text)] or ["0"])
+            f_mid = " + ".join([f"({c}) / power(1 + {mid_text}, ({offsets[i]}) / 365.0)"
+                                for i, c in enumerate(value_text)] or ["0"])
+            solved = F.expr(bisect_text.format(rounds=rounds_text, lo=lo_text, hi=hi_text,
+                                               mid=mid_text, f_lo=f_lo, f_mid=f_mid))
+            result = F.when(sum(values, zero).isNull(), null).otherwise(solved)
 
         elif fn == "rate":
-            result = F.udf(rate_value, DoubleType())(nper, pmt, pv, fv, pay_type, lo, hi, rounds)
+            nper_text = (props.nperCol or "").strip() or "0"
+            pmt_text = (props.pmtCol or "").strip() or "0"
+            pv_text = (props.pvCol or "").strip() or "0"
+            fv_text = (props.fvCol or "").strip() or "0"
+            type_text = (props.paymentType or "").strip() or "0"
+            f_lo = (f"case when ({lo_text}) = 0"
+                    f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
+                    f" else ({pv_text}) * power(1 + ({lo_text}), ({nper_text}))"
+                    f" + ({pmt_text}) * (1 + ({lo_text}) * ({type_text}))"
+                    f" * (power(1 + ({lo_text}), ({nper_text})) - 1) / ({lo_text})"
+                    f" + ({fv_text}) end")
+            f_mid = (f"case when {mid_text} = 0"
+                     f" then ({pv_text}) + ({pmt_text}) * ({nper_text}) + ({fv_text})"
+                     f" else ({pv_text}) * power(1 + {mid_text}, ({nper_text}))"
+                     f" + ({pmt_text}) * (1 + {mid_text} * ({type_text}))"
+                     f" * (power(1 + {mid_text}, ({nper_text})) - 1) / {mid_text}"
+                     f" + ({fv_text}) end")
+            solved = F.expr(bisect_text.format(rounds=rounds_text, lo=lo_text, hi=hi_text,
+                                               mid=mid_text, f_lo=f_lo, f_mid=f_mid))
+            result = F.when((nper + pmt + pv + fv + pay_type).isNull(), null).otherwise(solved)
 
         else:
             result = F.lit(None).cast("double")

@@ -16,7 +16,10 @@ one CTE per iteration, and Databricks inlines every one of those CTEs because ea
 is referenced exactly once. The resulting expression grows about 12.5x per
 iteration, so the planner never finishes and the query hangs before it executes.
 Those three functions are covered by the Spark tests in
-`prophecy_tests/python_gems/Finance/`, which loop in Python instead.
+`prophecy_tests/python_gems/Finance/`. The gem's `applyPython` runs the same bisection
+through Spark's `aggregate()` higher-order function, which builds the step once and
+applies it per round at runtime, so its plan stays one size however many rounds are
+asked for. Bringing that shape back to the macro is what would let these tests return.
 
 ## How These Tests Work
 

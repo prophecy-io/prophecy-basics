@@ -126,13 +126,13 @@ cd prophecy_tests/python_gems && PYTHONPATH=../../gems:$PYTHONPATH pytest test_d
 
 ## 📂 Test Files
 
-| File | Description | Tests |
-|------|-------------|-------|
-| `test_data_cleansing.py` | DataCleansing gem tests | 15 tests ✅ |
-| `test_data_masking.py` | DataMasking gem tests | 18 tests ✅ |
-| `test_data_encoder_decoder.py` | DataEncoderDecoder gem tests | - |
-| `test_json_parse.py` | JSONParse gem tests | - |
-| `test_text_to_columns.py` | TextToColumns gem tests | - |
+Tests are grouped into one directory per gem.
+
+| Directory | Description | Tests |
+|-----------|-------------|-------|
+| `DataCleansing/` | DataCleansing gem tests | 15 tests ✅ |
+| `DataMasking/` | DataMasking gem tests | 18 tests ✅ |
+| `Finance/` | Finance gem tests, all 15 finance functions | 39 tests ✅ |
 | `conftest.py` | Shared fixtures and Prophecy mocks | - |
 
 ## 🛠️ Understanding the Test Setup
@@ -203,6 +203,18 @@ export PYTHONPATH=../../gems:$PYTHONPATH
 echo $PYTHONPATH  # Verify it's set
 ```
 
+### "PYTHON_VERSION_MISMATCH" Error
+
+Spark refuses to run when its workers use a different Python minor version from the
+driver, and it fails every Spark-backed test at once, so it looks like the gems broke
+rather than the environment. `conftest.py` prevents this by pointing Spark at the
+interpreter running pytest. To override it, set both variables yourself:
+
+```bash
+export PYSPARK_PYTHON=/path/to/python
+export PYSPARK_DRIVER_PYTHON=/path/to/python
+```
+
 ### Tests Pass Locally but Fail in CI
 - Ensure you're using the same Python version (3.11+)
 - Check that all dependencies are in `requirements.txt`
@@ -219,8 +231,9 @@ echo $PYTHONPATH  # Verify it's set
 ## 📊 Test Results
 
 Current test coverage:
-- ✅ **test_data_cleansing.py**: 15/15 passing (100%)
-- ✅ **test_data_masking.py**: 18/18 passing (100%)
+- ✅ **DataCleansing/**: 15/15 passing (100%)
+- ✅ **DataMasking/**: 18/18 passing (100%)
+- ✅ **Finance/**: 39/39 passing (100%)
 
 ## 🔗 Related Documentation
 
