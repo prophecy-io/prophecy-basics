@@ -91,15 +91,8 @@
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS STRING))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
         {%- endif -%}
@@ -242,15 +235,8 @@ final_output as (
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS STRING))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
         {%- endif -%}
@@ -399,8 +385,7 @@ final_output as (
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
         {%- if key in ('custom', 'name', 'address') -%}
-            {# Strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS VARCHAR))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
         {%- endif -%}
@@ -549,15 +534,8 @@ final_output as (
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS VARCHAR))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
         {%- endif -%}
