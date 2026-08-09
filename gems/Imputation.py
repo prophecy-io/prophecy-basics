@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -198,10 +199,22 @@ class Imputation(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return Imputation.ImputationProperties(
-            relation_name=json.loads(parametersMap.get("relation_name", "[]").replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
             schema=parametersMap.get("schema", "[]"),
-            columnNames=json.loads(parametersMap.get("columnNames", "[]").replace("'", '"')),
+            columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
             replaceIncomingType=parametersMap.get("replaceIncomingType", "null_val").strip("'"),
             incomingUserValue=parametersMap.get("incomingUserValue", "").strip("'").replace("''", "'"),
             replaceWithType=parametersMap.get("replaceWithType", "average").strip("'"),

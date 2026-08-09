@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -206,15 +207,25 @@ class WeightedAverage(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return WeightedAverage.WeightedAverageProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
             valueFieldColumn=(parametersMap.get("valueFieldColumn") or "''").lstrip("'").rstrip("'"),
             weightFieldColumn=(parametersMap.get("weightFieldColumn") or "''").lstrip("'").rstrip("'"),
             outputFieldName=(parametersMap.get("outputFieldName") or "''").lstrip("'").rstrip("'") or "WeightedAverage",
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames", "[]").replace("'", '"')
-            ),
+            groupByColumnNames=_parse_py_literal(parametersMap.get("groupByColumnNames"), []),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -282,10 +283,22 @@ class MultiColumnRename(MacroSpec):
 
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return MultiColumnRename.MultiColumnRenameProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
+            columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
             renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
             editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),

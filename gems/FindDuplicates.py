@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -481,12 +482,34 @@ class FindDuplicates(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
 
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _parse_py_literal(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
         return FindDuplicates.FindDuplicatesProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames").replace("'", '"')
-            ),
+            groupByColumnNames=_parse_py_literal(parametersMap.get("groupByColumnNames"), []),
             column_group_rownum_condition=parametersMap.get(
                 "column_group_rownum_condition"
             ).lstrip("'").rstrip("'"),
@@ -495,13 +518,23 @@ class FindDuplicates(MacroSpec):
             upper_limit=parametersMap.get("upper_limit").lstrip("'").rstrip("'"),
             output_type=parametersMap.get("output_type").lstrip("'").rstrip("'"),
             generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns").replace("'", '"')
-            ),
+            orderByColumns=_parse_order_columns(parametersMap.get("orderByColumns")),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # Convert component's state to default macro property representation
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -522,9 +555,7 @@ class FindDuplicates(MacroSpec):
                 MacroParameter("upper_limit", str(properties.upper_limit)),
                 MacroParameter("output_type", str(properties.output_type)),
                 MacroParameter("generationMethod", str(properties.generationMethod)),
-                MacroParameter(
-                    "orderByColumns", json.dumps(properties.orderByColumns)
-                ),
+                MacroParameter("orderByColumns", order_by_json),
             ],
         )
 

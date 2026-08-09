@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -366,17 +367,31 @@ class Sample(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def _load_json_value(raw: str, default):
-            raw = raw or ""
-            if raw == "":
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
                 return default
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return json.loads(raw.replace("'", '"'))
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
 
-        data_columns = _load_json_value(parametersMap.get("dataColumns"), [])
-        order_columns = _load_json_value(parametersMap.get("orderByColumns"), [])
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _parse_py_literal(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
+        data_columns = _parse_py_literal(parametersMap.get("dataColumns"), [])
         sample_level_selection = (
             (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
         )
@@ -384,21 +399,31 @@ class Sample(MacroSpec):
             sample_level_selection = "sampleGroup" if data_columns else "sampleDataset"
 
         props = Sample.SampleProperties(
-            relation_name=_load_json_value(parametersMap.get("relation_name"), []),
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
             schema=(parametersMap.get("schema") or "").lstrip("'").rstrip("'"),
             sampleLevelSelection=sample_level_selection,
             dataColumns=data_columns,
             randomSeed=int(str(parametersMap.get("randomSeed", 1002)).lstrip("'").rstrip("'")),
             currentModeSelection=(parametersMap.get("currentModeSelection") or "''").lstrip("'").rstrip("'"),
             numberN=int(str(parametersMap.get("numberN", 80)).lstrip("'").rstrip("'")),
-            orderByColumns=json.loads(
-                parametersMap.get("orderByColumns").replace("'", '"')
-            ),
+            orderByColumns=_parse_order_columns(parametersMap.get("orderByColumns")),
         )
         return props
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -410,9 +435,7 @@ class Sample(MacroSpec):
                 MacroParameter("randomSeed", str(properties.randomSeed)),
                 MacroParameter("currentModeSelection", str(properties.currentModeSelection)),
                 MacroParameter("numberN", str(properties.numberN)),
-                MacroParameter(
-                    "orderByColumns", json.dumps(properties.orderByColumns)
-                ),
+                MacroParameter("orderByColumns", order_by_json),
             ],
         )
 

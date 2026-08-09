@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -33,6 +34,7 @@ class FuzzyMatch(MacroSpec):
     class AddMatchField(MatchField):
         columnName: str = ""
         matchFunction: str = "custom"
+        _row_id: Optional[str] = None
 
     @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
@@ -310,8 +312,20 @@ class FuzzyMatch(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         matchFields = []
-        matchFieldsJson = json.loads(parametersMap.get("matchFields").replace("'", '"'))
+        matchFieldsJson = _parse_py_literal(parametersMap.get("matchFields"), [])
         for fld in matchFieldsJson:
             matchFields.append(
                 self.AddMatchField(
@@ -320,7 +334,7 @@ class FuzzyMatch(MacroSpec):
                 )
             )
         return FuzzyMatch.FuzzyMatchProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
             sourceIdCol=parametersMap.get('sourceIdCol').lstrip("'").rstrip("'"),
             recordIdCol=parametersMap.get('recordIdCol').lstrip("'").rstrip("'"),
