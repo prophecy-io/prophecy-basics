@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -267,8 +268,19 @@ class RunningTotal(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
 
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         def _parse_order_columns(raw: str) -> List[OrderByRule]:
-            order_list = json.loads((raw or "[]").replace("'", '"'))
+            order_list = _parse_py_literal(raw, [])
             return [
                 OrderByRule(
                     expression=ColumnExpr(
@@ -289,10 +301,10 @@ class RunningTotal(MacroSpec):
         output_prefix = output_prefix_raw if output_prefix_raw and output_prefix_raw != "None" else "RunTot_"
 
         return RunningTotal.RunningTotalProperties(
-            relation_name=json.loads(raw_rel.replace("'", '"')),
+            relation_name=_parse_py_literal(raw_rel, []),
             schema=parametersMap.get("schema") or "",
-            groupByColumnNames=json.loads(raw_group.replace("'", '"')),
-            runningTotalColumnNames=json.loads(raw_running.replace("'", '"')),
+            groupByColumnNames=_parse_py_literal(raw_group, []),
+            runningTotalColumnNames=_parse_py_literal(raw_running, []),
             orderByColumns=_parse_order_columns(raw_order),
             outputPrefix=output_prefix,
         )

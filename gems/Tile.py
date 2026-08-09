@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 import re
@@ -415,17 +416,19 @@ class Tile(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def _load_json_value(raw: str, default):
-            raw = raw or ""
-            if raw == "":
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loadsq
+            raw = (raw or "").strip()
+            if not raw:
                 return default
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return json.loads(raw.replace("'", '"'))
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
 
         def _parse_order_columns(raw: str) -> List[OrderByRule]:
-            order_list = _load_json_value(raw, [])
+            order_list = _parse_py_literal(raw, [])
             return [
                 OrderByRule(
                     expression=ColumnExpr(
@@ -445,11 +448,11 @@ class Tile(MacroSpec):
         raw_donot_split = parametersMap.get("donot_split_tile_column_names") or "[]"
 
         return Tile.TileProperties(
-            relation_name=_load_json_value(raw_rel, []),
+            relation_name=_parse_py_literal(raw_rel, []),
             schema=raw_schema.lstrip("'").rstrip("'"),
             orderByColumns=_parse_order_columns(raw_order),
-            groupby_column_names=_load_json_value(raw_group, []),
-            unique_value_column_name=_load_json_value(raw_unique, []),
+            groupby_column_names=_parse_py_literal(raw_group, []),
+            unique_value_column_name=_parse_py_literal(raw_unique, []),
             tile_method=(parametersMap.get("tile_method") or "''").lstrip("'").rstrip("'"),
             number_of_tiles=(parametersMap.get("number_of_tiles") or "''").lstrip("'").rstrip("'"),
             sum_column_name=(parametersMap.get("sum_column_name") or "''").lstrip("'").rstrip("'"),
@@ -461,7 +464,7 @@ class Tile(MacroSpec):
                 "manual_tile_column_name", "''"
             ).lstrip("'").rstrip("'"),
             manual_tiles_cutoff=(parametersMap.get("manual_tiles_cutoff") or "''").lstrip("'").rstrip("'"),
-            donot_split_tile_column_names=_load_json_value(raw_donot_split, []),
+            donot_split_tile_column_names=_parse_py_literal(raw_donot_split, []),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

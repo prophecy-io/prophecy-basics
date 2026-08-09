@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import datetime as dt
 import json
@@ -375,14 +376,16 @@ class DataCleansing(MacroSpec):
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def _load_json_value(raw: str, default):
-            raw = raw or ""
-            if raw == "":
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
                 return default
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return json.loads(raw.replace("'", '"'))
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
 
         def _unquote(raw: str, default: str = "") -> str:
             # Strip the surrounding single quotes emitted by apply() and
@@ -403,10 +406,10 @@ class DataCleansing(MacroSpec):
             numeric_with = int(numeric_with)
 
         return DataCleansing.DataCleansingProperties(
-            relation_name=_load_json_value(parametersMap.get("relation_name"), []),
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
             schema=parametersMap.get("schema") or "",
             modifyCase=_unquote(parametersMap.get("modifyCase"), "keepOriginal") or "keepOriginal",
-            columnNames=_load_json_value(parametersMap.get("columnNames"), []),
+            columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
             replaceNullTextFields=_bool("replaceNullTextFields"),
             replaceNullTextWith=_unquote(parametersMap.get("replaceNullTextWith"), "NA"),
             replaceNullForNumericFields=_bool("replaceNullForNumericFields"),

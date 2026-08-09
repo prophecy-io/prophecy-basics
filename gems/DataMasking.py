@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -501,12 +502,22 @@ class DataMasking(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return DataMasking.DataMaskingProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            column_names=json.loads(
-                parametersMap.get("column_names").replace("'", '"')
-            ),
+            column_names=_parse_py_literal(parametersMap.get("column_names"), []),
             masking_method=parametersMap.get('masking_method').lstrip("'").rstrip("'"),
             upper_char_substitute=parametersMap.get('upper_char_substitute').lstrip("'").rstrip("'"),
             lower_char_substitute=parametersMap.get('lower_char_substitute').lstrip("'").rstrip("'"),
