@@ -449,8 +449,13 @@ class DataMasking(MacroSpec):
         
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
+        # Preserve the incoming schema order. A set difference iterates in hash-table
+        # order, which depends on the per-process string hash seed and on insertion
+        # history, so the generated SELECT list -- and therefore this gem's output
+        # schema -- came out in a different column order on every rebuild.
+        substituted = set(props.column_names)
         remaining_columns = ", ".join(
-            list(set(schema_columns) - set(props.column_names))
+            [c for c in schema_columns if c not in substituted]
         )
 
         def safe_str(val):
