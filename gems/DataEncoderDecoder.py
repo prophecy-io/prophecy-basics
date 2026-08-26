@@ -663,8 +663,10 @@ class DataEncoderDecoder(MacroSpec):
         # Generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
+        # Keep schema order: set iteration order is not stable across processes.
+        substituted = set(props.column_names)
         remaining_columns = ", ".join(
-            list(set(schema_columns) - set(props.column_names))
+            [c for c in schema_columns if c not in substituted]
         )
 
         def safe_str(val):
