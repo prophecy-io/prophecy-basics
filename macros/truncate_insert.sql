@@ -3,7 +3,7 @@
   ===============================
 
   A "table"-like materialization that refreshes a model by emptying the existing
-  table and re-inserting into it, instead of dropping and recreating it.
+  table and inserting into it, instead of dropping and recreating it.
 
   Because the table object is never replaced, everything attached to it survives
   a run: grants, table/column comments, table properties (e.g. Delta
@@ -16,31 +16,22 @@
 
   Behavior:
     - Target does not exist          -> CREATE TABLE AS (adapter's create_table_as)
-    - Target exists as a table       -> TRUNCATE, then INSERT INTO ... SELECT
+    - Target exists as a table       -> TRUNCATE, then INSERT INTO <table> <query>
     - Target exists as a view        -> dropped and recreated as a table
-    - `--full-refresh`               -> dropped and recreated (schema drift is
-                                        fixed here; note this needs DROP rights)
+    - `--full-refresh`               -> dropped and recreated (this is how you
+                                        reshape the table; needs DROP rights)
 
-  Column handling:
-    The insert lists the destination columns explicitly and selects them *by
-    name* out of the model query, so a re-ordered SELECT still lands in the
-    right columns. A column present in the table but missing from the model
-    query is a compile-time error; a column produced by the model but absent
-    from the table is ignored. Use `--full-refresh` to reshape the table.
+  Schema drift:
+    Nothing is validated up front. The insert is a plain positional
+    `insert into <table> <model query>`, so the warehouse rejects a drifted
+    model the same way it would reject any hand-written insert. Use
+    `--full-refresh` to rebuild the table in the new shape.
 
   Atomicity:
     On adapters with DDL/DML transactions (Postgres, Redshift, Snowflake) the
     truncate and insert commit together. On Databricks/Spark and BigQuery they
-    do not, so readers can observe an empty table between the two statements.
-    Override `prophecy_truncate_insert_sql` for a single-statement replace
-    (e.g. Databricks `INSERT OVERWRITE`) where that matters.
-
-  Adapter Support:
-    - default__ (any adapter whose `TRUNCATE TABLE` is implemented, which is
-      every adapter deriving from SQLAdapter: Databricks/Spark, Snowflake,
-      Postgres, Redshift, BigQuery, DuckDB)
-    - Adapters without TRUNCATE (e.g. Athena) can override
-      `prophecy_empty_relation` with `delete from`.
+    do not, so a failed insert leaves the table empty and readers can observe
+    an empty table between the two statements.
 #}
 
 {% materialization truncate_insert, default %}
@@ -62,33 +53,11 @@
 
   {% if truncate_mode %}
 
-    {%- set dest_columns = adapter.get_columns_in_relation(existing_relation) -%}
-    {%- if dest_columns | length == 0 -%}
-      {%- do exceptions.raise_compiler_error(
-            "truncate_insert: could not read any columns from existing relation "
-            ~ existing_relation ~ ". Run with --full-refresh to rebuild it.") -%}
-    {%- endif -%}
-
-    {#-- Fail loudly, and before touching the table, on schema drift. --#}
-    {%- set model_columns = get_columns_in_query(sql) -%}
-    {%- set model_columns_lower = model_columns | map('lower') | list -%}
-    {%- set missing = [] -%}
-    {%- for col in dest_columns -%}
-      {%- if col.name | lower not in model_columns_lower -%}
-        {%- do missing.append(col.name) -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- if missing | length > 0 -%}
-      {%- do exceptions.raise_compiler_error(
-            "truncate_insert: model '" ~ model.name ~ "' does not produce column(s) "
-            ~ missing | join(', ') ~ " present in " ~ existing_relation
-            ~ ". Add them to the model, or run with --full-refresh to reshape the table.") -%}
-    {%- endif -%}
-
-    {%- do prophecy_basics.prophecy_empty_relation(existing_relation) -%}
+    {%- do adapter.truncate_relation(existing_relation) -%}
 
     {% call statement('main') -%}
-      {{ prophecy_basics.prophecy_truncate_insert_sql(target_relation, dest_columns, sql) }}
+      insert into {{ target_relation }}
+      {{ sql }}
     {%- endcall %}
 
   {% else %}
@@ -122,36 +91,3 @@
   {{ return({'relations': [target_relation]}) }}
 
 {% endmaterialization %}
-
-
-{#
-  Empties `relation` in place. Named `prophecy_empty_relation` rather than
-  `truncate_relation` to avoid colliding with dbt-core's global macro of that
-  name.
-#}
-{% macro prophecy_empty_relation(relation) -%}
-  {{ return(adapter.dispatch('prophecy_empty_relation', 'prophecy_basics')(relation)) }}
-{%- endmacro %}
-
-{% macro default__prophecy_empty_relation(relation) -%}
-  {#-- Delegates to the adapter's own TRUNCATE implementation. --#}
-  {%- do adapter.truncate_relation(relation) -%}
-{%- endmacro %}
-
-
-{#
-  Builds the INSERT that repopulates the (now empty) target.
-#}
-{% macro prophecy_truncate_insert_sql(target_relation, dest_columns, select_sql) -%}
-  {{ return(adapter.dispatch('prophecy_truncate_insert_sql', 'prophecy_basics')(
-       target_relation, dest_columns, select_sql)) }}
-{%- endmacro %}
-
-{% macro default__prophecy_truncate_insert_sql(target_relation, dest_columns, select_sql) -%}
-  {%- set dest_cols_csv = dest_columns | map(attribute='quoted') | join(', ') -%}
-  insert into {{ target_relation }} ({{ dest_cols_csv }})
-  select {{ dest_cols_csv }}
-  from (
-    {{ select_sql }}
-  ) as __prophecy_truncate_insert_subq
-{%- endmacro %}
