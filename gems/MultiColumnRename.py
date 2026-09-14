@@ -4,6 +4,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from jinja2 import Environment, TemplateSyntaxError, nodes
+
 from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.Component import *
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -25,6 +27,12 @@ class MultiColumnRename(MacroSpec):
         ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
+
+    # Register choices here so the dropdown and property loader stay in sync.
+    RENAME_METHODS = {
+        "editPrefixSuffix": "Edit prefix/suffix",
+        "advancedRename": "Advanced rename",
+    }
 
     @dataclass(frozen=True)
     class MultiColumnRenameProperties(MacroProperties):
@@ -55,12 +63,9 @@ class MultiColumnRename(MacroSpec):
 
     def dialog(self) -> Dialog:
         horizontalDivider = HorizontalDivider()
-        renameMethod = (
-            SelectBox("")
-            .addOption("Edit prefix/suffix", "editPrefixSuffix")
-            .addOption("Advanced rename", "advancedRename")
-            .bindProperty("renameMethod")
-        )
+        renameMethod = SelectBox("").bindProperty("renameMethod")
+        for value, label in self.RENAME_METHODS.items():
+            renameMethod = renameMethod.addOption(label, value)
 
         dialog = Dialog("MultiColumnRename").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -274,7 +279,7 @@ class MultiColumnRename(MacroSpec):
             str(allColumnNames),
             "'" + str(props.editType) + "'",
             "'" + str(props.editWith) + "'",
-            '"' + str(props.customExpression) + '"',
+            json.dumps(str(props.customExpression), ensure_ascii=False),
             ]
         params = ",".join([param for param in arguments])
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
@@ -295,14 +300,41 @@ class MultiColumnRename(MacroSpec):
             except (ValueError, SyntaxError):
                 return default
 
+        def _jinja_string_literal(source):
+            # Parse without evaluating: native expressions such as var(...) must
+            # not silently become literal SQL when converting code to a gem.
+            try:
+                parsed = Environment().parse("{{ " + source + " }}")
+            except (TemplateSyntaxError, TypeError) as exc:
+                raise ValueError("MultiColumnRename expects a constant Jinja string") from exc
+            if (len(parsed.body) != 1 or not isinstance(parsed.body[0], nodes.Output)
+                    or len(parsed.body[0].nodes) != 1
+                    or not isinstance(parsed.body[0].nodes[0], nodes.Const)
+                    or not isinstance(parsed.body[0].nodes[0].value, str)):
+                raise ValueError("MultiColumnRename expects a constant Jinja string")
+            return parsed.body[0].nodes[0].value
+
+        rename_method = parametersMap.get("renameMethod", "").strip()
+        custom_expression = parametersMap.get("customExpression", "")
+        # The empty value represents a gem with no method selected yet.
+        known_methods = {"", *self.RENAME_METHODS}
+        if rename_method not in known_methods:
+            # apply() emits a quoted enum; unloadProperties() stores the enum
+            # raw in _oldMacroProperties. Use that discriminator, not the SQL
+            # expression's quotes: raw SQL may itself be a quoted identifier.
+            rename_method = _jinja_string_literal(rename_method)
+            if rename_method not in known_methods:
+                raise ValueError("Unsupported MultiColumnRename renameMethod")
+            custom_expression = _jinja_string_literal(custom_expression)
+
         return MultiColumnRename.MultiColumnRenameProperties(
             relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
             columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
-            renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
+            renameMethod=rename_method,
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
             editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),
-            customExpression=parametersMap.get('customExpression').lstrip('"').rstrip('"'),
+            customExpression=custom_expression,
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
