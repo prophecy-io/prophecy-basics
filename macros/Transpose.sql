@@ -15,6 +15,7 @@
 
   Adapter Support:
     - default__ (backticks, CAST AS STRING), snowflake__, duckdb__ (CAST AS VARCHAR)
+    - snowflake__ upper-cases nameColumn/valueColumn when they are plain identifiers (e.g. Name -> "NAME")
 
   Depends on schema parameter:
     No
@@ -109,6 +110,12 @@
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {%- if dataColumns and (nameColumn | length > 0) and (valueColumn | length > 0) -%}
 
+        {# Snowflake resolves unquoted identifiers to upper case, so plain output names
+           (e.g. the default Name/Value) are upper-cased to stay consistent with the
+           inferred schema used by downstream gems; names needing quotes keep their case #}
+        {%- set name_col = nameColumn | upper if modules.re.match('^[A-Za-z_][A-Za-z0-9_$]*$', nameColumn) else nameColumn -%}
+        {%- set value_col = valueColumn | upper if modules.re.match('^[A-Za-z_][A-Za-z0-9_$]*$', valueColumn) else valueColumn -%}
+
         {%- set union_queries = [] -%}
 
         {%- for data_col in dataColumns -%}
@@ -122,11 +129,11 @@
             {%- endif -%}
 
             {# literal column name → nameColumn alias #}
-            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(nameColumn)) -%}
+            {%- do select_list.append("'" ~ data_col ~ "' AS " ~ prophecy_basics.quote_identifier(name_col)) -%}
 
             {# actual value → valueColumn alias #}
             {%- do select_list.append(
-                    'CAST(' ~ prophecy_basics.quote_identifier(data_col) ~ ' AS VARCHAR) AS ' ~ prophecy_basics.quote_identifier(valueColumn)
+                    'CAST(' ~ prophecy_basics.quote_identifier(data_col) ~ ' AS VARCHAR) AS ' ~ prophecy_basics.quote_identifier(value_col)
                 ) -%}
 
             {%- set query = 'SELECT ' ~ (select_list | join(', ')) ~
