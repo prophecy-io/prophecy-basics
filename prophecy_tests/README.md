@@ -37,6 +37,11 @@ prophecy_tests/
 │   ├── profiles.yml
 │   ├── example_unit_tests.yml
 │   └── README.md
+├── code_to_visual/       # Code-to-visual round-trip tester for SQL macro gems
+│   ├── code_to_visual_runner.py  # the tester (CLI)
+│   ├── test_code_to_visual.py    # pytest unit tests for the tester
+│   ├── pytest.ini
+│   └── app_generated/            # SQL Editor-generated models; must all pass
 ├── run_tests.sh          # Shell test runner
 └── run_tests.py          # Python test runner (cross-platform)
 ```
