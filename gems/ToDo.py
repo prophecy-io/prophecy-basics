@@ -1,6 +1,9 @@
+import ast
 import dataclasses
+import json
 
 import re
+from jinja2 import Environment, TemplateSyntaxError, nodes
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import *
@@ -131,29 +134,96 @@ class ToDo(MacroSpec):
         )
         return newState.bindProperties(newProperties)
 
+    @staticmethod
+    def _jinja_constant(source: Optional[str]) -> Any:
+        """The value of `source` when it is one constant Jinja expression (a string or a
+        list), else None. Parsed, never evaluated: the SQL Editor hands loadProperties the
+        call's argument SOURCE TEXT, quotes included."""
+        try:
+            parsed = Environment().parse("{{ " + (source or "") + " }}")
+        except (TemplateSyntaxError, TypeError):
+            return None
+        if (len(parsed.body) != 1 or not isinstance(parsed.body[0], nodes.Output)
+                or len(parsed.body[0].nodes) != 1):
+            return None
+        node = parsed.body[0].nodes[0]
+        if isinstance(node, nodes.Const) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, nodes.List) and all(
+                isinstance(i, nodes.Const) and isinstance(i.value, str) for i in node.items):
+            return [i.value for i in node.items]
+        return None
+
+    @staticmethod
+    def _text(raw: Optional[str]) -> Optional[str]:
+        """A string parameter from either load path: a Jinja literal from the code (decoded),
+        or the raw value from unloadProperties (kept). A message that an older ToDo already
+        double-quoted -- ToDo(''msg''), which no longer compiles -- is healed back to msg."""
+        if raw is None:
+            return None
+        value = ToDo._jinja_constant(raw)
+        if isinstance(value, str):
+            return value
+        while len(raw) >= 4 and raw.startswith("''") and raw.endswith("''"):
+            raw = raw[2:-2]
+        return raw
+
+    @staticmethod
+    def _relations(raw: Optional[str]) -> List[str]:
+        value = ToDo._jinja_constant(raw)
+        if value is None and raw:
+            try:
+                value = ast.literal_eval(raw)  # unloadProperties stores it as JSON
+            except (ValueError, SyntaxError):
+                value = None
+        if isinstance(value, str):
+            value = [value]
+        return [str(v) for v in value] if isinstance(value, (list, tuple)) else []
+
     def apply(self, props: ToDoProperties) -> str:
+        # diag_message stays the FIRST argument: every ToDo('<msg>') already in a project keeps
+        # binding to it. relation_name follows so the call names the gem's inputs -- without
+        # it the SQL Editor rebuilds the gem with no input, moves the CTEs before it into a
+        # model of their own, and the edge is gone. Error message and helper code ride along
+        # so a code -> visual cycle no longer erases them. Strings are JSON-quoted: a valid
+        # Jinja literal for any text (quotes, newlines, XML), decoded again by loadProperties.
         resolved_macro_name = f"{self.projectName}.{self.name}"
         diagMessage: str = (
             props.diag_message
             if props.diag_message is not None
             else "No diaganostic provided."
         )
-        arguments = ["'" + diagMessage + "'"]
-
-        params = ",".join([param for param in arguments])
+        arguments = [
+            json.dumps(diagMessage, ensure_ascii=False),
+            str([str(r) for r in (props.relation_name or [])]),
+        ]
+        if props.error_string or props.code_string:
+            arguments += [json.dumps(props.error_string or "", ensure_ascii=False),
+                          json.dumps(props.code_string or "", ensure_ascii=False)]
+        params = ", ".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        return ToDo.ToDoProperties(diag_message=parametersMap.get("diag_message"))
+        return ToDo.ToDoProperties(
+            relation_name=ToDo._relations(parametersMap.get("relation_name")),
+            error_string=ToDo._text(parametersMap.get("error_string")) or None,
+            code_string=ToDo._text(parametersMap.get("code_string")) or None,
+            diag_message=ToDo._text(parametersMap.get("diag_message")),
+        )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # Convert component's state to default macro property representation
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
-            parameters=[MacroParameter("diag_message", properties.diag_message)],
+            parameters=[
+                MacroParameter("diag_message", properties.diag_message),
+                MacroParameter("relation_name", json.dumps(properties.relation_name or [])),
+                MacroParameter("error_string", properties.error_string or ""),
+                MacroParameter("code_string", properties.code_string or ""),
+            ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
