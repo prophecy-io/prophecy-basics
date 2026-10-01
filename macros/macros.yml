@@ -242,12 +242,6 @@ macros:
       - name: "relation_name"
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
-      - name: "error_string"
-        type: "value"
-        description: "{\"ProphecyType\": \"value\"}"
-      - name: "code_string"
-        type: "value"
-        description: "{\"ProphecyType\": \"value\"}"
     macroType: "query"
   - name: "CountRecords"
     arguments:

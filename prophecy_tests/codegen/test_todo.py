@@ -1,9 +1,10 @@
 """ToDo's serializer and loader against what the SQL Editor actually hands them.
 
-A transpiled ToDo lost three things on every code -> visual cycle: its message gained a pair of
-quotes each time (ToDo(''msg'') then no longer compiles), its "Error message" and "Helper
-code/text" were dropped, and -- because the call named no input -- the editor rebuilt the gem
-with no input and moved the CTEs before it into a model of their own, losing the edge.
+A transpiled ToDo broke on every code -> visual cycle: its message gained a pair of quotes each
+time (ToDo(''msg'') then no longer compiles), and -- because the call named no input -- the
+editor rebuilt the gem with no input and moved the CTEs before it into a model of their own,
+losing the edge. "Error message" and "Helper code/text" stay out of the call (the helper code is
+the source tool's XML); they survive only through the gem's saved properties.
 
 Requires the Prophecy component-builder SDK and Jinja2; no Spark session or warehouse.
 Run: python -m pytest prophecy_tests/codegen
@@ -21,7 +22,7 @@ sys.path.insert(0, str(ROOT / "gems"))
 from ToDo import ToDo, BasicMacroProperties, MacroParameter
 
 # The dbt macro signature, in order: the SQL Editor names positional arguments from it.
-ARGUMENT_NAMES = ("diag_message", "relation_name", "error_string", "code_string")
+ARGUMENT_NAMES = ("diag_message", "relation_name")
 CODE = ('<Node ToolID="29">\n  <GuiSettings Plugin="PortfolioComposerText"/>\n'
         '  <Value name="Text">it\'s "quoted" & <b>bold</b>, \\n not a newline, é漢字😀</Value>\n</Node>')
 MESSAGES = [
@@ -59,7 +60,7 @@ def props(message, relations=("AlteryxSelect_28",), error="Report Text has no SQ
 @pytest.mark.parametrize("message", MESSAGES)
 def test_the_generated_call_renders_the_exact_values(message):
     args = rendered_args(ToDo().apply(props(message)))
-    assert args == (message, ["AlteryxSelect_28"], "Report Text has no SQL form", CODE)
+    assert args == (message, ["AlteryxSelect_28"])
 
 
 @pytest.mark.parametrize("message", MESSAGES)
@@ -68,13 +69,14 @@ def test_code_visual_save_cycles_change_nothing(message):
     first = gem.apply(p)
     for _ in range(5):
         p = gem.loadProperties(source_properties(gem.apply(p)))
-        assert p == props(message)
+        assert p == props(message, error=None, code=None)  # the call carries message + inputs
     assert gem.apply(p) == first  # no quotes or escapes added per cycle
 
 
 def test_the_call_names_the_gems_inputs():
-    """The SQL Editor takes a macro gem's inputs from its relation_name argument; without it
-    the gem comes back with no input and the CTEs feeding it move to a model of their own."""
+    """The SQL Editor makes a macro gem's inputs from the call's arguments whose value is an
+    earlier CTE (ProcessVisualGen.getSourcesFromMacro); with none, the gem comes back with no
+    input and the CTEs feeding it move to a model of their own."""
     call = ToDo().apply(props("m", relations=("Join_26_inner", "AlteryxSelect_28")))
     assert source_properties(call).parameters[1].value == "['Join_26_inner', 'AlteryxSelect_28']"
 
@@ -109,8 +111,9 @@ def test_an_unloaded_value_that_is_itself_a_jinja_literal_is_decoded():
     assert p.diag_message == "already quoted"
 
 
-def test_no_error_or_helper_code_keeps_the_call_short():
-    call = ToDo().apply(props("m", error=None, code=None))
+def test_error_and_helper_code_stay_out_of_the_sql():
+    """The helper code is the source tool's XML: kilobytes inline in the model, on every ToDo."""
+    call = ToDo().apply(props("m"))
     assert call == "{{ prophecy_basics.ToDo(\"m\", ['AlteryxSelect_28']) }}"
 
 
@@ -125,7 +128,6 @@ def _macro_env():
 @pytest.mark.parametrize("call, message", [
     ("ToDo('legacy one-argument call')", "legacy one-argument call"),
     ("ToDo(\"m\", ['AlteryxSelect_28'])", "m"),
-    ("ToDo(\"m\", ['AlteryxSelect_28'], \"err\", \"<Node/>\")", "m"),
 ])
 def test_the_dbt_macro_accepts_old_and_new_calls(call, message):
     env, sql = _macro_env()

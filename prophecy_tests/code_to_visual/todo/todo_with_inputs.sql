@@ -12,7 +12,7 @@ WITH upstream_cte AS (
 
 todo_with_inputs AS (
 
-  {{ prophecy_basics.ToDo("Component type: Report Text isn't \"supported\".", ['upstream_cte'], "Report Text has no SQL form", "<Node ToolID=\"29\">\n  <GuiSettings Plugin=\"PortfolioComposerText\"/>\n  <Value name=\"Text\">it's \"quoted\" & <b>bold</b>, é漢字</Value>\n</Node>") }}
+  {{ prophecy_basics.ToDo("Component type: Report Text isn't \"supported\".", ['upstream_cte']) }}
 
 )
 

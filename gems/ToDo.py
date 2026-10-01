@@ -158,7 +158,10 @@ class ToDo(MacroSpec):
     def _text(raw: Optional[str]) -> Optional[str]:
         """A string parameter from either load path: a Jinja literal from the code (decoded),
         or the raw value from unloadProperties (kept). A message that an older ToDo already
-        double-quoted -- ToDo(''msg''), which no longer compiles -- is healed back to msg."""
+        double-quoted -- ToDo(''msg''), which no longer compiles -- is healed back to msg.
+        error_string and code_string are not in the macro call (the helper code is the source
+        tool's XML, kilobytes inline in the model); they survive only through the gem's saved
+        properties, so a rebuild from code still clears them."""
         if raw is None:
             return None
         value = ToDo._jinja_constant(raw)
@@ -182,11 +185,11 @@ class ToDo(MacroSpec):
 
     def apply(self, props: ToDoProperties) -> str:
         # diag_message stays the FIRST argument: every ToDo('<msg>') already in a project keeps
-        # binding to it. relation_name follows so the call names the gem's inputs -- without
-        # it the SQL Editor rebuilds the gem with no input, moves the CTEs before it into a
-        # model of their own, and the edge is gone. Error message and helper code ride along
-        # so a code -> visual cycle no longer erases them. Strings are JSON-quoted: a valid
-        # Jinja literal for any text (quotes, newlines, XML), decoded again by loadProperties.
+        # binding to it. relation_name follows so the call names the gem's inputs: when the SQL
+        # Editor rebuilds gems from code, a macro gem's inputs are the arguments whose value is
+        # an earlier CTE -- with none, the gem comes back with no input, the CTEs before it move
+        # into a model of their own, and the edge is gone. The message is JSON-quoted: a valid
+        # Jinja literal for any text (quotes, newlines), decoded again by loadProperties.
         resolved_macro_name = f"{self.projectName}.{self.name}"
         diagMessage: str = (
             props.diag_message
@@ -197,9 +200,6 @@ class ToDo(MacroSpec):
             json.dumps(diagMessage, ensure_ascii=False),
             str([str(r) for r in (props.relation_name or [])]),
         ]
-        if props.error_string or props.code_string:
-            arguments += [json.dumps(props.error_string or "", ensure_ascii=False),
-                          json.dumps(props.code_string or "", ensure_ascii=False)]
         params = ", ".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 

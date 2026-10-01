@@ -9,8 +9,6 @@
     - diag_message (string): Message embedded in the raised error.
     - relation_name (list, optional): The gem's input relations. Unused by the SQL; it is how
       the SQL Editor knows the gem's inputs, so they survive a code -> visual cycle.
-    - error_string (string, optional): The gem's "Error message" field, carried for the same reason.
-    - code_string (string, optional): The gem's "Helper code/text" field, carried for the same reason.
 
   Adapter Support:
     - default__ (raise_error), duckdb__ (error), bigquery__ (ERROR), snowflake__ (invalid cast)
@@ -33,7 +31,7 @@
       ) AS dummy
       WHERE raise_error('ToDo: Replace this model with real logic') IS NULL
 #}
-{% macro ToDo(diag_message, relation_name=[], error_string='', code_string='') -%}
+{% macro ToDo(diag_message, relation_name=[]) -%}
     {{ return(adapter.dispatch('ToDo', 'prophecy_basics')(diag_message)) }}
 {% endmacro %}
 
