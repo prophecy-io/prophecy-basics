@@ -136,9 +136,6 @@ class ToDo(MacroSpec):
 
     @staticmethod
     def _jinja_constant(source: Optional[str]) -> Any:
-        """The value of `source` when it is one constant Jinja expression (a string or a
-        list), else None. Parsed, never evaluated: the SQL Editor hands loadProperties the
-        call's argument SOURCE TEXT, quotes included."""
         try:
             parsed = Environment().parse("{{ " + (source or "") + " }}")
         except (TemplateSyntaxError, TypeError):
@@ -154,30 +151,23 @@ class ToDo(MacroSpec):
             return [i.value for i in node.items]
         return None
 
-    # Present only in what unloadProperties saved: the macro call never carries these, and the
-    # SQL Editor names a call's arguments from the macro's signature (diag_message,
-    # relation_name). Their presence tells the two load paths apart.
+    # Only unloadProperties writes these; the macro call never carries them.
     _SAVED_ONLY_PARAMETERS = ("error_string", "code_string")
 
     @staticmethod
     def _text(raw: Optional[str], from_code: bool) -> Optional[str]:
-        """A string parameter. From the code it is the argument's source text -- a Jinja
-        literal, decoded here; a message an older ToDo already double-quoted (ToDo(''msg''),
-        which does not compile) is healed back to msg. From saved properties it is the value
-        itself, kept as is: a message that merely looks like a literal ("quoted") stays so."""
         if raw is None or not from_code:
             return raw
         value = ToDo._jinja_constant(raw)
         if isinstance(value, str):
             return value
+        # ToDo(''msg''), written by older versions of this gem
         while len(raw) >= 4 and raw.startswith("''") and raw.endswith("''"):
             raw = raw[2:-2]
         return raw
 
     @staticmethod
     def _relations(raw: Optional[str]) -> List[str]:
-        """The input list, from the code (['a']) or saved properties (JSON ["a"]); malformed
-        gives [] rather than failing the load -- the message still loads."""
         value = ToDo._jinja_constant(raw)
         if value is None and raw:
             try:
@@ -189,19 +179,13 @@ class ToDo(MacroSpec):
         return [str(v) for v in value] if isinstance(value, (list, tuple)) else []
 
     def apply(self, props: ToDoProperties) -> str:
-        # diag_message stays the FIRST argument: every ToDo('<msg>') already in a project keeps
-        # binding to it. relation_name follows so the call names the gem's inputs: when the SQL
-        # Editor rebuilds gems from code, a macro gem's inputs are the arguments whose value is
-        # an earlier CTE -- with none, the gem comes back with no input, the CTEs before it move
-        # into a model of their own, and the edge is gone. The message is JSON-quoted: a valid
-        # Jinja literal for any text (quotes, newlines), decoded again by loadProperties.
         resolved_macro_name = f"{self.projectName}.{self.name}"
         diagMessage: str = (
             props.diag_message
             if props.diag_message is not None
             else "No diaganostic provided."
         )
-        # An unconnected input has no relation (""): it can name no CTE, so it is left out.
+        # relation_name lets the SQL Editor reconnect the gem's inputs when it reads the code back
         arguments = [
             json.dumps(diagMessage, ensure_ascii=False),
             str([str(r) for r in (props.relation_name or []) if r]),
