@@ -20,6 +20,8 @@ from jinja2 import Environment
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "gems"))
 from ToDo import ToDo, BasicMacroProperties, MacroParameter
+from prophecy.cb.sql.Component import Component, NodePort, NodePorts, SqlNodeMetadata
+from prophecy.cb.sql.SqlContext import SqlContext, SqlGraph, NodeConnection
 
 # The dbt macro signature, in order: the SQL Editor names positional arguments from it.
 ARGUMENT_NAMES = ("diag_message", "relation_name")
@@ -105,10 +107,26 @@ def test_unloaded_properties_load_back_unchanged(message):
     assert p == props(message)
 
 
-def test_an_unloaded_value_that_is_itself_a_jinja_literal_is_decoded():
-    """The one ambiguity of a raw value: it cannot be told from the code's quoted token."""
-    p = ToDo().loadProperties(ToDo().unloadProperties(props("'already quoted'")))
-    assert p.diag_message == "already quoted"
+@pytest.mark.parametrize("message", ["'already quoted'", '"double quoted"', "''looks broken''"])
+def test_a_saved_message_that_looks_like_a_literal_is_kept_as_is(message):
+    """Saved properties hold the value itself, never source text: nothing is decoded or healed."""
+    p = ToDo().loadProperties(ToDo().unloadProperties(props(message)))
+    assert p.diag_message == message
+
+
+@pytest.mark.parametrize("message", ["''looks broken''", "'already quoted'"])
+def test_a_message_that_looks_like_a_literal_survives_the_code_path(message):
+    """apply writes a valid literal, so the repair of a broken ToDo(''msg'') never touches it."""
+    gem = ToDo()
+    p = gem.loadProperties(source_properties(gem.apply(props(message))))
+    assert p.diag_message == message
+
+
+def test_settings_saved_by_the_old_gem_still_load():
+    """1.0.17's unloadProperties saved only the raw message."""
+    old = BasicMacroProperties(parameters=[MacroParameter("diag_message", "Component type: Report Text")])
+    p = ToDo().loadProperties(old)
+    assert p.diag_message == "Component type: Report Text" and p.relation_name == []
 
 
 def test_error_and_helper_code_stay_out_of_the_sql():
@@ -133,3 +151,45 @@ def test_the_dbt_macro_accepts_old_and_new_calls(call, message):
     env, sql = _macro_env()
     out = env.from_string(sql + "{{ " + call + " }}").render().strip()
     assert out == f"<{message}>"  # only the message reaches the adapter's SQL
+
+
+# ---- several inputs ---------------------------------------------------------------------------
+# How the editor names the CTE a gem reads (MultiPortSlugUtils): the upstream gem's label, or
+# `<label>_<port>` when the upstream has several outputs -- and that per-port name is the input
+# port's slug. Single-output and unconnected inputs keep the default slug `in<i>`.
+
+def _onchange(ports):
+    """Run the gem's onChange on a graph: `ports` is [(slug, upstream label or None)]."""
+    inputs, nodes, connections = [], {}, []
+    for i, (slug, upstream) in enumerate(ports):
+        inputs.append(NodePort(id=f"p{i}", slug=slug, schema='{"fields": []}'))
+        if upstream is not None:
+            nodes[f"n{i}"] = SqlNodeMetadata(label=upstream)
+            connections.append(NodeConnection(id=f"c{i}", source=f"n{i}", sourcePort="out0",
+                                              target="todo", targetPort=f"p{i}"))
+    state = Component(id="todo", component="ToDo", metadata=SqlNodeMetadata(label="ToDo_1"),
+                      ports=NodePorts(inputs=inputs, outputs=[]), properties=props("m", relations=()))
+    context = SqlContext(graph=SqlGraph(connections=connections, nodes=nodes), projectName="p",
+                         projectMacros=[], dependencyProjectMacros={})
+    return ToDo().onChange(context, state, state).properties
+
+
+def test_each_input_is_named_as_the_cte_it_reads_in_port_order():
+    p = _onchange([("in0", "Join_26_inner"), ("Filter_23_out1", "Filter_23"), ("in2", "Select_5")])
+    assert p.relation_name == ["Join_26_inner", "Filter_23_out1", "Select_5"]
+
+
+def test_an_unconnected_input_is_left_out_of_the_call():
+    p = _onchange([("in0", "Join_26_inner"), ("in1", None)])
+    assert p.relation_name == ["Join_26_inner", ""]
+    assert source_properties(ToDo().apply(p)).parameters[1].value == "['Join_26_inner']"
+
+
+def test_several_inputs_survive_save_cycles():
+    gem = ToDo()
+    p = props("m", relations=("Join_26_inner", "Filter_23_out1", "Select_5"), error=None, code=None)
+    first = gem.apply(p)
+    for _ in range(5):
+        p = gem.loadProperties(source_properties(gem.apply(p)))
+    assert p.relation_name == ["Join_26_inner", "Filter_23_out1", "Select_5"] and gem.apply(p) == first
+    assert rendered_args(first) == ("m", ["Join_26_inner", "Filter_23_out1", "Select_5"])

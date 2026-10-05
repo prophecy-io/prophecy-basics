@@ -154,16 +154,19 @@ class ToDo(MacroSpec):
             return [i.value for i in node.items]
         return None
 
+    # Present only in what unloadProperties saved: the macro call never carries these, and the
+    # SQL Editor names a call's arguments from the macro's signature (diag_message,
+    # relation_name). Their presence tells the two load paths apart.
+    _SAVED_ONLY_PARAMETERS = ("error_string", "code_string")
+
     @staticmethod
-    def _text(raw: Optional[str]) -> Optional[str]:
-        """A string parameter from either load path: a Jinja literal from the code (decoded),
-        or the raw value from unloadProperties (kept). A message that an older ToDo already
-        double-quoted -- ToDo(''msg''), which no longer compiles -- is healed back to msg.
-        error_string and code_string are not in the macro call (the helper code is the source
-        tool's XML, kilobytes inline in the model); they survive only through the gem's saved
-        properties, so a rebuild from code still clears them."""
-        if raw is None:
-            return None
+    def _text(raw: Optional[str], from_code: bool) -> Optional[str]:
+        """A string parameter. From the code it is the argument's source text -- a Jinja
+        literal, decoded here; a message an older ToDo already double-quoted (ToDo(''msg''),
+        which does not compile) is healed back to msg. From saved properties it is the value
+        itself, kept as is: a message that merely looks like a literal ("quoted") stays so."""
+        if raw is None or not from_code:
+            return raw
         value = ToDo._jinja_constant(raw)
         if isinstance(value, str):
             return value
@@ -173,10 +176,12 @@ class ToDo(MacroSpec):
 
     @staticmethod
     def _relations(raw: Optional[str]) -> List[str]:
+        """The input list, from the code (['a']) or saved properties (JSON ["a"]); malformed
+        gives [] rather than failing the load -- the message still loads."""
         value = ToDo._jinja_constant(raw)
         if value is None and raw:
             try:
-                value = ast.literal_eval(raw)  # unloadProperties stores it as JSON
+                value = ast.literal_eval(raw)
             except (ValueError, SyntaxError):
                 value = None
         if isinstance(value, str):
@@ -196,9 +201,10 @@ class ToDo(MacroSpec):
             if props.diag_message is not None
             else "No diaganostic provided."
         )
+        # An unconnected input has no relation (""): it can name no CTE, so it is left out.
         arguments = [
             json.dumps(diagMessage, ensure_ascii=False),
-            str([str(r) for r in (props.relation_name or [])]),
+            str([str(r) for r in (props.relation_name or []) if r]),
         ]
         params = ", ".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
@@ -206,11 +212,12 @@ class ToDo(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+        from_code = not any(p in parametersMap for p in ToDo._SAVED_ONLY_PARAMETERS)
         return ToDo.ToDoProperties(
             relation_name=ToDo._relations(parametersMap.get("relation_name")),
-            error_string=ToDo._text(parametersMap.get("error_string")) or None,
-            code_string=ToDo._text(parametersMap.get("code_string")) or None,
-            diag_message=ToDo._text(parametersMap.get("diag_message")),
+            error_string=ToDo._text(parametersMap.get("error_string"), from_code) or None,
+            code_string=ToDo._text(parametersMap.get("code_string"), from_code) or None,
+            diag_message=ToDo._text(parametersMap.get("diag_message"), from_code),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
