@@ -135,6 +135,7 @@
     {%- set selected_columns = [] -%}
     {%- for column in enriched_schema -%}
         {%- if selectUsing == 'SELECT_EXPR' -%}
+                {# Snowflake drops the backslash in an unrecognized escape #}
                 {%- set expression_to_evaluate = customExpression | replace("\\", "\\\\") -%}
 
                 {%- if "column_name" in expression_to_evaluate -%}
