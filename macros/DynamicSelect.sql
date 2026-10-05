@@ -135,7 +135,7 @@
     {%- set selected_columns = [] -%}
     {%- for column in enriched_schema -%}
         {%- if selectUsing == 'SELECT_EXPR' -%}
-                {%- set expression_to_evaluate = customExpression -%}
+                {%- set expression_to_evaluate = customExpression | replace("\\", "\\\\") -%}
 
                 {%- if "column_name" in expression_to_evaluate -%}
                     {%- set expression_to_evaluate = expression_to_evaluate.replace(
