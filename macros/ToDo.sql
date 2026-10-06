@@ -7,6 +7,8 @@
 
   Parameters:
     - diag_message (string): Message embedded in the raised error.
+    - relation_name (list, optional): The gem's input relations. Unused by the SQL; it is how
+      the SQL Editor knows the gem's inputs, so they survive a code -> visual cycle.
 
   Adapter Support:
     - default__ (raise_error), duckdb__ (error), bigquery__ (ERROR), snowflake__ (invalid cast)
@@ -16,6 +18,7 @@
 
   Macro Call Examples:
     {{ prophecy_basics.ToDo('Replace this model with real logic') }}
+    {{ prophecy_basics.ToDo("Component type: Report Text is not supported.", ['AlteryxSelect_28']) }}
 
   CTE Usage Example:
     Macro call (first example above):
@@ -28,7 +31,7 @@
       ) AS dummy
       WHERE raise_error('ToDo: Replace this model with real logic') IS NULL
 #}
-{% macro ToDo(diag_message) -%}
+{% macro ToDo(diag_message, relation_name=[]) -%}
     {{ return(adapter.dispatch('ToDo', 'prophecy_basics')(diag_message)) }}
 {% endmacro %}
 
