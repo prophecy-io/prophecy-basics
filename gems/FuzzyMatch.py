@@ -1,12 +1,13 @@
+import ast
 import dataclasses
 import json
+import re
 from collections import defaultdict
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-import json
 
 from pyspark.sql import *
 from pyspark.sql.functions import *
@@ -33,6 +34,7 @@ class FuzzyMatch(MacroSpec):
     class AddMatchField(MatchField):
         columnName: str = ""
         matchFunction: str = "custom"
+        _row_id: Optional[str] = None
 
     @dataclass(frozen=True)
     class FuzzyMatchProperties(MacroProperties):
@@ -47,22 +49,18 @@ class FuzzyMatch(MacroSpec):
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def onButtonClick(self, state: Component[FuzzyMatchProperties]):
@@ -314,8 +312,20 @@ class FuzzyMatch(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         matchFields = []
-        matchFieldsJson = json.loads(parametersMap.get("matchFields").replace("'", '"'))
+        matchFieldsJson = _parse_py_literal(parametersMap.get("matchFields"), [])
         for fld in matchFieldsJson:
             matchFields.append(
                 self.AddMatchField(
@@ -324,7 +334,7 @@ class FuzzyMatch(MacroSpec):
                 )
             )
         return FuzzyMatch.FuzzyMatchProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             mode=parametersMap.get('mode').lstrip("'").rstrip("'"),
             sourceIdCol=parametersMap.get('sourceIdCol').lstrip("'").rstrip("'"),
             recordIdCol=parametersMap.get('recordIdCol').lstrip("'").rstrip("'"),
@@ -383,7 +393,7 @@ class FuzzyMatch(MacroSpec):
             col_name = field.columnName
 
             if key in ("custom", "name", "address"):
-                column_value = upper(regexp_replace(col(col_name).cast("string"), r"[^\w\s]", ""))
+                column_value = upper(col(col_name).cast("string"))
             else:
                 column_value = col(col_name).cast("string")
 

@@ -1,6 +1,8 @@
+import ast
 import dataclasses
 import json
 
+import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import DataFrame, SparkSession
@@ -38,6 +40,21 @@ class DataEncoderDecoder(MacroSpec):
         aes_enc_dec_secretKey_aad: str = ""
         aes_enc_dec_secretScope_iv: str = ""
         aes_enc_dec_secretKey_iv: str = ""
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         aes_encrypt_condition = Condition().ifEqual(
@@ -627,30 +644,11 @@ class DataEncoderDecoder(MacroSpec):
 
         return diagnostics
 
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
-
     def onChange(
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -700,8 +698,10 @@ class DataEncoderDecoder(MacroSpec):
         # Generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
         schema_columns = [js["name"] for js in json.loads(props.schema)]
+        # Keep schema order: set iteration order is not stable across processes.
+        substituted = set(props.column_names)
         remaining_columns = ", ".join(
-            list(set(schema_columns) - set(props.column_names))
+            [c for c in schema_columns if c not in substituted]
         )
 
         def safe_str(val):
@@ -709,7 +709,11 @@ class DataEncoderDecoder(MacroSpec):
                 return "''"
             if isinstance(val, list):
                 return str(val)
-            return f"'{val}'"
+            # Escape backslashes and single quotes so values containing
+            # apostrophes (e.g. column names like "Feb' 24") remain a valid
+            # Jinja string literal in the generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
 
         arguments = [
             str(props.relation_name),
@@ -735,12 +739,22 @@ class DataEncoderDecoder(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return DataEncoderDecoder.DataEncoderDecoderProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            column_names=json.loads(
-                parametersMap.get("column_names").replace("'", '"')
-            ),
+            column_names=_parse_py_literal(parametersMap.get("column_names"), []),
             enc_dec_method=parametersMap.get('enc_dec_method').lstrip("'").rstrip("'"),
             enc_dec_charSet=parametersMap.get('enc_dec_charSet').lstrip("'").rstrip("'"),
             aes_enc_dec_secretScope_key=parametersMap.get('aes_enc_dec_secretScope_key').lstrip("'").rstrip("'"),
@@ -804,7 +818,7 @@ class DataEncoderDecoder(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]

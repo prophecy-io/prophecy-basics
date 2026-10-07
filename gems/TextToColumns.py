@@ -1,6 +1,6 @@
+import dataclasses
 import json
 import re
-import dataclasses
 
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
@@ -36,22 +36,18 @@ class TextToColumns(MacroSpec):
         splitRowsColumnName: str = "generated_column"
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def dialog(self) -> Dialog:
@@ -269,11 +265,13 @@ class TextToColumns(MacroSpec):
         ]
 
         if len(component.properties.columnNames) > 0:
-            if component.properties.columnNames not in field_names:
+            schema_cols_lower = set(col.lower() for col in field_names)
+
+            if component.properties.columnNames.lower() not in schema_cols_lower:
                 diagnostics.append(
                     Diagnostic(
                         "component.properties.columnNames",
-                        f"Selected column {component.properties.columnNames} is not present in input schema.",
+                        f"Selected columns {component.properties.columnNames} are not present in input schema.",
                         SeverityLevelEnum.Error,
                     )
                 )
@@ -291,12 +289,27 @@ class TextToColumns(MacroSpec):
         )
         return newState.bindProperties(newProperties)
 
+    def _is_regex_delimiter(self, delimiter: str) -> bool:
+        # Auto-detect whether the delimiter is meant as a regex pattern or a plain literal.
+        # Regex intent is assumed when the delimiter contains a character class [...],
+        # a group (...), or a backslash escape (\t, \n, \d, \s, \|, ...). Everything else
+        # (e.g. |, ., ,, ;, plain text) is treated as a literal.
+        return bool(
+            re.search(r"\[.+?\]", delimiter)
+            or re.search(r"\(.+?\)", delimiter)
+            or "\\" in delimiter
+        )
+
     def apply(self, props: TextToColumnsProperties) -> str:
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
-        # Handle delimiter with special characters
-        escaped_delimiter = re.escape(props.delimiter).replace("\\", "\\\\\\")
+        # Regex delimiters (e.g. [,], \d+) are passed through untouched; literal delimiters
+        # (e.g. |, ., ;) are re.escaped so their regex-special characters match literally.
+        if self._is_regex_delimiter(props.delimiter):
+            escaped_delimiter = props.delimiter
+        else:
+            escaped_delimiter = re.escape(props.delimiter).replace('\\ ', ' ')
 
         arguments = [
             str(props.relation_name),

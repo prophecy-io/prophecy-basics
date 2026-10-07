@@ -1,3 +1,43 @@
+{#
+  FuzzyMatch Macro Gem
+  ====================
+
+  Compares records to find likely matches when IDs do not line up: it scores pairs
+  of rows using fuzzy or exact rules on the fields you choose (names, phones,
+  addresses, and so on), then returns pairs above your similarity threshold—or
+  passes the table through unchanged when not in match mode.
+
+  Parameters:
+    - relation_name (list): Source relation(s).
+    - mode (string): 'PURGE' | 'MERGE' | other (pass-through SELECT *).
+    - sourceIdCol, recordIdCol: Columns used in MERGE vs PURGE selects (identifiers; quoted on BigQuery/Snowflake adapters).
+    - matchFields (list): Items with matchFunction ('custom','name','phone','address','exact','equals', ...)
+        and columnName; maps to internal similarity function names per default__.
+    - matchThresholdPercentage (number): Minimum avg similarity to keep a pair.
+    - includeSimilarityScore (bool): Include similarity_score column in output.
+
+  Adapter Support:
+    - default__ (LEVENSHTEIN), bigquery__ (EDIT_DISTANCE), snowflake__ (EDITDISTANCE / JAROWINKLER_SIMILARITY), duckdb__ (LEVENSHTEIN)
+
+  Depends on schema parameter:
+    No
+
+  Macro Call Examples (default__ — matchFields is a list of {matchFunction, columnName} objects):
+    {{ prophecy_basics.FuzzyMatch(['src'], 'PURGE', '', 'record_id', match_fields, 80, False) }}
+    {{ prophecy_basics.FuzzyMatch(['src'], 'MERGE', 'source_id', 'record_id', match_fields, 70, True) }}
+
+  CTE Usage Example:
+    Macro call (first example above):
+      {{ prophecy_basics.FuzzyMatch(['src'], 'PURGE', '', 'record_id', match_fields, 80, False) }}
+
+    Resolved query (default__, PURGE):
+      -- Multi-CTE statement: match_function → cross_join_data → impose_function_match →
+      -- replace_record_ids → final_output, ending with SELECT record_id1, record_id2 [similarity_score]
+      -- WHERE similarity_score >= 80. Full SQL is long; inspect compiled output in your warehouse or logs.
+
+    Resolved query (default__, mode not PURGE/MERGE — pass-through):
+      select * from src
+#}
 {% macro FuzzyMatch(relation_name,
     mode,
     sourceIdCol,
@@ -51,15 +91,8 @@
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), '[[:punct:]]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS STRING))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
         {%- endif -%}
@@ -202,15 +235,8 @@ final_output as (
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS STRING), r'[^a-zA-Z0-9\\s]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS STRING))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS STRING)" -%}
         {%- endif -%}
@@ -359,8 +385,7 @@ final_output as (
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
         {%- if key in ('custom', 'name', 'address') -%}
-            {# Strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS VARCHAR))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
         {%- endif -%}
@@ -509,15 +534,8 @@ final_output as (
         {%- endif -%}
 
         {%- set quoted_col = prophecy_basics.quote_identifier(col) -%}
-        {%- if key == 'custom' -%}
-            {# For custom matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'name' -%}
-            {# For name matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
-        {%- elif key == 'address' -%}
-            {# For address matching, strip punctuation from the column value #}
-            {%- set column_value_expr = "UPPER(REGEXP_REPLACE(CAST(" ~ quoted_col ~ " AS VARCHAR), '[[:punct:]]', ''))" -%}
+        {%- if key in ('custom', 'name', 'address') -%}
+            {%- set column_value_expr = "UPPER(CAST(" ~ quoted_col ~ " AS VARCHAR))" -%}
         {%- else -%}
             {%- set column_value_expr = "CAST(" ~ quoted_col ~ " AS VARCHAR)" -%}
         {%- endif -%}

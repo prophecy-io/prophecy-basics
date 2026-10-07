@@ -1,6 +1,10 @@
+import ast
 import dataclasses
 import json
+import re
 from dataclasses import dataclass
+
+from jinja2 import Environment, TemplateSyntaxError, nodes
 
 from prophecy.cb.server.base.ComponentBuilderBase import SubstituteDisabled
 from prophecy.cb.sql.Component import *
@@ -24,6 +28,12 @@ class MultiColumnRename(MacroSpec):
     ]
     dependsOnUpstreamSchema: bool = True
 
+    # Register choices here so the dropdown and property loader stay in sync.
+    RENAME_METHODS = {
+        "editPrefixSuffix": "Edit prefix/suffix",
+        "advancedRename": "Advanced rename",
+    }
+
     @dataclass(frozen=True)
     class MultiColumnRenameProperties(MacroProperties):
         # properties for the component with default values
@@ -37,32 +47,25 @@ class MultiColumnRename(MacroSpec):
         relation_name: List[str] = field(default_factory=list)
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def dialog(self) -> Dialog:
         horizontalDivider = HorizontalDivider()
-        renameMethod = (
-            SelectBox("")
-            .addOption("Edit prefix/suffix", "editPrefixSuffix")
-            .addOption("Advanced rename", "advancedRename")
-            .bindProperty("renameMethod")
-        )
+        renameMethod = SelectBox("").bindProperty("renameMethod")
+        for value, label in self.RENAME_METHODS.items():
+            renameMethod = renameMethod.addOption(label, value)
 
         dialog = Dialog("MultiColumnRename").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -248,7 +251,7 @@ class MultiColumnRename(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -276,7 +279,7 @@ class MultiColumnRename(MacroSpec):
             str(allColumnNames),
             "'" + str(props.editType) + "'",
             "'" + str(props.editWith) + "'",
-            '"' + str(props.customExpression) + '"',
+            json.dumps(str(props.customExpression), ensure_ascii=False),
             ]
         params = ",".join([param for param in arguments])
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
@@ -285,14 +288,53 @@ class MultiColumnRename(MacroSpec):
 
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def _jinja_string_literal(source):
+            # Parse without evaluating: native expressions such as var(...) must
+            # not silently become literal SQL when converting code to a gem.
+            try:
+                parsed = Environment().parse("{{ " + source + " }}")
+            except (TemplateSyntaxError, TypeError) as exc:
+                raise ValueError("MultiColumnRename expects a constant Jinja string") from exc
+            if (len(parsed.body) != 1 or not isinstance(parsed.body[0], nodes.Output)
+                    or len(parsed.body[0].nodes) != 1
+                    or not isinstance(parsed.body[0].nodes[0], nodes.Const)
+                    or not isinstance(parsed.body[0].nodes[0].value, str)):
+                raise ValueError("MultiColumnRename expects a constant Jinja string")
+            return parsed.body[0].nodes[0].value
+
+        rename_method = parametersMap.get("renameMethod", "").strip()
+        custom_expression = parametersMap.get("customExpression", "")
+        # The empty value represents a gem with no method selected yet.
+        known_methods = {"", *self.RENAME_METHODS}
+        if rename_method not in known_methods:
+            # apply() emits a quoted enum; unloadProperties() stores the enum
+            # raw in _oldMacroProperties. Use that discriminator, not the SQL
+            # expression's quotes: raw SQL may itself be a quoted identifier.
+            rename_method = _jinja_string_literal(rename_method)
+            if rename_method not in known_methods:
+                raise ValueError("Unsupported MultiColumnRename renameMethod")
+            custom_expression = _jinja_string_literal(custom_expression)
+
         return MultiColumnRename.MultiColumnRenameProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            renameMethod=parametersMap.get('renameMethod').lstrip("'").rstrip("'"),
+            columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
+            renameMethod=rename_method,
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
             editWith=parametersMap.get('editWith').lstrip("'").rstrip("'"),
-            customExpression=parametersMap.get('customExpression').lstrip('"').rstrip('"'),
+            customExpression=custom_expression,
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -313,7 +355,7 @@ class MultiColumnRename(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]

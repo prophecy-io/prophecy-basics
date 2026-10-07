@@ -8,6 +8,7 @@ from pyspark.sql import SparkSession, DataFrame
 @dataclass(frozen=True)
 class StringColName:
     colName: str
+    _row_id: Optional[str] = None
 
 class TableOperations(MacroSpec):
     name: str = "TableOperations"

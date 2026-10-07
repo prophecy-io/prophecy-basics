@@ -2,6 +2,7 @@
 .cursor/
 .venv/
 scripts/
+venv/
 logs/
 dbt_packages/
 target/
@@ -25,4 +26,9 @@ __pycache__/
 environment.yml
 requirements.txt
 scripts/
-tests/
+tests/bigquery_expected/
+tests/expected/
+tests/compiled_output/
+tests/docs/
+.DS_Store
+/CLAUDE.md

@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import re
 from typing import List, Optional
 
 from pyspark.sql import SparkSession, DataFrame
@@ -33,22 +34,18 @@ class GenerateRows(MacroSpec):
         force_mode: Optional[str] = "recursive"
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def dialog(self) -> Dialog:
@@ -182,7 +179,7 @@ class GenerateRows(MacroSpec):
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -282,7 +279,7 @@ class GenerateRows(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]

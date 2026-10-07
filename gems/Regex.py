@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 from dataclasses import dataclass, field
 import json
@@ -19,6 +20,7 @@ class ColumnParse:
     columnName: str
     dataType: str
     rgxExpression: str
+    _row_id: Optional[str] = None
 
 
 class Regex(MacroSpec):
@@ -47,6 +49,7 @@ class Regex(MacroSpec):
         # Replace
         replacementText: Optional[str] = ""
         copyUnmatchedText: bool = False
+        replaceOutputSuffix: Optional[str] = "_replaced"
         # Tokenize
         tokenizeOutputMethod: str = "splitColumns"
         noOfColumns: int = 1
@@ -59,6 +62,20 @@ class Regex(MacroSpec):
         matchColumnName: str = "regex_match"
         errorIfNotMatched: bool = False
 
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         return Dialog("MacroRegex").addElement(
@@ -271,6 +288,11 @@ class Regex(MacroSpec):
                                         Checkbox("Copy Unmatched Text to Output")
                                         .bindProperty("copyUnmatchedText")
                                     )
+                                    .addElement(
+                                        TextBox("Output Column Suffix")
+                                        .bindPlaceholder("Enter suffix for output column")
+                                        .bindProperty("replaceOutputSuffix")
+                                    )
                                 )
                             ).otherwise(
                                 # Tokenize Method Configuration
@@ -409,25 +431,6 @@ class Regex(MacroSpec):
             )
         )
 
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
-
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         # Validate the component's state
         diagnostics = super().validate(context, component)
@@ -521,7 +524,7 @@ class Regex(MacroSpec):
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(newState, context)
 
@@ -669,6 +672,7 @@ class Regex(MacroSpec):
             safe_str(props.outputRootName),
             safe_str(props.matchColumnName),
             str(props.errorIfNotMatched).lower(),
+            safe_str(props.replaceOutputSuffix),
         ]
         # Join all parameters - don't filter out empty strings, use "''" instead
         non_empty_param = ",".join(parameter_list)
@@ -677,9 +681,24 @@ class Regex(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list/tuple params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads with a
+            # naive .replace("'", '"'), which corrupts any regex containing a
+            # double-quote (e.g. ([^"]+), common in Alteryx-transpiled pipelines)
+            # and raises JSONDecodeError, wiping the gem's config. literal_eval
+            # accepts both single- and double-quoted literals, so JSON also works.
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         parseColumns = []
-        # Double-escape backslashes and convert quotes to make valid JSON for json.loads()
-        parseCols = json.loads(parametersMap.get('parseColumns').replace('\\', '\\\\').replace("'", '"'))
+        parseCols = _parse_py_literal(parametersMap.get('parseColumns'), [])
         for fld in parseCols:
             parseColumns.append(
                 ColumnParse(
@@ -689,7 +708,7 @@ class Regex(MacroSpec):
                 )
             )
         return Regex.RegexProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             parseColumns=parseColumns,
             schema=parametersMap.get('schema').lstrip("'").rstrip("'"),
             selectedColumnName=parametersMap.get('selectedColumnName').lstrip("'").rstrip("'"),
@@ -709,6 +728,7 @@ class Regex(MacroSpec):
             matchColumnName=parametersMap.get('matchColumnName').lstrip("'").rstrip("'"),
             errorIfNotMatched=parametersMap.get("errorIfNotMatched").lower()
                               == "true",
+            replaceOutputSuffix=parametersMap.get("replaceOutputSuffix", "'_replaced'").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -740,12 +760,13 @@ class Regex(MacroSpec):
                 MacroParameter("outputRootName", str(properties.outputRootName)),
                 MacroParameter("matchColumnName", str(properties.matchColumnName)),
                 MacroParameter("errorIfNotMatched", str(properties.errorIfNotMatched).lower()),
+                MacroParameter("replaceOutputSuffix", str(properties.replaceOutputSuffix)),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(component, context)
 
@@ -771,6 +792,9 @@ class Regex(MacroSpec):
         match_column_name = self.props.matchColumnName
         error_if_not_matched = self.props.errorIfNotMatched
         extra_columns_handling = self.props.extraColumnsHandling
+        replace_output_suffix = self.props.replaceOutputSuffix
+        if not replace_output_suffix:
+            replace_output_suffix = "_replaced"
 
 
         # Build regex pattern with case sensitivity flag
@@ -792,7 +816,7 @@ class Regex(MacroSpec):
                 ).otherwise(col(selected_column))
             
             result_df = result_df.withColumn(
-                f"{selected_column}_replaced",
+                f"{selected_column}{replace_output_suffix}",
                 replaced_col
             )
 
@@ -981,4 +1005,3 @@ class Regex(MacroSpec):
                 result_df = result_df.filter(col(selected_column).rlike(regex_pattern))
 
         return result_df
-

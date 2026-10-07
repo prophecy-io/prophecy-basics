@@ -1,7 +1,9 @@
+import ast
 import dataclasses
 import datetime as dt
 import json
 
+import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession, DataFrame
@@ -43,29 +45,25 @@ class DataCleansing(MacroSpec):
         cleanLetters: bool = False
         cleanPunctuations: bool = False
         cleanNumbers: bool = False
-        modifyCase: str = "Keep original"
+        modifyCase: str = "keepOriginal"
         replaceNullDateFields: bool = False
         replaceNullDateWith: str = "1970-01-01"
         replaceNullTimeFields: bool = False
         replaceNullTimeWith: str = "1970-01-01 00:00:00.0"
 
     def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
         relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
             else:
-                relation_name.append(upstream_node.label)
-
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
         return relation_name
 
     def dialog(self) -> Dialog:
@@ -277,7 +275,7 @@ class DataCleansing(MacroSpec):
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(DataCleansing, self).validate(context, component)
 
-        if len(component.properties.columnNames) > 0:
+        if len(component.properties.columnNames) > 0 and component.properties.schema:
             schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
             
             missingKeyColumns = [
@@ -323,7 +321,7 @@ class DataCleansing(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -341,13 +339,21 @@ class DataCleansing(MacroSpec):
 
         # generate the actual macro call given the component's
         resolved_macro_name = f"{self.projectName}.{self.name}"
+
+        def safe_str(val):
+            # Escape backslashes and single quotes so values containing
+            # apostrophes remain a valid Jinja string literal in the
+            # generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
+
         arguments = [
             str(props.relation_name),
             props.schema,
-            "'" + props.modifyCase + "'",
+            safe_str(props.modifyCase),
             str(props.columnNames),
             str(props.replaceNullTextFields).lower(),
-            "'" + str(props.replaceNullTextWith) + "'",
+            safe_str(props.replaceNullTextWith),
             str(props.replaceNullForNumericFields).lower(),
             str(props.replaceNullNumericWith),
             str(props.trimWhiteSpace).lower(),
@@ -358,9 +364,9 @@ class DataCleansing(MacroSpec):
             str(props.cleanNumbers).lower(),
             str(props.removeRowNullAllCols).lower(),
             str(props.replaceNullDateFields).lower(),
-            "'" + str(props.replaceNullDateWith) + "'",
+            safe_str(props.replaceNullDateWith),
             str(props.replaceNullTimeFields).lower(),
-            "'" + str(props.replaceNullTimeWith) + "'",
+            safe_str(props.replaceNullTimeWith),
         ]
 
         params = ",".join([param for param in arguments])
@@ -369,38 +375,60 @@ class DataCleansing(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # Load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        print("parametersMapisHere")
-        print(parametersMap)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def _unquote(raw: str, default: str = "") -> str:
+            # Strip the surrounding single quotes emitted by apply() and
+            # reverse its backslash/apostrophe escaping.
+            if raw is None or raw == "":
+                return default
+            if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'"):
+                raw = raw[1:-1]
+            return raw.replace("\\'", "'").replace("\\\\", "\\")
+
+        def _bool(name: str) -> bool:
+            return (parametersMap.get(name) or "").lower() == "true"
+
+        # Keep integral values as int so the generated code round-trips
+        # without rewriting e.g. 0 as 0.0.
+        numeric_with = float(_unquote(parametersMap.get("replaceNullNumericWith"), "0") or "0")
+        if numeric_with.is_integer():
+            numeric_with = int(numeric_with)
+
         return DataCleansing.DataCleansingProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            schema=parametersMap.get("schema"),
-            modifyCase=parametersMap.get('modifyCase').lstrip("'").rstrip("'"),
-            columnNames=json.loads(parametersMap.get("columnNames").replace("'", '"')),
-            replaceNullTextFields=parametersMap.get("replaceNullTextFields").lower()
-            == "true",
-            replaceNullTextWith=parametersMap.get("replaceNullTextWith")[1:-1],
-            replaceNullForNumericFields=parametersMap.get(
-                "replaceNullForNumericFields"
-            ).lower()
-            == "true",
-            replaceNullNumericWith=float(parametersMap.get("replaceNullNumericWith")),
-            trimWhiteSpace=parametersMap.get("trimWhiteSpace").lower() == "true",
-            removeTabsLineBreaksAndDuplicateWhitespace=parametersMap.get(
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
+            schema=parametersMap.get("schema") or "",
+            modifyCase=_unquote(parametersMap.get("modifyCase"), "keepOriginal") or "keepOriginal",
+            columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
+            replaceNullTextFields=_bool("replaceNullTextFields"),
+            replaceNullTextWith=_unquote(parametersMap.get("replaceNullTextWith"), "NA"),
+            replaceNullForNumericFields=_bool("replaceNullForNumericFields"),
+            replaceNullNumericWith=numeric_with,
+            trimWhiteSpace=_bool("trimWhiteSpace"),
+            removeTabsLineBreaksAndDuplicateWhitespace=_bool(
                 "removeTabsLineBreaksAndDuplicateWhitespace"
-            ).lower()
-            == "true",
-            allWhiteSpace=parametersMap.get("allWhiteSpace").lower() == "true",
-            cleanLetters=parametersMap.get("cleanLetters").lower() == "true",
-            cleanPunctuations=parametersMap.get("cleanPunctuations").lower() == "true",
-            cleanNumbers=parametersMap.get("cleanNumbers").lower() == "true",
-            removeRowNullAllCols=parametersMap.get("removeRowNullAllCols").lower()
-            == "true",
-            replaceNullDateFields=parametersMap.get("replaceNullDateFields").lower()
-            == "true",
-            replaceNullDateWith=parametersMap.get("replaceNullDateWith")[1:-1],
-            replaceNullTimeFields=parametersMap.get("replaceNullTimeFields").lower()
-            == "true",
-            replaceNullTimeWith=parametersMap.get('replaceNullTimeWith').lstrip("'").rstrip("'")
+            ),
+            allWhiteSpace=_bool("allWhiteSpace"),
+            cleanLetters=_bool("cleanLetters"),
+            cleanPunctuations=_bool("cleanPunctuations"),
+            cleanNumbers=_bool("cleanNumbers"),
+            removeRowNullAllCols=_bool("removeRowNullAllCols"),
+            replaceNullDateFields=_bool("replaceNullDateFields"),
+            replaceNullDateWith=_unquote(parametersMap.get("replaceNullDateWith"), "1970-01-01"),
+            replaceNullTimeFields=_bool("replaceNullTimeFields"),
+            replaceNullTimeWith=_unquote(
+                parametersMap.get("replaceNullTimeWith"), "1970-01-01 00:00:00.0"
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -455,7 +483,7 @@ class DataCleansing(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = json.loads(str(component.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -530,11 +558,11 @@ class DataCleansing(MacroSpec):
 
                     all_expressions.append(col_expr.alias(col_name))
 
-                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, DecimalType)):
+                elif isinstance(col_type, (IntegerType, FloatType, DoubleType, LongType, ShortType, ByteType, DecimalType)):
                     col_expr = col(col_name)
 
                     if replace_null_numeric_fields:
-                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with))
+                        col_expr = coalesce(col_expr, lit(replace_null_numeric_with).cast(col_type))
                     
                     all_expressions.append(col_expr.alias(col_name))
                     

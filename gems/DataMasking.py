@@ -1,6 +1,8 @@
+import ast
 import dataclasses
 import json
 
+import re
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession
@@ -36,6 +38,21 @@ class DataMasking(MacroSpec):
         prefix_suffix_added: str = ""
         combined_hash_column_name: str = ""
         masked_column_add_method: str = "inplace_substitute"
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
         mask_condition = Condition().ifEqual(
@@ -464,7 +481,11 @@ class DataMasking(MacroSpec):
         try:
             schema_raw = newState.ports.inputs[0].schema
             if schema_raw:
-                schema = json.loads(str(schema_raw).replace("'", '"'))
+                schema = (
+                    json.loads(str(schema_raw).replace("'", '"'))
+                    if isinstance(schema_raw, str)
+                    else schema_raw
+                )
                 fields_array = [
                     {"name": field["name"], "dataType": field["dataType"]["type"]}
                     for field in schema.get("fields", [])
@@ -480,25 +501,6 @@ class DataMasking(MacroSpec):
         )
         return newState.bindProperties(newProperties)
 
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
-
     def apply(self, props: DataMaskingProperties) -> str:
         # Generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -508,8 +510,10 @@ class DataMasking(MacroSpec):
                 schema_columns = [js["name"] for js in json.loads(props.schema)]
             except (json.JSONDecodeError, TypeError, KeyError):
                 pass
+        # Keep schema order: set iteration order is not stable across processes.
+        substituted = set(props.column_names or [])
         remaining_columns = ", ".join(
-            list(set(schema_columns) - set(props.column_names or []))
+            [c for c in schema_columns if c not in substituted]
         )
 
         def safe_str(val):
@@ -517,7 +521,11 @@ class DataMasking(MacroSpec):
                 return "''"
             if isinstance(val, list):
                 return str(val)
-            return f"'{val}'"
+            # Escape backslashes and single quotes so values containing
+            # apostrophes (e.g. column names like "Feb' 24") remain a valid
+            # Jinja string literal in the generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
 
         arguments = [
             str(props.relation_name),
@@ -557,12 +565,22 @@ class DataMasking(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
         return DataMasking.DataMaskingProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             schema=parametersMap.get("schema"),
-            column_names=json.loads(
-                parametersMap.get("column_names").replace("'", '"')
-            ),
+            column_names=_parse_py_literal(parametersMap.get("column_names"), []),
             masking_method=parametersMap.get('masking_method').lstrip("'").rstrip("'"),
             upper_char_substitute=parametersMap.get('upper_char_substitute').lstrip("'").rstrip("'"),
             lower_char_substitute=parametersMap.get('lower_char_substitute').lstrip("'").rstrip("'"),
@@ -619,7 +637,11 @@ class DataMasking(MacroSpec):
         try:
             schema_raw = component.ports.inputs[0].schema
             if schema_raw:
-                schema = json.loads(str(schema_raw).replace("'", '"'))
+                schema = (
+                    json.loads(str(schema_raw).replace("'", '"'))
+                    if isinstance(schema_raw, str)
+                    else schema_raw
+                )
                 fields_array = [
                     {"name": field["name"], "dataType": field["dataType"]["type"]}
                     for field in schema.get("fields", [])

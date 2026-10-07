@@ -1,15 +1,29 @@
+import ast
 import dataclasses
 import json
+import re
 from collections import defaultdict
 
 from prophecy.cb.sql.Component import *
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
-import json
 
-from pyspark.sql import *
-from pyspark.sql.functions import *
+from pyspark.sql import SparkSession, Window, DataFrame
+from pyspark.sql.functions import row_number, count, lit, expr
+
+
+@dataclass(frozen=True)
+class ColumnExpr:
+    expression: str
+    format: Optional[str]
+
+
+@dataclass(frozen=True)
+class OrderByRule:
+    expression: ColumnExpr
+    sortType: str = "asc"
+    _row_id: Optional[str] = None
 
 
 class Sample(MacroSpec):
@@ -38,8 +52,48 @@ class Sample(MacroSpec):
         # From Create Samples Side
         currentModeSelection: str = "firstN"
         numberN: int = 80
+        orderByColumns: List[OrderByRule] = field(default_factory=list)
+
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
 
     def dialog(self) -> Dialog:
+        order_by_table = BasicTable(
+            "OrderByTable",
+            height="200px",
+            columns=[
+                Column(
+                    "Order By Columns",
+                    "expression.expression",
+                    ExpressionBox(ignoreTitle=True, language="sql")
+                    .bindPlaceholders()
+                    .withSchemaSuggestions()
+                    .bindLanguage("${record.expression.format}"),
+                ),
+                Column(
+                    "Sort strategy",
+                    "sortType",
+                    SelectBox("")
+                    .addOption("ascending nulls first", "asc")
+                    .addOption("ascending nulls last", "asc_nulls_last")
+                    .addOption("descending nulls first", "desc_nulls_first")
+                    .addOption("descending nulls last", "desc"),
+                    width="25%",
+                ),
+            ],
+        )
 
         sample = (
             StackLayout(gap=("1rem"), height=("100bh"))
@@ -100,6 +154,38 @@ class Sample(MacroSpec):
                             .bindSchema("component.ports.inputs[0].schema")
                             .bindProperty("dataColumns")
                             .showErrorsFor("dataColumns")
+                        )
+                    )
+                )
+            )
+            .addElement(
+                Condition()
+                .ifEqual(
+                    PropExpr("component.properties.currentModeSelection"),
+                    StringExpr("firstN"),
+                )
+                .then(
+                    StepContainer().addElement(
+                        Step().addElement(
+                            StackLayout(height="100%")
+                            .addElement(TitleElement("Order rows (optional)"))
+                            .addElement(order_by_table.bindProperty("orderByColumns"))
+                        )
+                    )
+                )
+                .otherwise(
+                    Condition()
+                    .ifEqual(
+                        PropExpr("component.properties.currentModeSelection"),
+                        StringExpr("lastN"),
+                    )
+                    .then(
+                        StepContainer().addElement(
+                            Step().addElement(
+                                StackLayout(height="100%")
+                                .addElement(TitleElement("Order rows (optional)"))
+                                .addElement(order_by_table.bindProperty("orderByColumns"))
+                            )
                         )
                     )
                 )
@@ -181,33 +267,12 @@ class Sample(MacroSpec):
             .addColumn(sample)
         )
 
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
-
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
 
         diagnostics = super(Sample, self).validate(context, component)
 
         missingDataColumns = []
-        schemaFields = json.loads(
-            str(component.ports.inputs[0].schema).replace("'", '"')
-        )
+        schemaFields = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
 
         for col in component.properties.dataColumns:
@@ -222,6 +287,17 @@ class Sample(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
+        if component.properties.currentModeSelection in ("firstN", "lastN"):
+            for idx, rule in enumerate(component.properties.orderByColumns):
+                expr_text = (rule.expression.expression or "").strip()
+                if rule.sortType and expr_text == "":
+                    diagnostics.append(
+                        Diagnostic(
+                            f"component.properties.orderByColumns[{idx}].expression.expression",
+                            "Order column expression is required when a sort direction is selected.",
+                            SeverityLevelEnum.Error,
+                        )
+                    )
         # Validate the component's state
         # 1. For 2 First N% of rows should be <= 100%
         # 2. For 1, Estimation and Validation estimates should be <= 1
@@ -232,7 +308,7 @@ class Sample(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = json.loads(str(newState.ports.inputs[0].schema).replace("'", '"'))
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
             for field in schema["fields"]
@@ -248,56 +324,133 @@ class Sample(MacroSpec):
 
     def apply(self, props: SampleProperties) -> str:
         # generate the actual macro call given the component's state
-        table_name: str = ",".join(str(rel) for rel in props.relation_name)
-        # Get existing column names
         resolved_macro_name = f"{self.projectName}.{self.name}"
         if props.sampleLevelSelection == "sampleDataset":
             dataColumns = []
         else:
             dataColumns = props.dataColumns
+
+        order_rules: List[dict] = [
+            {"expression": {"expression": expr}, "sortType": r.sortType}
+            for r in props.orderByColumns
+            for expr in [(r.expression.expression or "").strip()]
+            if expr
+        ] if props.currentModeSelection in ("firstN", "lastN") else []
+
+        def safe_str(val):
+            if val is None or val == "":
+                return "''"
+            if isinstance(val, list):
+                return str(val)
+            # Escape backslashes and single quotes so values containing
+            # apostrophes (e.g. column names like "Feb' 24" in the schema)
+            # remain a valid Jinja string literal in the generated macro call.
+            escaped = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
+
         non_empty_param = ",".join(
             [
-                "'" + table_name + "'",
-                str(dataColumns),
+                str(props.relation_name),
+                safe_str(props.schema),
+                safe_str(props.sampleLevelSelection),
+                safe_str(dataColumns),
                 str(props.randomSeed),
-                f"'{props.currentModeSelection}'",
+                safe_str(props.currentModeSelection),
                 str(props.numberN),
-                ]
+                safe_str(order_rules),
+            ]
         )
-        print(f"[DEBUG_DEBUG] APPLY METHOD PARAMS = { non_empty_param }")
 
-        # Sample(relation_name, groupCols, randomSeed, currentModeSelection, numberN)
         return f"{{{{ {resolved_macro_name}({non_empty_param}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _parse_py_literal(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
+        data_columns = _parse_py_literal(parametersMap.get("dataColumns"), [])
+        sample_level_selection = (
+            (parametersMap.get("sampleLevelSelection") or "").lstrip("'").rstrip("'")
+        )
+        if sample_level_selection == "":
+            sample_level_selection = "sampleGroup" if data_columns else "sampleDataset"
+
         props = Sample.SampleProperties(
-            relation_name=parametersMap.get("relation_name"),
-            dataColumns=json.loads(parametersMap.get("dataColumns").replace("'", '"')),
-            randomSeed=int(parametersMap.get("randomSeed")),
-            currentModeSelection=parametersMap.get("currentModeSelection"),
-            numberN=int(parametersMap.get("numberN")),
+            relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
+            schema=(parametersMap.get("schema") or "").lstrip("'").rstrip("'"),
+            sampleLevelSelection=sample_level_selection,
+            dataColumns=data_columns,
+            randomSeed=int(str(parametersMap.get("randomSeed", 1002)).lstrip("'").rstrip("'")),
+            currentModeSelection=(parametersMap.get("currentModeSelection") or "''").lstrip("'").rstrip("'"),
+            numberN=int(str(parametersMap.get("numberN", 80)).lstrip("'").rstrip("'")),
+            orderByColumns=_parse_order_columns(parametersMap.get("orderByColumns")),
         )
         return props
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
         # convert component's state to default macro property representation
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orderByColumns or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
             parameters=[
-                MacroParameter("relation_name", str(properties.relation_name)),
+                MacroParameter("relation_name", json.dumps(properties.relation_name)),
+                MacroParameter("schema", str(properties.schema)),
+                MacroParameter("sampleLevelSelection", str(properties.sampleLevelSelection)),
                 MacroParameter("dataColumns", json.dumps(properties.dataColumns)),
                 MacroParameter("randomSeed", str(properties.randomSeed)),
-                MacroParameter("currentModeSelection", properties.currentModeSelection),
+                MacroParameter("currentModeSelection", str(properties.currentModeSelection)),
                 MacroParameter("numberN", str(properties.numberN)),
+                MacroParameter("orderByColumns", order_by_json),
             ],
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
         return replace(
             component,
-            properties=replace(component.properties, relation_name=relation_name),
+            properties=replace(
+                component.properties,
+                relation_name=relation_name,
+                schema=json.dumps(fields_array),
+            ),
         )

@@ -1,6 +1,8 @@
+import ast
 import dataclasses
 import json
 
+import re
 from prophecy.cb.server.base.ComponentBuilderBase import *
 from prophecy.cb.sql.MacroBuilderBase import *
 from prophecy.cb.ui.uispec import *
@@ -11,13 +13,14 @@ from pyspark.sql.functions import lpad, expr, row_number, lit, col
 @dataclass(frozen=True)
 class ColumnExpr:
     expression: str
-    format: str
+    format: Optional[str]
 
 
 @dataclass(frozen=True)
 class OrderByRule:
     expression: ColumnExpr
     sortType: str = "asc"
+    _row_id: Optional[str] = None
 
 
 class RecordID(MacroSpec):
@@ -49,28 +52,25 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     # Utility methods
     # -------------------------------------------------------------------------
-    def get_relation_names(self, component: Component, context: SqlContext):
-        all_upstream_nodes = []
-        for inputPort in component.ports.inputs:
-            upstreamNode = None
-            for connection in context.graph.connections:
-                if connection.targetPort == inputPort.id:
-                    upstreamNodeId = connection.source
-                    upstreamNode = context.graph.nodes.get(upstreamNodeId)
-            all_upstream_nodes.append(upstreamNode)
-
-        relation_name = []
-        for upstream_node in all_upstream_nodes:
-            if upstream_node is None or upstream_node.label is None:
-                relation_name.append("")
-            else:
-                relation_name.append(upstream_node.label)
-
-        return relation_name
 
     # -------------------------------------------------------------------------
     # UI definition
     # -------------------------------------------------------------------------
+    def get_relation_names(self, component: Component, context: SqlContext):
+        relation_name = []
+        for input_port in component.ports.inputs:
+            if input_port.slug and not re.match(r'^in\d+$', input_port.slug):
+                relation_name.append(input_port.slug)
+            else:
+                upstream_label = ""
+                for connection in context.graph.connections:
+                    if connection.targetPort == input_port.id:
+                        upstream_node = context.graph.nodes.get(connection.source)
+                        if upstream_node is not None and upstream_node.label is not None:
+                            upstream_label = upstream_node.label
+                relation_name.append(upstream_label)
+        return relation_name
+
     def dialog(self) -> Dialog:
         order_by_table = BasicTable(
             "OrderByTable",
@@ -327,7 +327,7 @@ class RecordID(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         order_rules: List[dict] = [
-            {"expression": {"expression": expr, "format": r.expression.format}, "sortType": r.sortType}
+            {"expression": {"expression": expr}, "sortType": r.sortType}
             for r in props.orders
             for expr in [(r.expression.expression or "").strip()]
             if expr
@@ -354,8 +354,33 @@ class RecordID(MacroSpec):
     # -------------------------------------------------------------------------
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def _parse_order_columns(raw: str) -> List[OrderByRule]:
+            order_list = _parse_py_literal(raw, [])
+            return [
+                OrderByRule(
+                    expression=ColumnExpr(
+                        expression=r.get("expression", {}).get("expression", "") or "",
+                        format=r.get("expression", {}).get("format", "sql") or "sql",
+                    ),
+                    sortType=r.get("sortType", "asc") or "asc",
+                )
+                for r in order_list
+            ]
+
         return RecordID.RecordIDProperties(
-            relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
             method=parametersMap.get('method').lstrip("'").rstrip("'"),
             incremental_id_column_name=parametersMap.get('incremental_id_column_name').lstrip("'").rstrip("'"),
             incremental_id_type=parametersMap.get('incremental_id_type').lstrip("'").rstrip("'"),
@@ -365,15 +390,23 @@ class RecordID(MacroSpec):
             ),
             generationMethod=parametersMap.get('generationMethod').lstrip("'").rstrip("'"),
             position=parametersMap.get('position').lstrip("'").rstrip("'"),
-            groupByColumnNames=json.loads(
-                parametersMap.get("groupByColumnNames").replace("'", '"')
-            ),
-            orders=json.loads(
-                parametersMap.get("orders").replace("'", '"')
-            ),
+            groupByColumnNames=_parse_py_literal(parametersMap.get("groupByColumnNames"), []),
+            orders=_parse_order_columns(parametersMap.get("orders")),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
+        order_by_json = json.dumps(
+            [
+                {
+                    "expression": {
+                        "expression": r.expression.expression or "",
+                        "format": r.expression.format or "sql",
+                    },
+                    "sortType": r.sortType or "asc",
+                }
+                for r in (properties.orders or [])
+            ]
+        )
         return BasicMacroProperties(
             macroName=self.name,
             projectName=self.projectName,
@@ -396,9 +429,7 @@ class RecordID(MacroSpec):
                 MacroParameter(
                     "groupByColumnNames", json.dumps(properties.groupByColumnNames)
                 ),
-                MacroParameter(
-                    "orders", json.dumps(properties.orders)
-                ),
+                MacroParameter("orders", order_by_json),
             ],
         )
 
