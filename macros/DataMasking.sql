@@ -501,7 +501,7 @@
 
 {%- endmacro -%}
 
-{# CRC32 & Certain SHA2 variants (SHA224, SHA384, SHA512) are not available in BigQuery #}
+{# CRC32 and SHA2-224/384 are not available in BigQuery #}
 {%- macro bigquery__DataMasking(
     relation_name,
     column_names,
@@ -523,27 +523,28 @@
     {%- set withColumn_clause = [] -%}
 
     {%- if masking_method == "mask" -%}
+        {# Same semantics as Databricks mask(): "" -> default (X/x/n, other chars kept), "NULL" -> keep that category.
+           Characters are classified once (single pass) so a substitute is never re-masked by a later category. #}
+        {%- set char_cases = [] -%}
+        {%- for pattern, substitute, default_sub in [
+                ("[A-Z]", upper_char_substitute, "X"),
+                ("[a-z]", lower_char_substitute, "x"),
+                ("[0-9]", digit_char_substitute, "n"),
+                ("[^A-Za-z0-9]", other_char_substitute, "")
+            ] -%}
+            {%- set sub = default_sub if substitute == "" else substitute -%}
+            {%- if sub != "NULL" and sub != "" -%}
+                {%- set sub_literal = "'" ~ (sub | replace("\\", "\\\\") | replace("'", "\\'")) ~ "'" -%}
+                {%- do char_cases.append("WHEN REGEXP_CONTAINS(c, r'" ~ pattern ~ "') THEN " ~ sub_literal) -%}
+            {%- endif -%}
+        {%- endfor -%}
         {% for column in column_names %}
             {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-            {%- set mask_expression -%}
-                REGEXP_REPLACE(
-                    REGEXP_REPLACE(
-                        REGEXP_REPLACE(
-                            REGEXP_REPLACE(
-                                {{ quoted_column }},
-                                '[A-Z]',
-                                {{ prophecy_basics.mask_replacement_sql(upper_char_substitute) }}
-                            ),
-                            '[a-z]',
-                            {{ prophecy_basics.mask_replacement_sql(lower_char_substitute) }}
-                        ),
-                        '[0-9]',
-                        {{ prophecy_basics.mask_replacement_sql(digit_char_substitute) }}
-                    ),
-                    '[^A-Za-z0-9]',
-                    {{ prophecy_basics.mask_replacement_sql(other_char_substitute) }}
-                )
-            {%- endset -%}
+            {%- if char_cases | length == 0 -%}
+                {%- set mask_expression = quoted_column -%}
+            {%- else -%}
+                {%- set mask_expression = "CASE WHEN " ~ quoted_column ~ " IS NULL THEN NULL ELSE ARRAY_TO_STRING(ARRAY(SELECT CASE " ~ char_cases | join(" ") ~ " ELSE c END FROM UNNEST(SPLIT(" ~ quoted_column ~ ", '')) AS c WITH OFFSET AS pos ORDER BY pos), '') END" -%}
+            {%- endif -%}
             {%- if masked_column_add_method == "inplace_substitute" -%}
                 {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}
@@ -553,69 +554,49 @@
             {%- endif -%}
         {% endfor %}
 
-    {%- elif masking_method == "hash" -%}
-        {%- if masked_column_add_method == "combinedHash_substitute" -%}
-            {%- set concat_parts = [] -%}
-            {%- for column in column_names -%}
-                {%- do concat_parts.append("COALESCE(CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING), '')") -%}
-            {%- endfor -%}
-            {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(CONCAT(" ~ concat_parts | join(", ") ~ ") AS BYTES))) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
-        {%- else -%}
-            {% for column in column_names %}
-                {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-                {%- if masked_column_add_method == "inplace_substitute" -%}
-                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
-                {%- elif prefix_suffix_opt == "Prefix" -%}
-                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
-                {%- else -%}
-                    {%- do withColumn_clause.append("TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
-                {%- endif -%}
-            {% endfor %}
-        {%- endif -%}
+    {%- elif masking_method == "hash" and masked_column_add_method == "combinedHash_substitute" -%}
+        {# hash returns an integer like Databricks hash() / Snowflake HASH(). TO_JSON_STRING(STRUCT(...)) keeps
+           column boundaries and NULL vs '' distinct, like Databricks hash(a, b). #}
+        {%- set quoted_columns = [] -%}
+        {%- for column in column_names -%}
+            {%- do quoted_columns.append(prophecy_basics.quote_identifier(column)) -%}
+        {%- endfor -%}
+        {%- do withColumn_clause.append("FARM_FINGERPRINT(TO_JSON_STRING(STRUCT(" ~ quoted_columns | join(", ") ~ "))) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
 
-    {%- elif masking_method == "sha" -%}
-        {% for column in column_names %}
-            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-            {%- if masked_column_add_method == "inplace_substitute" -%}
-                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
-            {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
-            {%- else -%}
-                {%- do withColumn_clause.append("TO_HEX(SHA1(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
-            {%- endif -%}
-        {% endfor %}
-
-    {%- elif masking_method == "sha2" -%}
-        {% for column in column_names %}
-            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-            {%- if sha2_bit_length == "256" -%}
-                {%- set sha2_function = "TO_HEX(SHA256(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
-            {%- elif sha2_bit_length == "512" -%}
-                {%- set sha2_function = "TO_HEX(SHA512(CAST(" ~ quoted_column ~ " AS BYTES)))" -%}
+    {%- else -%}
+        {# Per-column hash functions. CAST to STRING so non-string columns (INT64, DATE, NUMERIC, ...) are supported. #}
+        {%- if masking_method == "hash" -%}
+            {%- set hash_function = "FARM_FINGERPRINT" -%}
+        {%- elif masking_method == "sha" -%}
+            {%- set hash_function = "SHA1" -%}
+        {%- elif masking_method == "md5" -%}
+            {%- set hash_function = "MD5" -%}
+        {%- elif masking_method == "sha2" -%}
+            {%- if sha2_bit_length | string in ["0", "256"] -%}
+                {%- set hash_function = "SHA256" -%}
+            {%- elif sha2_bit_length | string == "512" -%}
+                {%- set hash_function = "SHA512" -%}
             {%- else -%}
                 {{ exceptions.raise_compiler_error("BigQuery only supports SHA2 with 256 or 512 bit length. sha2_bit_length=" ~ sha2_bit_length ~ " is not supported. Use 256 or 512.") }}
             {%- endif -%}
-            {%- if masked_column_add_method == "inplace_substitute" -%}
-                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
-            {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
-            {%- else -%}
-                {%- do withColumn_clause.append(sha2_function ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
-            {%- endif -%}
-        {% endfor %}
-
-    {%- elif masking_method == "md5" -%}
+        {%- else -%}
+            {{ exceptions.raise_compiler_error("Masking method '" ~ masking_method ~ "' is not supported in BigQuery. Supported methods: mask, hash, sha, sha2, md5.") }}
+        {%- endif -%}
         {% for column in column_names %}
-            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
-            {%- if masked_column_add_method == "inplace_substitute" -%}
-                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column)) -%}
-            {%- elif prefix_suffix_opt == "Prefix" -%}
-                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- if masking_method == "hash" -%}
+                {# INT64 result like Databricks hash(); TO_JSON_STRING accepts any type #}
+                {%- set hash_expression = "FARM_FINGERPRINT(TO_JSON_STRING(" ~ prophecy_basics.quote_identifier(column) ~ "))" -%}
             {%- else -%}
-                {%- do withColumn_clause.append("TO_HEX(MD5(CAST(" ~ quoted_column ~ " AS BYTES))) AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+                {%- set hash_expression = "TO_HEX(" ~ hash_function ~ "(CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING)))" -%}
+            {%- endif -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
             {%- endif -%}
         {% endfor %}
-
     {%- endif -%}
 
     {%- set select_clause_sql = withColumn_clause | join(', ') -%}

@@ -528,21 +528,6 @@
     {%- endif -%}
 {% endmacro %}
 
-{# For REGEXP_REPLACE replacement: NULL/none → '' (remove); else → 'value' with single quotes escaped. Gem may pass NULL or 'NULL' (quoted). #}
-{% macro mask_replacement_sql(substitute) %}
-    {%- if substitute is none -%}
-        {{ return("''") }}
-    {%- endif -%}
-    {%- if substitute == "NULL" -%}
-        {{ return("''") }}
-    {%- endif -%}
-    {%- set normalized = (substitute | default("") | trim | replace("'", "")) -%}
-    {%- if normalized == "" or normalized | upper == "NULL" -%}
-        {{ return("''") }}
-    {%- else -%}
-        {{ return("'" ~ (substitute | replace("'", "\\'")) ~ "'") }}
-    {%- endif -%}
-{% endmacro %}
 
 {% macro is_string_type(data_type) %}
   {%- set dt = data_type | lower | trim -%}
