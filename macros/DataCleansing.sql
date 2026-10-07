@@ -268,7 +268,7 @@
         {{ log("Removing rows where all columns are null", info=True) }}
         {%- set where_clause = [] -%}
         {%- for col in schema -%}
-            {%- do where_clause.append('"' ~ col['name'] ~ '"' ~ ' IS NOT NULL') -%}
+            {%- do where_clause.append(prophecy_basics.quote_identifier(col['name']) | trim ~ ' IS NOT NULL') -%}
         {%- endfor -%}
         {%- set where_clause_sql = where_clause | join(' OR ') -%}
 
@@ -306,7 +306,7 @@
         {%- for col_name in columnNames -%}
             {%- set lookup_key = col_name | lower -%}
             {%- set actual_name = col_name_map.get(lookup_key, col_name) -%}
-            {%- set col_expr = '"' ~ actual_name ~ '"' -%}
+            {%- set col_expr = prophecy_basics.quote_identifier(actual_name) | trim -%}
             {%- set dtype = col_type_map.get(lookup_key) -%}
             {%- set base_type = (dtype or '').split('(')[0] | trim -%}
 
@@ -374,7 +374,7 @@
 
             {{ log("Appending transformed column expression", info=True) }}
             {%- set col_expr = col_expr ~ "::" ~ dtype -%}
-            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ '"' ~ actual_name ~ '"') -%}
+            {%- do columns_to_select.append(col_expr ~ ' AS ' ~ prophecy_basics.quote_identifier(actual_name) | trim) -%}
         {%- endfor -%}
 
         {# Get the schema of cleansed data #}
@@ -394,7 +394,7 @@
             {%- endfor -%}
 
             {%- if flag_dict.flag == false -%}
-                {%- do output_columns.append('"' ~ col_name_val['name'] ~ '"') -%}
+                {%- do output_columns.append(prophecy_basics.quote_identifier(col_name_val['name']) | trim) -%}
             {%- endif -%}
         {%- endfor -%}
         {{ log("Columns after expression evaluation:" ~ output_columns, info=True) }}

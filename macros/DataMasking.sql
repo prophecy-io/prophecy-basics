@@ -44,6 +44,7 @@
       )
       SELECT * FROM final_cte
 #}
+{# Reference implementation: default__DataMasking (Databricks). DuckDB and BigQuery follow same structure and use prophecy_basics.quote_identifier throughout. #}
 {% macro DataMasking(relation_name,
     column_names,
     remaining_columns,
@@ -91,6 +92,7 @@
 
     {{ log("Applying Masking-specific column operations", info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -190,14 +192,14 @@
                 SELECT *, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
-        {%- elif remaining_columns == "" -%}
+        {%- elif remaining_columns_quoted == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
@@ -381,6 +383,7 @@
 
     {{ log("Applying Masking-specific column operations", info=True) }}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
     {%- set withColumn_clause = [] -%}
     {%- if masking_method == "mask" -%}
         {% for column in column_names %}
@@ -476,14 +479,14 @@
                 SELECT *, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
-        {%- elif remaining_columns == "" -%}
+        {%- elif remaining_columns_quoted == "" -%}
             WITH final_cte AS (
                 SELECT {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- else -%}
             WITH final_cte AS (
-                SELECT {{ remaining_columns }}, {{ select_clause_sql }}
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
                 FROM {{ relation_list | join(', ') }}
             )
         {%- endif -%}
@@ -496,4 +499,132 @@
 
     {{ return(final_select_query) }}
 
+{%- endmacro -%}
+
+{# CRC32 and SHA2-224/384 are not available in BigQuery #}
+{%- macro bigquery__DataMasking(
+    relation_name,
+    column_names,
+    remaining_columns,
+    masking_method,
+    upper_char_substitute,
+    lower_char_substitute,
+    digit_char_substitute,
+    other_char_substitute,
+    sha2_bit_length,
+    masked_column_add_method,
+    prefix_suffix_opt,
+    prefix_suffix_val,
+    combined_hash_column_name
+) -%}
+    {{ log("Applying BigQuery Masking-specific column operations", info=True) }}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set remaining_columns_quoted = prophecy_basics.quote_column_list(prophecy_basics.normalize_empty_string(remaining_columns)) %}
+    {%- set withColumn_clause = [] -%}
+
+    {%- if masking_method == "mask" -%}
+        {# Same semantics as Databricks mask(): "" -> default (X/x/n, other chars kept), "NULL" -> keep that category.
+           Characters are classified once (single pass) so a substitute is never re-masked by a later category. #}
+        {%- set char_cases = [] -%}
+        {%- for pattern, substitute, default_sub in [
+                ("[A-Z]", upper_char_substitute, "X"),
+                ("[a-z]", lower_char_substitute, "x"),
+                ("[0-9]", digit_char_substitute, "n"),
+                ("[^A-Za-z0-9]", other_char_substitute, "")
+            ] -%}
+            {%- set sub = default_sub if substitute == "" else substitute -%}
+            {%- if sub != "NULL" and sub != "" -%}
+                {%- set sub_literal = "'" ~ (sub | replace("\\", "\\\\") | replace("'", "\\'")) ~ "'" -%}
+                {%- do char_cases.append("WHEN REGEXP_CONTAINS(c, r'" ~ pattern ~ "') THEN " ~ sub_literal) -%}
+            {%- endif -%}
+        {%- endfor -%}
+        {% for column in column_names %}
+            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {%- if char_cases | length == 0 -%}
+                {%- set mask_expression = quoted_column -%}
+            {%- else -%}
+                {%- set mask_expression = "CASE WHEN " ~ quoted_column ~ " IS NULL THEN NULL ELSE ARRAY_TO_STRING(ARRAY(SELECT CASE " ~ char_cases | join(" ") ~ " ELSE c END FROM UNNEST(SPLIT(" ~ quoted_column ~ ", '')) AS c WITH OFFSET AS pos ORDER BY pos), '') END" -%}
+            {%- endif -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(mask_expression ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+
+    {%- elif masking_method == "hash" and masked_column_add_method == "combinedHash_substitute" -%}
+        {# hash returns an integer like Databricks hash() / Snowflake HASH(). TO_JSON_STRING(STRUCT(...)) keeps
+           column boundaries and NULL vs '' distinct, like Databricks hash(a, b). #}
+        {%- set quoted_columns = [] -%}
+        {%- for column in column_names -%}
+            {%- do quoted_columns.append(prophecy_basics.quote_identifier(column)) -%}
+        {%- endfor -%}
+        {%- do withColumn_clause.append("FARM_FINGERPRINT(TO_JSON_STRING(STRUCT(" ~ quoted_columns | join(", ") ~ "))) AS " ~ prophecy_basics.quote_identifier(combined_hash_column_name)) -%}
+
+    {%- else -%}
+        {# Per-column hash functions. CAST to STRING so non-string columns (INT64, DATE, NUMERIC, ...) are supported. #}
+        {%- if masking_method == "hash" -%}
+            {%- set hash_function = "FARM_FINGERPRINT" -%}
+        {%- elif masking_method == "sha" -%}
+            {%- set hash_function = "SHA1" -%}
+        {%- elif masking_method == "md5" -%}
+            {%- set hash_function = "MD5" -%}
+        {%- elif masking_method == "sha2" -%}
+            {%- if sha2_bit_length | string in ["0", "256"] -%}
+                {%- set hash_function = "SHA256" -%}
+            {%- elif sha2_bit_length | string == "512" -%}
+                {%- set hash_function = "SHA512" -%}
+            {%- else -%}
+                {{ exceptions.raise_compiler_error("BigQuery only supports SHA2 with 256 or 512 bit length. sha2_bit_length=" ~ sha2_bit_length ~ " is not supported. Use 256 or 512.") }}
+            {%- endif -%}
+        {%- else -%}
+            {{ exceptions.raise_compiler_error("Masking method '" ~ masking_method ~ "' is not supported in BigQuery. Supported methods: mask, hash, sha, sha2, md5.") }}
+        {%- endif -%}
+        {% for column in column_names %}
+            {%- if masking_method == "hash" -%}
+                {# INT64 result like Databricks hash(); TO_JSON_STRING accepts any type #}
+                {%- set hash_expression = "FARM_FINGERPRINT(TO_JSON_STRING(" ~ prophecy_basics.quote_identifier(column) ~ "))" -%}
+            {%- else -%}
+                {%- set hash_expression = "TO_HEX(" ~ hash_function ~ "(CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING)))" -%}
+            {%- endif -%}
+            {%- if masked_column_add_method == "inplace_substitute" -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(column)) -%}
+            {%- elif prefix_suffix_opt == "Prefix" -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(prefix_suffix_val ~ column)) -%}
+            {%- else -%}
+                {%- do withColumn_clause.append(hash_expression ~ " AS " ~ prophecy_basics.quote_identifier(column ~ prefix_suffix_val)) -%}
+            {%- endif -%}
+        {% endfor %}
+    {%- endif -%}
+
+    {%- set select_clause_sql = withColumn_clause | join(', ') -%}
+    {%- set select_cte_sql -%}
+        {%- if select_clause_sql == "" -%}
+            WITH final_cte AS (
+                SELECT *
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif (masked_column_add_method == "prefix_suffix_substitute") or (masking_method == "hash" and masked_column_add_method == "combinedHash_substitute") -%}
+            WITH final_cte AS (
+                SELECT *, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- elif remaining_columns_quoted == "" -%}
+            WITH final_cte AS (
+                SELECT {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- else -%}
+            WITH final_cte AS (
+                SELECT {{ remaining_columns_quoted }}, {{ select_clause_sql }}
+                FROM {{ relation_list | join(', ') }}
+            )
+        {%- endif -%}
+    {%- endset -%}
+    {%- set final_select_query = select_cte_sql ~ "\nSELECT * FROM final_cte" -%}
+    {{ log("final select query is -> ", info=True) }}
+    {{ log(final_select_query, info=True) }}
+    {{ return(final_select_query) }}
 {%- endmacro -%}
