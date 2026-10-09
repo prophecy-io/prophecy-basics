@@ -57,6 +57,31 @@ class DynamicSelect(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _load_schema_columns(schema_str: Optional[str]) -> list:
+        # props.schema is a JSON list of {"name", "dataType"}; it is ""/None until
+        # the upstream schema is known, so treat empty/invalid as no columns
+        try:
+            columns = json.loads(schema_str)
+        except (ValueError, TypeError):
+            return []
+        return columns if isinstance(columns, list) else []
+
+    @staticmethod
+    def _input_port_fields(port_schema) -> list:
+        # Port schema may be a JSON string, a dict, "" or None
+        if isinstance(port_schema, str):
+            try:
+                port_schema = json.loads(port_schema)
+            except ValueError:
+                return []
+        if not isinstance(port_schema, dict):
+            return []
+        return [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in (port_schema.get("fields") or [])
+        ]
+
     def dialog(self) -> Dialog:
         return Dialog("DynamicSelect").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -221,11 +246,7 @@ class DynamicSelect(MacroSpec):
         if newState.properties.structTypeChecked:
             target_types.append("Struct")
 
-        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(newState.ports.inputs[0].schema)
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -321,11 +342,7 @@ class DynamicSelect(MacroSpec):
         if component.properties.structTypeChecked:
             target_types.append("Struct")
 
-        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(component.ports.inputs[0].schema)
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
@@ -382,7 +399,7 @@ class DynamicSelect(MacroSpec):
             res = in0.select(*desired_cols)
 
         else:
-            schema_fields = json.loads(self.props.schema)
+            schema_fields = self._load_schema_columns(self.props.schema)
             columns_df: SubstituteDisabled = spark.createDataFrame(
                 [(field["name"], field["dataType"], i) for i, field in enumerate(schema_fields)], 
                 ["column_name", "column_type", "field_number"]
