@@ -50,11 +50,17 @@ class Transpose(MacroSpec):
 
     @staticmethod
     def _parse_port_schema(schema) -> dict:
+        # Schema may be JSON, a Python repr, "" or None; anything that does not
+        # parse to a dict is treated as "no schema yet"
         raw = str(schema)
         try:
-            return json.loads(raw.replace("'", '"'))
+            parsed = json.loads(raw.replace("'", '"'))
         except json.JSONDecodeError:
-            return ast.literal_eval(raw)
+            try:
+                parsed = ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return {}
+        return parsed if isinstance(parsed, dict) else {}
 
     @staticmethod
     def _macro_list_arg(values) -> str:
@@ -73,6 +79,16 @@ class Transpose(MacroSpec):
                 return json.loads(raw)
             except json.JSONDecodeError:
                 return ast.literal_eval(raw)
+
+    @staticmethod
+    def _load_schema_columns(schema_str: Optional[str]) -> list:
+        # props.schema is a JSON list of {"name", "dataType"}; it is ""/None until
+        # the upstream schema is known, so treat empty/invalid as no columns
+        try:
+            columns = json.loads(schema_str)
+        except (ValueError, TypeError):
+            return []
+        return columns if isinstance(columns, list) else []
 
     def dialog(self) -> Dialog:
         # Define the UI dialog structure for the component
@@ -200,7 +216,17 @@ class Transpose(MacroSpec):
             )
 
         schemaFields = self._parse_port_schema(component.ports.inputs[0].schema)
-        fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
+        fieldsArray = [field["name"].upper() for field in schemaFields.get("fields", [])]
+        if not fieldsArray and (component.properties.dataColumns or component.properties.keyColumns):
+            diagnostics.append(
+                Diagnostic(
+                    "properties.dataColumns",
+                    "Input schema is empty.",
+                    SeverityLevelEnum.Warning,
+                )
+            )
+            return diagnostics
+
         missingDataColumns = []
         for col in component.properties.dataColumns:
             if col.upper() not in fieldsArray:
@@ -238,7 +264,7 @@ class Transpose(MacroSpec):
         schema = self._parse_port_schema(newState.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
+            for field in schema.get("fields", [])
         ]
         relation_name = self.get_relation_names(newState, context)
 
@@ -261,7 +287,11 @@ class Transpose(MacroSpec):
 
     def apply(self, props: TransposeProperties) -> str:
 
-        allColumnNames = [field["name"] for field in json.loads(props.schema)]
+        schema_columns_js = self._load_schema_columns(props.schema)
+        if not schema_columns_js:
+            # Fail codegen rather than emit SQL with no input columns
+            raise ValueError(f"{self.name}: input schema is empty, cannot generate code.")
+        allColumnNames = [field["name"] for field in schema_columns_js]
 
         # generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -317,7 +347,7 @@ class Transpose(MacroSpec):
         schema = self._parse_port_schema(component.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
+            for field in schema.get("fields", [])
         ]
         relation_name = self.get_relation_names(component, context)
 

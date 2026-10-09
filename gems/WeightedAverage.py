@@ -47,6 +47,21 @@ class WeightedAverage(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _input_port_fields(port_schema) -> list:
+        # Port schema may be a JSON string, a dict, "" or None
+        if isinstance(port_schema, str):
+            try:
+                port_schema = json.loads(port_schema)
+            except ValueError:
+                return []
+        if not isinstance(port_schema, dict):
+            return []
+        return [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in (port_schema.get("fields") or [])
+        ]
+
     def dialog(self) -> Dialog:
         return Dialog("WeightedAverage").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -166,11 +181,7 @@ class WeightedAverage(MacroSpec):
     def onChange(
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
-        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(newState.ports.inputs[0].schema)
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -243,11 +254,7 @@ class WeightedAverage(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(component.ports.inputs[0].schema)
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(

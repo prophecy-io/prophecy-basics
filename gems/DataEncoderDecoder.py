@@ -56,6 +56,31 @@ class DataEncoderDecoder(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _load_schema_columns(schema_str: Optional[str]) -> list:
+        # props.schema is a JSON list of {"name", "dataType"}; it is ""/None until
+        # the upstream schema is known, so treat empty/invalid as no columns
+        try:
+            columns = json.loads(schema_str)
+        except (ValueError, TypeError):
+            return []
+        return columns if isinstance(columns, list) else []
+
+    @staticmethod
+    def _input_port_fields(port_schema) -> list:
+        # Port schema may be a JSON string, a dict, "" or None
+        if isinstance(port_schema, str):
+            try:
+                port_schema = json.loads(port_schema)
+            except ValueError:
+                return []
+        if not isinstance(port_schema, dict):
+            return []
+        return [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in (port_schema.get("fields") or [])
+        ]
+
     def dialog(self) -> Dialog:
         aes_encrypt_condition = Condition().ifEqual(
             PropExpr("component.properties.enc_dec_method"), StringExpr("aes_encrypt")
@@ -497,7 +522,7 @@ class DataEncoderDecoder(MacroSpec):
         aes_enc_dec_secretScope_iv = component.properties.aes_enc_dec_secretScope_iv
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
+        schema_js = self._load_schema_columns(component.properties.schema)
         for js in schema_js:
             schema_columns.append(js["name"])
 
@@ -515,7 +540,15 @@ class DataEncoderDecoder(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        if len(component.properties.column_names) > 0:
+        elif not schema_columns:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.column_names",
+                    "Input schema is empty.",
+                    SeverityLevelEnum.Warning,
+                )
+            )
+        elif len(component.properties.column_names) > 0:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
@@ -613,11 +646,7 @@ class DataEncoderDecoder(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(newState.ports.inputs[0].schema)
         relation_name = self.get_relation_names(newState, context)
 
         old_enc_method, old_enc_mode = (
@@ -662,7 +691,11 @@ class DataEncoderDecoder(MacroSpec):
     def apply(self, props: DataEncoderDecoderProperties) -> str:
         # Generate the actual macro call given the component's state
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        schema_columns = [js["name"] for js in json.loads(props.schema)]
+        schema_columns_js = self._load_schema_columns(props.schema)
+        if not schema_columns_js:
+            # Fail codegen rather than emit SQL with no input columns
+            raise ValueError(f"{self.name}: input schema is empty, cannot generate code.")
+        schema_columns = [js["name"] for js in schema_columns_js]
         # Keep schema order: set iteration order is not stable across processes.
         substituted = set(props.column_names)
         remaining_columns = ", ".join(
@@ -783,11 +816,7 @@ class DataEncoderDecoder(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self._input_port_fields(component.ports.inputs[0].schema)
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(

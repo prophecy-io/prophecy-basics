@@ -46,6 +46,21 @@ class UnionByName(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _input_port_fields(port_schema) -> list:
+        # Port schema may be a JSON string, a dict, "" or None
+        if isinstance(port_schema, str):
+            try:
+                port_schema = json.loads(port_schema)
+            except ValueError:
+                return []
+        if not isinstance(port_schema, dict):
+            return []
+        return [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in (port_schema.get("fields") or [])
+        ]
+
     def dialog(self) -> Dialog:
         return Dialog("Macro").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -81,11 +96,7 @@ class UnionByName(MacroSpec):
         """Return list[str] – one compact JSON blob per input port."""
         schema_blobs = []
         for in_port in component.ports.inputs:
-            raw_schema = (json.loads(in_port.schema) if isinstance(in_port.schema, str) else (in_port.schema or {}))
-            fields_arr = [
-                {"name": f["name"], "dataType": f["dataType"]["type"]}
-                for f in raw_schema["fields"]
-            ]
+            fields_arr = self._input_port_fields(in_port.schema)
             schema_blobs.append(json.dumps(fields_arr))
         return schema_blobs
 
