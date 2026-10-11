@@ -67,29 +67,9 @@ class DataCleansing(MacroSpec):
         return relation_name
 
     @staticmethod
-    def _load_schema_columns(schema_str: Optional[str]) -> list:
-        # props.schema is a JSON list of {"name", "dataType"}; it is ""/None until
-        # the upstream schema is known, so treat empty/invalid as no columns
-        try:
-            columns = json.loads(schema_str)
-        except (ValueError, TypeError):
-            return []
-        return columns if isinstance(columns, list) else []
-
-    @staticmethod
-    def _input_port_fields(port_schema) -> list:
-        # Port schema may be a JSON string, a dict, "" or None
-        if isinstance(port_schema, str):
-            try:
-                port_schema = json.loads(port_schema)
-            except ValueError:
-                return []
-        if not isinstance(port_schema, dict):
-            return []
-        return [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in (port_schema.get("fields") or [])
-        ]
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
 
     def dialog(self) -> Dialog:
         nullOpCheckBox = ColumnsLayout(gap="1rem", height="100%").addColumn(
@@ -300,17 +280,8 @@ class DataCleansing(MacroSpec):
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(DataCleansing, self).validate(context, component)
 
-        schema_columns = self._load_schema_columns(component.properties.schema)
-        if len(component.properties.columnNames) > 0 and not schema_columns:
-            diagnostics.append(
-                Diagnostic(
-                    "component.properties.columnNames",
-                    "Input schema is empty.",
-                    SeverityLevelEnum.Warning,
-                )
-            )
-        elif len(component.properties.columnNames) > 0:
-            schema_cols_lower = set(col["name"].lower() for col in schema_columns)
+        if len(component.properties.columnNames) > 0 and component.properties.schema:
+            schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
 
             missingKeyColumns = [
                 col
@@ -355,7 +326,13 @@ class DataCleansing(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        fields_array = self._input_port_fields(newState.ports.inputs[0].schema)
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -513,7 +490,13 @@ class DataCleansing(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        fields_array = self._input_port_fields(component.ports.inputs[0].schema)
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(

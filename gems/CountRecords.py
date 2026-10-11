@@ -47,19 +47,9 @@ class CountRecords(MacroSpec):
         return relation_name
 
     @staticmethod
-    def _input_port_fields(port_schema) -> list:
-        # Port schema may be a JSON string, a dict, "" or None
-        if isinstance(port_schema, str):
-            try:
-                port_schema = json.loads(port_schema)
-            except ValueError:
-                return []
-        if not isinstance(port_schema, dict):
-            return []
-        return [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in (port_schema.get("fields") or [])
-        ]
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
 
     def dialog(self) -> Dialog:
         count_radio_box = (
@@ -159,7 +149,13 @@ class CountRecords(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        fields_array = self._input_port_fields(newState.ports.inputs[0].schema)
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
+        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -225,7 +221,13 @@ class CountRecords(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        fields_array = self._input_port_fields(component.ports.inputs[0].schema)
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
+        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
+        fields_array = [
+            {"name": field["name"], "dataType": field["dataType"]["type"]}
+            for field in schema["fields"]
+        ]
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
