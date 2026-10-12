@@ -594,8 +594,9 @@ class DataMasking(MacroSpec):
             other_char_substitute=parametersMap.get('other_char_substitute').lstrip("'").rstrip("'"),
             sha2_bit_length=parametersMap.get('sha2_bit_length').lstrip("'").rstrip("'"),
             masked_column_add_method=parametersMap.get('masked_column_add_method').lstrip("'").rstrip("'"),
-            prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
-            prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
+            # Macro params are prefix_suffix_opt / prefix_suffix_val; unloadProperties writes the property names
+            prefix_suffix_option=(parametersMap.get("prefix_suffix_opt") or parametersMap.get("prefix_suffix_option") or "Prefix").lstrip("'").rstrip("'"),
+            prefix_suffix_added=(parametersMap.get("prefix_suffix_val") or parametersMap.get("prefix_suffix_added") or "").lstrip("'").rstrip("'"),
             combined_hash_column_name=parametersMap.get('combined_hash_column_name').lstrip("'").rstrip("'"),
         )
 

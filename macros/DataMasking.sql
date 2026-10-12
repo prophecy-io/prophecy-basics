@@ -155,7 +155,8 @@
 
     {%- elif masking_method == "sha2" -%}
         {% for column in column_names %}
-            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {# sha2 needs STRING/BINARY input; cast so non-string columns (INT, DATE, ...) work like other adapters #}
+            {%- set quoted_column = "CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING)" -%}
             {%- if masked_column_add_method == "inplace_substitute" -%}
                 {%- do withColumn_clause.append("sha2(" ~ quoted_column ~ ", " ~ sha2_bit_length ~ ") AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}
@@ -167,7 +168,8 @@
 
     {%- else -%}
         {% for column in column_names %}
-            {%- set quoted_column = prophecy_basics.quote_identifier(column) -%}
+            {# sha / md5 / crc32 need STRING/BINARY input; cast so non-string columns work like other adapters #}
+            {%- set quoted_column = "CAST(" ~ prophecy_basics.quote_identifier(column) ~ " AS STRING)" -%}
             {%- if masked_column_add_method == "inplace_substitute" -%}
                 {%- do withColumn_clause.append(masking_method ~ "(" ~ quoted_column ~ ") AS " ~ prophecy_basics.quote_identifier(column)) -%}
             {%- elif prefix_suffix_opt == "Prefix" -%}

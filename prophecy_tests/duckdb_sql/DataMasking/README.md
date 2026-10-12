@@ -29,6 +29,10 @@ Each test:
 
 **Tests pass when they return 0 rows** and raise no error.
 
+Every call passes `remaining_columns=''` so it also round-trips through the
+code-to-visual tester, which has no input schema to rebuild that list from.
+Value checks therefore add a `_masked` suffix column next to the originals.
+
 Every case also checks that NULL input stays NULL.
 
 ## Running These Tests
