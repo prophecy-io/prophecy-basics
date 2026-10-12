@@ -17,7 +17,7 @@ class DataMasking(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
@@ -33,11 +33,31 @@ class DataMasking(MacroSpec):
         lower_char_substitute: str = ""
         digit_char_substitute: str = ""
         other_char_substitute: str = ""
-        sha2_bit_length: str = ""
+        sha2_bit_length: str = "256"
         prefix_suffix_option: str = "Prefix"
         prefix_suffix_added: str = ""
         combined_hash_column_name: str = ""
         masked_column_add_method: str = "inplace_substitute"
+
+    def get_input_fields(self, component: Component):
+        schema_raw = component.ports.inputs[0].schema
+        if not schema_raw:
+            return []
+        try:
+            if isinstance(schema_raw, str):
+                try:
+                    schema = json.loads(schema_raw)
+                except json.JSONDecodeError:
+                    # Fallback for single-quoted (Python repr style) schema strings
+                    schema = json.loads(schema_raw.replace("'", '"'))
+            else:
+                schema = schema_raw
+            return [
+                {"name": field["name"], "dataType": field["dataType"]["type"]}
+                for field in schema.get("fields", [])
+            ]
+        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+            return []
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -162,16 +182,27 @@ class DataMasking(MacroSpec):
                     SelectBox("Select the bit length")
                     .bindProperty("sha2_bit_length")
                     .withDefault("256")
-                    .addOption("256", "256")                
+                    .addOption("256", "256")
                 )
                 .otherwise(
-                    SelectBox("Select the bit length")
-                    .bindProperty("sha2_bit_length")
-                    .withDefault("")
-                    .addOption("224", "224")
-                    .addOption("256", "256")
-                    .addOption("384", "384")
-                    .addOption("512", "512")                    
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                    .then(
+                        SelectBox("Select the bit length")
+                        .bindProperty("sha2_bit_length")
+                        .withDefault("256")
+                        .addOption("256", "256")
+                        .addOption("512", "512")
+                    )
+                    .otherwise(
+                        SelectBox("Select the bit length")
+                        .bindProperty("sha2_bit_length")
+                        .withDefault("")
+                        .addOption("224", "224")
+                        .addOption("256", "256")
+                        .addOption("384", "384")
+                        .addOption("512", "512")
+                    )
                 )
         )
 
@@ -214,6 +245,20 @@ class DataMasking(MacroSpec):
                                     )
                                     .otherwise(
                                         Condition()
+                                        .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                        .then(
+                                            SelectBox("Select masking strategy")
+                                            .bindProperty("masking_method")
+                                            .withStyle({"width": "100%"})
+                                            .withDefault("")
+                                            .addOption("hash", "hash")
+                                            .addOption("sha", "sha")
+                                            .addOption("sha2", "sha2")
+                                            .addOption("md5", "md5")
+                                            .addOption("mask", "mask")
+                                        )
+                                        .otherwise(
+                                            Condition()
                                             .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
                                             .then(
                                                 SelectBox("Select masking strategy")
@@ -238,6 +283,7 @@ class DataMasking(MacroSpec):
                                                 .addOption("mask", "mask")
                                                 .addOption("crc32", "crc32")
                                             )
+                                        )
                                     )
                             )
                             .addElement(mask_condition.then(mask_params_ui))
@@ -308,9 +354,30 @@ class DataMasking(MacroSpec):
         diagnostics = super(DataMasking, self).validate(context, component)
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
-        for js in schema_js:
-            schema_columns.append(js["name"].lower())
+        schema_str = component.properties.schema
+        if schema_str:
+            try:
+                schema_js = json.loads(schema_str)
+                for js in schema_js:
+                    schema_columns.append(js["name"].lower())
+            except (json.JSONDecodeError, TypeError, KeyError):
+                diagnostics.append(
+                    Diagnostic(
+                        "component.properties.schema",
+                        "Input schema is missing or invalid. Connect an input dataset.",
+                        SeverityLevelEnum.Error,
+                    )
+                )
+                schema_js = []
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.schema",
+                    "Input schema is missing or invalid. Connect an input dataset.",
+                    SeverityLevelEnum.Error,
+                )
+            )
+            schema_js = []
 
         if len(component.properties.column_names) == 0:
             diagnostics.append(
@@ -320,7 +387,7 @@ class DataMasking(MacroSpec):
                     SeverityLevelEnum.Error,
                 )
             )
-        elif len(component.properties.column_names) > 0:
+        elif len(component.properties.column_names) > 0 and schema_columns:
             missingKeyColumns = [
                 col
                 for col in component.properties.column_names
@@ -430,11 +497,7 @@ class DataMasking(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
-        schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self.get_input_fields(newState)
         relation_name = self.get_relation_names(newState, context)
 
         newProperties = dataclasses.replace(
@@ -446,11 +509,15 @@ class DataMasking(MacroSpec):
 
     def apply(self, props: DataMaskingProperties) -> str:
         # Generate the actual macro call given the component's state
-        
         resolved_macro_name = f"{self.projectName}.{self.name}"
-        schema_columns = [js["name"] for js in json.loads(props.schema)]
+        schema_columns = []
+        if props.schema:
+            try:
+                schema_columns = [js["name"] for js in json.loads(props.schema)]
+            except (json.JSONDecodeError, TypeError, KeyError):
+                pass
         # Keep schema order: set iteration order is not stable across processes.
-        substituted = set(props.column_names)
+        substituted = set(props.column_names or [])
         remaining_columns = ", ".join(
             [c for c in schema_columns if c not in substituted]
         )
@@ -572,11 +639,7 @@ class DataMasking(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
-        schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
-        fields_array = [
-            {"name": field["name"], "dataType": field["dataType"]["type"]}
-            for field in schema["fields"]
-        ]
+        fields_array = self.get_input_fields(component)
         relation_name = self.get_relation_names(component, context)
 
         newProperties = dataclasses.replace(
