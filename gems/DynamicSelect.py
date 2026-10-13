@@ -379,7 +379,10 @@ class DynamicSelect(MacroSpec):
                 if (dtype in col_dtype if partial else col_dtype == dtype)
             ]
 
-            res = in0.select(*desired_cols)
+            if desired_cols:
+                res = in0.select(*desired_cols)
+            else:
+                res = in0.select(lit(None).cast("string").alias("no_columns_matched"))
 
         else:
             schema_fields = json.loads(self.props.schema)
@@ -390,5 +393,8 @@ class DynamicSelect(MacroSpec):
 
             column_output_df: SubstituteDisabled = columns_df.withColumn("value", expr(self.props.customExpression)).filter(col("value") == lit(True))
             desired_cols: SubstituteDisabled = [ x[0] for x in column_output_df.collect()]
-            res = in0.select(*desired_cols)
+            if desired_cols:
+                res = in0.select(*desired_cols)
+            else:
+                res = in0.select(lit(None).cast("string").alias("no_columns_matched"))
         return res
