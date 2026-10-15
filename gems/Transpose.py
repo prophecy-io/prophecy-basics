@@ -280,9 +280,7 @@ class Transpose(MacroSpec):
     def apply(self, props: TransposeProperties) -> str:
 
         if self._is_empty_schema(props.schema):
-
             raise ValueError(f"{self.name}: input schema is empty")
-
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
         # generate the actual macro call given the component's state

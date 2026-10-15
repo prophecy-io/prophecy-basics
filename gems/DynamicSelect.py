@@ -227,9 +227,7 @@ class DynamicSelect(MacroSpec):
             target_types.append("Struct")
 
         if self._is_empty_schema(newState.ports.inputs[0].schema):
-
             raise ValueError(f"{self.name}: input schema is empty")
-
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -331,9 +329,7 @@ class DynamicSelect(MacroSpec):
             target_types.append("Struct")
 
         if self._is_empty_schema(component.ports.inputs[0].schema):
-
             raise ValueError(f"{self.name}: input schema is empty")
-
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
