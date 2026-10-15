@@ -39,26 +39,6 @@ class DataMasking(MacroSpec):
         combined_hash_column_name: str = ""
         masked_column_add_method: str = "inplace_substitute"
 
-    def get_input_fields(self, component: Component):
-        schema_raw = component.ports.inputs[0].schema
-        if not schema_raw:
-            return []
-        try:
-            if isinstance(schema_raw, str):
-                try:
-                    schema = json.loads(schema_raw)
-                except json.JSONDecodeError:
-                    # Fallback for single-quoted (Python repr style) schema strings
-                    schema = json.loads(schema_raw.replace("'", '"'))
-            else:
-                schema = schema_raw
-            return [
-                {"name": field["name"], "dataType": field["dataType"]["type"]}
-                for field in schema.get("fields", [])
-            ]
-        except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
-            return []
-
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
         for input_port in component.ports.inputs:
