@@ -17,7 +17,7 @@ class DataMasking(MacroSpec):
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
         ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = True
@@ -33,7 +33,7 @@ class DataMasking(MacroSpec):
         lower_char_substitute: str = ""
         digit_char_substitute: str = ""
         other_char_substitute: str = ""
-        sha2_bit_length: str = ""
+        sha2_bit_length: str = "256"
         prefix_suffix_option: str = "Prefix"
         prefix_suffix_added: str = ""
         combined_hash_column_name: str = ""
@@ -167,16 +167,27 @@ class DataMasking(MacroSpec):
                     SelectBox("Select the bit length")
                     .bindProperty("sha2_bit_length")
                     .withDefault("256")
-                    .addOption("256", "256")                
+                    .addOption("256", "256")
                 )
                 .otherwise(
-                    SelectBox("Select the bit length")
-                    .bindProperty("sha2_bit_length")
-                    .withDefault("")
-                    .addOption("224", "224")
-                    .addOption("256", "256")
-                    .addOption("384", "384")
-                    .addOption("512", "512")                    
+                    Condition()
+                    .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                    .then(
+                        SelectBox("Select the bit length")
+                        .bindProperty("sha2_bit_length")
+                        .withDefault("256")
+                        .addOption("256", "256")
+                        .addOption("512", "512")
+                    )
+                    .otherwise(
+                        SelectBox("Select the bit length")
+                        .bindProperty("sha2_bit_length")
+                        .withDefault("")
+                        .addOption("224", "224")
+                        .addOption("256", "256")
+                        .addOption("384", "384")
+                        .addOption("512", "512")
+                    )
                 )
         )
 
@@ -219,6 +230,20 @@ class DataMasking(MacroSpec):
                                     )
                                     .otherwise(
                                         Condition()
+                                        .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("bigquery"))
+                                        .then(
+                                            SelectBox("Select masking strategy")
+                                            .bindProperty("masking_method")
+                                            .withStyle({"width": "100%"})
+                                            .withDefault("")
+                                            .addOption("hash", "hash")
+                                            .addOption("sha", "sha")
+                                            .addOption("sha2", "sha2")
+                                            .addOption("md5", "md5")
+                                            .addOption("mask", "mask")
+                                        )
+                                        .otherwise(
+                                            Condition()
                                             .ifEqual(PropExpr("$.sql.metainfo.providerType"), StringExpr("snowflake"))
                                             .then(
                                                 SelectBox("Select masking strategy")
@@ -243,6 +268,7 @@ class DataMasking(MacroSpec):
                                                 .addOption("mask", "mask")
                                                 .addOption("crc32", "crc32")
                                             )
+                                        )
                                     )
                             )
                             .addElement(mask_condition.then(mask_params_ui))
@@ -462,13 +488,12 @@ class DataMasking(MacroSpec):
 
     def apply(self, props: DataMaskingProperties) -> str:
         # Generate the actual macro call given the component's state
-        
         resolved_macro_name = f"{self.projectName}.{self.name}"
         if self._is_empty_schema(props.schema):
             raise ValueError(f"{self.name}: input schema is empty")
         schema_columns = [js["name"] for js in json.loads(props.schema)]
         # Keep schema order: set iteration order is not stable across processes.
-        substituted = set(props.column_names)
+        substituted = set(props.column_names or [])
         remaining_columns = ", ".join(
             [c for c in schema_columns if c not in substituted]
         )
@@ -545,8 +570,9 @@ class DataMasking(MacroSpec):
             other_char_substitute=parametersMap.get('other_char_substitute').lstrip("'").rstrip("'"),
             sha2_bit_length=parametersMap.get('sha2_bit_length').lstrip("'").rstrip("'"),
             masked_column_add_method=parametersMap.get('masked_column_add_method').lstrip("'").rstrip("'"),
-            prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
-            prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
+            # Macro params are prefix_suffix_opt / prefix_suffix_val; unloadProperties writes the property names
+            prefix_suffix_option=(parametersMap.get("prefix_suffix_opt") or parametersMap.get("prefix_suffix_option") or "Prefix").lstrip("'").rstrip("'"),
+            prefix_suffix_added=(parametersMap.get("prefix_suffix_val") or parametersMap.get("prefix_suffix_added") or "").lstrip("'").rstrip("'"),
             combined_hash_column_name=parametersMap.get('combined_hash_column_name').lstrip("'").rstrip("'"),
         )
 
