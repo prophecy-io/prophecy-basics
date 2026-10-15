@@ -46,6 +46,11 @@ class UnionByName(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         return Dialog("Macro").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -81,6 +86,8 @@ class UnionByName(MacroSpec):
         """Return list[str] – one compact JSON blob per input port."""
         schema_blobs = []
         for in_port in component.ports.inputs:
+            if self._is_empty_schema(in_port.schema):
+                raise ValueError(f"{self.name}: input schema is empty")
             raw_schema = (json.loads(in_port.schema) if isinstance(in_port.schema, str) else (in_port.schema or {}))
             fields_arr = [
                 {"name": f["name"], "dataType": f["dataType"]["type"]}

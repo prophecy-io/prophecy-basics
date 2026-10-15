@@ -54,6 +54,11 @@ class DataMasking(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         mask_condition = Condition().ifEqual(
             PropExpr("component.properties.masking_method"), StringExpr("mask")
@@ -308,7 +313,8 @@ class DataMasking(MacroSpec):
         diagnostics = super(DataMasking, self).validate(context, component)
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
+        schema_is_empty = self._is_empty_schema(component.properties.schema)
+        schema_js = [] if schema_is_empty else json.loads(component.properties.schema)
         for js in schema_js:
             schema_columns.append(js["name"].lower())
 
@@ -318,6 +324,14 @@ class DataMasking(MacroSpec):
                     "component.properties.column_names",
                     f"Select atleast one column to apply masking on",
                     SeverityLevelEnum.Error,
+                )
+            )
+        elif schema_is_empty:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.column_names",
+                    "Input schema is empty.",
+                    SeverityLevelEnum.Warning,
                 )
             )
         elif len(component.properties.column_names) > 0:
@@ -430,6 +444,8 @@ class DataMasking(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -448,6 +464,8 @@ class DataMasking(MacroSpec):
         # Generate the actual macro call given the component's state
         
         resolved_macro_name = f"{self.projectName}.{self.name}"
+        if self._is_empty_schema(props.schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema_columns = [js["name"] for js in json.loads(props.schema)]
         # Keep schema order: set iteration order is not stable across processes.
         substituted = set(props.column_names)
@@ -572,6 +590,8 @@ class DataMasking(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}

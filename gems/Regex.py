@@ -77,6 +77,11 @@ class Regex(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         return Dialog("MacroRegex").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -524,6 +529,8 @@ class Regex(MacroSpec):
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(newState, context)
@@ -766,6 +773,8 @@ class Regex(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [{"name": field["name"], "dataType": field["dataType"]["type"]} for field in schema["fields"]]
         relation_name = self.get_relation_names(component, context)

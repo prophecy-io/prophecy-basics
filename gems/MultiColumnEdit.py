@@ -49,6 +49,11 @@ class MultiColumnEdit(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         dialog = Dialog("MultiColumnEdit").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -193,9 +198,17 @@ class MultiColumnEdit(MacroSpec):
                         )
                     )
 
-        if len(component.properties.columnNames) > 0:
+        if len(component.properties.columnNames) > 0 and self._is_empty_schema(component.properties.schema):
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.columnNames",
+                    "Input schema is empty.",
+                    SeverityLevelEnum.Warning,
+                )
+            )
+        elif len(component.properties.columnNames) > 0:
             schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
-            
+
             missingKeyColumns = [
                 col
                 for col in component.properties.columnNames
@@ -217,6 +230,8 @@ class MultiColumnEdit(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -234,6 +249,8 @@ class MultiColumnEdit(MacroSpec):
     def apply(self, props: MultiColumnEditProperties) -> str:
 
         # Get existing column names
+        if self._is_empty_schema(props.schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
         # generate the actual macro call given the component's state
@@ -306,6 +323,8 @@ class MultiColumnEdit(MacroSpec):
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}

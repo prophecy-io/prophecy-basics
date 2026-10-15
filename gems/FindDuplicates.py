@@ -64,6 +64,11 @@ class FindDuplicates(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
 
         order_by_table = BasicTable(
@@ -327,7 +332,8 @@ class FindDuplicates(MacroSpec):
         diagnostics = super(FindDuplicates, self).validate(context, component)
 
         schema_columns = []
-        schema_js = json.loads(component.properties.schema)
+        schema_is_empty = self._is_empty_schema(component.properties.schema)
+        schema_js = [] if schema_is_empty else json.loads(component.properties.schema)
         for js in schema_js:
             schema_columns.append(js["name"].lower())
 
@@ -340,9 +346,17 @@ class FindDuplicates(MacroSpec):
                         SeverityLevelEnum.Error,
                     )
                 )
-        if len(component.properties.groupByColumnNames) > 0:
+        if len(component.properties.groupByColumnNames) > 0 and schema_is_empty:
+            diagnostics.append(
+                Diagnostic(
+                    "component.properties.groupByColumnNames",
+                    "Input schema is empty.",
+                    SeverityLevelEnum.Warning,
+                )
+            )
+        elif len(component.properties.groupByColumnNames) > 0:
             schema_cols_lower = set(col["name"].lower() for col in json.loads(component.properties.schema))
-            
+
             missingKeyColumns = [
                 col
                 for col in component.properties.groupByColumnNames
@@ -425,6 +439,8 @@ class FindDuplicates(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -444,6 +460,8 @@ class FindDuplicates(MacroSpec):
         resolved_macro_name = f"{self.projectName}.{self.name}"
 
         schema_columns = []
+        if self._is_empty_schema(props.schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema_js = json.loads(props.schema)
         for js in schema_js:
             schema_columns.append(js["name"])
@@ -560,6 +578,8 @@ class FindDuplicates(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
