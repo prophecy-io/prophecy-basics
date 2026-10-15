@@ -69,6 +69,11 @@ class Sample(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         order_by_table = BasicTable(
             "OrderByTable",
@@ -272,12 +277,22 @@ class Sample(MacroSpec):
         diagnostics = super(Sample, self).validate(context, component)
 
         missingDataColumns = []
-        schemaFields = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
-        fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            if component.properties.dataColumns:
+                diagnostics.append(
+                    Diagnostic(
+                        "properties.dataColumns",
+                        "Input schema is empty.",
+                        SeverityLevelEnum.Warning,
+                    )
+                )
+        else:
+            schemaFields = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
+            fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
 
-        for col in component.properties.dataColumns:
-            if col.upper() not in fieldsArray:
-                missingDataColumns.append(col)
+            for col in component.properties.dataColumns:
+                if col.upper() not in fieldsArray:
+                    missingDataColumns.append(col)
 
         if missingDataColumns:
             diagnostics.append(
@@ -308,6 +323,8 @@ class Sample(MacroSpec):
             self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -440,6 +457,8 @@ class Sample(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
