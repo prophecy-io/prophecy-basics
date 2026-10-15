@@ -17,7 +17,8 @@
         column_name, column_type, field_number (as string). Must evaluate to "True" to include column.
 
   Adapter Support:
-    - default__ (backtick identifiers), snowflake__ (type remap + quote_identifier), duckdb__ (case-insensitive types)
+    - default__ (backtick identifiers), snowflake__ (type remap + quote_identifier),
+      bigquery__ (type remap, e.g. Struct -> Record, + backtick identifiers), duckdb__ (case-insensitive types)
 
   Depends on schema parameter:
     Yes
@@ -168,6 +169,89 @@
             {%- set all_target_types_upper = (snowflake_target_types_upper + original_target_types_upper) | unique | list -%}
             {%- if column_type_upper in all_target_types_upper or base_type_upper in all_target_types_upper -%}
                 {%- do selected_columns.append(prophecy_basics.quote_identifier(column["name"])) -%}
+            {%- endif -%}
+        {%- endif -%}
+    {%- endfor -%}
+
+    {# Build and return the SELECT statement #}
+    {%- if selected_columns -%}
+        SELECT {{ selected_columns | join(', ') }} FROM {{ relation_list | join(', ') }}
+    {%- else -%}
+        SELECT NULL AS no_columns_matched FROM {{ relation_list | join(', ') }}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro bigquery__DynamicSelect(relation_name, schema, targetTypes, selectUsing, customExpression='') -%}
+
+    {%- set bt = "`" -%}
+    {%- set enriched_schema = [] -%}
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {%- for column in schema -%}
+        {# Create a copy of the column dictionary #}
+        {%- set new_column = {} -%}
+        {%- for key, value in column.items() -%}
+            {%- do new_column.update({key: value}) -%}
+        {%- endfor -%}
+        {# Add the column_index key using loop.index0 #}
+        {%- do new_column.update({"column_index": loop.index0}) -%}
+        {%- do enriched_schema.append(new_column) -%}
+    {%- endfor -%}
+
+    {# Remap Databricks-style targetTypes to BigQuery schema types (legacy and GoogleSQL names) #}
+    {%- set convert_to_bigquery = {
+        "Integer": ["Integer", "Int64"], "Long": ["Integer", "Int64"],
+        "Short": ["Integer", "Int64"], "Byte": ["Integer", "Int64"],
+        "Decimal": ["Numeric", "BigNumeric"], "Numeric": ["Numeric", "BigNumeric"],
+        "Float": ["Float", "Float64"], "Double": ["Float", "Float64"],
+        "String": ["String"], "Boolean": ["Boolean", "Bool"], "Binary": ["Bytes"],
+        "Date": ["Date"], "Timestamp": ["Timestamp"], "Struct": ["Record", "Struct"]
+    } -%}
+    {%- set bigquery_target_types = [] -%}
+    {%- for t in targetTypes -%}
+        {%- set mapped_list = convert_to_bigquery[t] if t in convert_to_bigquery else [t] -%}
+        {%- for mapped in mapped_list -%}
+            {%- if mapped not in bigquery_target_types -%}
+                {%- do bigquery_target_types.append(mapped) -%}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- endfor -%}
+
+    {%- set selected_columns = [] -%}
+    {%- for column in enriched_schema -%}
+        {%- if selectUsing == 'SELECT_EXPR' -%}
+                {# BigQuery rejects unrecognized escapes like '\d' in string literals #}
+                {%- set expression_to_evaluate = customExpression | replace("\\", "\\\\") -%}
+
+                {%- if "column_name" in expression_to_evaluate -%}
+                    {%- set expression_to_evaluate = expression_to_evaluate.replace(
+                        "column_name", "'" ~ column["name"] ~ "'") -%}
+                {%- endif -%}
+
+                {%- if "column_type" in expression_to_evaluate -%}
+                    {%- set expression_to_evaluate = expression_to_evaluate.replace(
+                        "column_type", "'" ~ column["dataType"] ~ "'") -%}
+                {%- endif -%}
+
+                {%- if "field_number" in expression_to_evaluate -%}
+                    {%- set expression_to_evaluate = expression_to_evaluate.replace(
+                        "field_number", "'" ~ column["column_index"] ~ "'") -%}
+                {%- endif -%}
+
+                {%- set evaluation_result = prophecy_basics.evaluate_expression(expression_to_evaluate) | trim -%}
+
+                {# Only add column if the evaluation result is true #}
+                {%- if evaluation_result == "True" -%}
+                    {%- do selected_columns.append(bt ~ column["name"] ~ bt) -%}
+                {%- endif -%}
+        {%- else -%}
+            {# Case-insensitive match against either the original or BigQuery-remapped target types #}
+            {%- set column_type_upper = (column["dataType"] or '') | upper -%}
+            {%- set base_type_upper = (column["dataType"] or '').split('(')[0].split('<')[0] | trim | upper -%}
+            {%- set bigquery_target_types_upper = bigquery_target_types | map('upper') | list -%}
+            {%- set original_target_types_upper = targetTypes | map('upper') | list -%}
+            {%- set all_target_types_upper = (bigquery_target_types_upper + original_target_types_upper) | unique | list -%}
+            {%- if column_type_upper in all_target_types_upper or base_type_upper in all_target_types_upper -%}
+                {%- do selected_columns.append(bt ~ column["name"] ~ bt) -%}
             {%- endif -%}
         {%- endif -%}
     {%- endfor -%}
