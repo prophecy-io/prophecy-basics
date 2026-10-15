@@ -74,6 +74,11 @@ class Transpose(MacroSpec):
             except json.JSONDecodeError:
                 return ast.literal_eval(raw)
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         # Define the UI dialog structure for the component
         return Dialog("Transpose").addElement(
@@ -199,6 +204,17 @@ class Transpose(MacroSpec):
                 )
             )
 
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            if component.properties.dataColumns or component.properties.keyColumns:
+                diagnostics.append(
+                    Diagnostic(
+                        "properties.dataColumns",
+                        "Input schema is empty.",
+                        SeverityLevelEnum.Warning,
+                    )
+                )
+            return diagnostics
+
         schemaFields = self._parse_port_schema(component.ports.inputs[0].schema)
         fieldsArray = [field["name"].upper() for field in schemaFields["fields"]]
         missingDataColumns = []
@@ -235,6 +251,8 @@ class Transpose(MacroSpec):
         self, context: SqlContext, oldState: Component, newState: Component
     ) -> Component:
         # Handle changes in the component's state and return the new state
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = self._parse_port_schema(newState.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -261,6 +279,8 @@ class Transpose(MacroSpec):
 
     def apply(self, props: TransposeProperties) -> str:
 
+        if self._is_empty_schema(props.schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         allColumnNames = [field["name"] for field in json.loads(props.schema)]
 
         # generate the actual macro call given the component's state
@@ -314,6 +334,8 @@ class Transpose(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = self._parse_port_schema(component.ports.inputs[0].schema)
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}

@@ -57,6 +57,11 @@ class DynamicSelect(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _is_empty_schema(schema) -> bool:
+        # A schema is None or "" until the upstream schema has been inferred
+        return schema is None or (isinstance(schema, str) and not schema.strip())
+
     def dialog(self) -> Dialog:
         return Dialog("DynamicSelect").addElement(
             ColumnsLayout(gap="1rem", height="100%")
@@ -221,6 +226,8 @@ class DynamicSelect(MacroSpec):
         if newState.properties.structTypeChecked:
             target_types.append("Struct")
 
+        if self._is_empty_schema(newState.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -321,6 +328,8 @@ class DynamicSelect(MacroSpec):
         if component.properties.structTypeChecked:
             target_types.append("Struct")
 
+        if self._is_empty_schema(component.ports.inputs[0].schema):
+            raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
         fields_array = [
             {"name": field["name"], "dataType": field["dataType"]["type"]}
@@ -382,6 +391,8 @@ class DynamicSelect(MacroSpec):
             res = in0.select(*desired_cols)
 
         else:
+            if self._is_empty_schema(self.props.schema):
+                raise ValueError(f"{self.name}: input schema is empty")
             schema_fields = json.loads(self.props.schema)
             columns_df: SubstituteDisabled = spark.createDataFrame(
                 [(field["name"], field["dataType"], i) for i, field in enumerate(schema_fields)], 
