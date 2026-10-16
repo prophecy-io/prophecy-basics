@@ -394,8 +394,6 @@ class DynamicSelect(MacroSpec):
                 res = in0.select(lit(None).cast("string").alias("no_columns_matched"))
 
         else:
-            if self._is_empty_schema(self.props.schema):
-                raise ValueError(f"{self.name}: input schema is empty")
             schema_fields = json.loads(self.props.schema)
             columns_df: SubstituteDisabled = spark.createDataFrame(
                 [(field["name"], field["dataType"], i) for i, field in enumerate(schema_fields)], 
