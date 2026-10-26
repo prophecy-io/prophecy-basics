@@ -1,0 +1,20 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: edit_in_place
+    properties: { columnNames: [first_name, last_name], expressionToBeApplied: lower(column_value) }
+  - name: new_columns_with_prefix
+    properties:
+      columnNames: [ROWCOUNT]
+      expressionToBeApplied: column_value * 2
+      changeOutputFieldName: true
+      prefixSuffixOption: Prefix
+      prefixSuffixToBeAdded: new_
+  - name: new_columns_with_suffix
+    properties:
+      columnNames: [first_name]
+      expressionToBeApplied: trim(column_value)
+      changeOutputFieldName: true
+      prefixSuffixOption: Suffix
+      prefixSuffixToBeAdded: _trimmed

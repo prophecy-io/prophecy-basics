@@ -1,0 +1,36 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. This gem works on a table, not on an input.
+relations: []
+cases:
+  - name: optimise_with_where_and_zorder
+    properties:
+      catalog: main
+      database: sales
+      tableName: orders
+      action: optimiseTable
+      useOptimiseWhere: true
+      optimiseWhere: order_date >= '2024-01-01'
+      useOptimiseZOrder: true
+      optimiseZOrderColumns: [{ colName: customer_id }, { colName: order_date }]
+  - name: vacuum
+    properties: { catalog: main, database: sales, tableName: orders, action: vacuumTable, vaccumRetainNumHours: "200" }
+  - name: delete_with_backslash_and_quotes
+    properties: { catalog: main, database: sales, tableName: orders, action: deleteFromTable, deleteCondition: "note rlike '\\\\d+' and note != 'it''s'" }
+  - name: restore_to_version
+    properties: { catalog: main, database: sales, tableName: orders, action: restoreTable, restoreVia: restoreViaVersion, restoreValue: "3" }
+  - name: restore_to_timestamp
+    properties: { catalog: main, database: sales, tableName: orders, action: restoreTable, restoreVia: restoreViaTimestamp, restoreValue: "2024-01-01 00:00:00" }
+  - name: update_rows
+    properties: { catalog: main, database: sales, tableName: orders, action: updateTable, updateSetClause: status = 'closed', updateCondition: order_date < '2020-01-01' }
+  - name: delete_rows
+    properties: { catalog: main, database: sales, tableName: orders, action: deleteFromTable, deleteCondition: status = 'test' }
+  - name: drop_table
+    properties: { catalog: main, database: sales, tableName: orders, action: dropTable }
+  - name: register_external_path
+    properties: { database: sales, tableName: orders_ext, action: registerTableInCatalog, useExternalFilePath: true, path: "dbfs:/data/orders", isCatalogEnabled: false }
+  - name: fsck_repair
+    properties: { catalog: main, database: sales, tableName: orders, action: fsckRepairTable }
+  # The code doesn't carry isCatalogEnabled; without a catalog it reopens as false
+  - name: run_ddl
+    properties: { isCatalogEnabled: false, action: runDDL, runDDL: ALTER TABLE main.sales.orders ADD COLUMN note STRING }

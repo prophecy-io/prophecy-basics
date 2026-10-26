@@ -1,0 +1,6 @@
+[
+  { "name": "city", "dataType": "String" },
+  { "name": "category", "dataType": "String" },
+  { "name": "price", "dataType": "Double" },
+  { "name": "qty", "dataType": "Integer" }
+]

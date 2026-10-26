@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from collections import defaultdict
 from prophecy.cb.sql.Component import *
@@ -528,9 +529,19 @@ class TableOperations(MacroSpec):
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
-        
+
+        def text(*names):
+            # apply() writes '<value>' with only ' escaped (as \'); saved state holds the bare value
+            raw = next((parametersMap.get(n) for n in names if parametersMap.get(n)), None)
+            if raw is None:
+                return ""
+            inner = raw[1:-1]
+            if len(raw) >= 2 and raw[0] == raw[-1] == "'" and not re.search(r"(?<!\\)'", inner):
+                return inner.replace("\\'", "'")
+            return raw
+
         # Convert optimiseZOrderColumns from comma-separated string to List[StringColName]
-        zorder_cols_str = parametersMap.get("optimiseZOrderColumns", "").lstrip("'").rstrip("'").strip()
+        zorder_cols_str = text("optimiseZOrderColumns").strip()
         optimiseZOrderColumns = []
         if zorder_cols_str:
             optimiseZOrderColumns = [
@@ -538,24 +549,28 @@ class TableOperations(MacroSpec):
                 for col in zorder_cols_str.split(",") if col.strip()
             ]
         
+        catalog = text("catalog")
         return TableOperations.TableOperationsProperties(
-            catalog=parametersMap.get("catalog", "").lstrip("'").rstrip("'"),
-            database=parametersMap.get("database", "").lstrip("'").rstrip("'"),
-            tableName=parametersMap.get("tableName", "").lstrip("'").rstrip("'"),
-            action=parametersMap.get("action", "").lstrip("'").rstrip("'"),
-            path=parametersMap.get("path", "").lstrip("'").rstrip("'"),
+            catalog=catalog,
+            # Not a macro param or saved; the macro uses the catalog whenever one is given
+            isCatalogEnabled=bool(catalog),
+            database=text("database"),
+            tableName=text("tableName"),
+            action=text("action"),
+            path=text("path"),
             useExternalFilePath=parametersMap.get("useExternalFilePath", "false").lower() == "true",
-            vaccumRetainNumHours=parametersMap.get("vaccumRetainNumHours", "").lstrip("'").rstrip("'"),
+            # Macro param is vacuumRetainNumHours; unloadProperties writes the property name
+            vaccumRetainNumHours=text("vacuumRetainNumHours", "vaccumRetainNumHours"),
             useOptimiseWhere=parametersMap.get("useOptimiseWhere", "false").lower() == "true",
-            optimiseWhere=parametersMap.get("optimiseWhere", "").lstrip("'").rstrip("'"),
+            optimiseWhere=text("optimiseWhere"),
             useOptimiseZOrder=parametersMap.get("useOptimiseZOrder", "false").lower() == "true",
             optimiseZOrderColumns=optimiseZOrderColumns,
-            restoreVia=parametersMap.get("restoreVia", "").lstrip("'").rstrip("'"),
-            restoreValue=parametersMap.get("restoreValue", "").lstrip("'").rstrip("'"),
-            deleteCondition=parametersMap.get("deleteCondition", "").lstrip("'").rstrip("'"),
-            updateSetClause=parametersMap.get("updateSetClause", "").lstrip("'").rstrip("'"),
-            updateCondition=parametersMap.get("updateCondition", "").lstrip("'").rstrip("'"),
-            runDDL=parametersMap.get("runDDL", "").lstrip("'").rstrip("'"),
+            restoreVia=text("restoreVia"),
+            restoreValue=text("restoreValue"),
+            deleteCondition=text("deleteCondition"),
+            updateSetClause=text("updateSetClause"),
+            updateCondition=text("updateCondition"),
+            runDDL=text("runDDL"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

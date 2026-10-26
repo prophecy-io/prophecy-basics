@@ -1,0 +1,7 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "name", "dataType": "String" },
+  { "name": "amount", "dataType": "Double" },
+  { "name": "is_active", "dataType": "Boolean" },
+  { "name": "created_at", "dataType": "Timestamp" }
+]

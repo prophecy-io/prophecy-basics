@@ -1,0 +1,6 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "name", "dataType": "String" },
+  { "name": "city", "dataType": "String" },
+  { "name": "updated_at", "dataType": "Timestamp" }
+]

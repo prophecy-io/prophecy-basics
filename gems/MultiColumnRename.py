@@ -331,6 +331,17 @@ class MultiColumnRename(MacroSpec):
                 raise ValueError("MultiColumnRename expects a constant Jinja string")
             return parsed.body[0].nodes[0].value
 
+        def _schema():
+            # Saved state stores schema as JSON of {name, dataType}; code from apply()
+            # passes only the column names, e.g. ['a', 'b']. onChange restores data types.
+            schema = parametersMap.get("schema")
+            if self._is_empty_schema(schema) or schema == "None":
+                return ""
+            columns = _parse_py_literal(schema, None)
+            if isinstance(columns, list) and all(isinstance(c, str) for c in columns):
+                return json.dumps([{"name": c} for c in columns])
+            return schema
+
         rename_method = parametersMap.get("renameMethod", "").strip()
         custom_expression = parametersMap.get("customExpression", "")
         # The empty value represents a gem with no method selected yet.
@@ -346,7 +357,7 @@ class MultiColumnRename(MacroSpec):
 
         return MultiColumnRename.MultiColumnRenameProperties(
             relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
-            schema=parametersMap.get("schema"),
+            schema=_schema(),
             columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
             renameMethod=rename_method,
             editType=parametersMap.get('editType').lstrip("'").rstrip("'"),
@@ -361,7 +372,7 @@ class MultiColumnRename(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("schema", str(properties.schema)),
+                MacroParameter("schema", properties.schema or ""),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter("renameMethod", properties.renameMethod),
                 MacroParameter("editType", properties.editType),

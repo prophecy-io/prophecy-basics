@@ -19,9 +19,15 @@ Editor performs when it opens a project:
     apply     -> run the gem's apply to regenerate the call.
     compare   -> reparse the regenerated call and diff it against original.
 
-Argument values are kept as raw source text; decoding them is each gem's job.
-Parameters absent from the call are not pre-filled, so a gem reading one gets
-None, exactly as in the SQL Editor.
+Argument values are the exact source text of each argument; decoding them is
+each gem's job. Parameters absent from the call are not pre-filled, so a gem
+reading one gets None, exactly as in the SQL Editor.
+
+Per-gem cases (``gems/<Gem>/cases.yml``) start from the form instead of SQL:
+each case's ``properties`` are filled in, onChange runs, apply() generates the
+call, and that call goes through the pipeline above. The case passes when both
+the code and the form come back unchanged. ``schema.json`` next to it holds
+the input columns given to onChange, for cases and for SQL files in that folder.
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ import dataclasses
 import importlib.util
 import inspect
 import io
+import json
 import os
 import re
 import sys
@@ -656,6 +663,9 @@ class GemCall:
     project: str
     gem: str
     lineno: int
+    # Exact source text of each argument as (keyword or None, text), in call
+    # order; None when it could not be matched to the source.
+    source_args: Optional[List[Tuple[Optional[str], str]]] = None
 
     @property
     def fq(self) -> str:
@@ -718,9 +728,127 @@ def _scan_brace_spans(src: str) -> List[Tuple[int, str]]:
     return spans
 
 
+def _matching_close(text: str, open_idx: int) -> Optional[int]:
+    """Index of the bracket closing ``text[open_idx]``, skipping quoted strings."""
+    depth, quote, i = 0, None, open_idx
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _split_top_level(text: str) -> List[str]:
+    """Split ``text`` on commas that are outside quotes and brackets."""
+    parts: List[str] = []
+    depth, quote, start, i = 0, None, 0, 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "," and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+        i += 1
+    parts.append(text[start:])
+    if len(parts) > 1 and not parts[-1].strip():
+        parts.pop()  # trailing comma
+    return parts
+
+
+_CALL_HEAD_RE = re.compile(r"\s*((?:[A-Za-z_]\w*\s*\.\s*)?[A-Za-z_]\w*)\s*\(")
+_KWARG_RE = re.compile(r"([A-Za-z_]\w*)\s*=(?!=)")
+
+
+def source_args(call_text: str) -> Optional[Tuple[str, List[Tuple[Optional[str], str]]]]:
+    """Split ``callee(arg, key=arg)`` source into (callee, [(keyword or None, text)]).
+
+    Returns None unless ``call_text`` is exactly one call expression.
+    """
+    m = _CALL_HEAD_RE.match(call_text)
+    if not m:
+        return None
+    close = _matching_close(call_text, m.end() - 1)
+    if close is None or call_text[close + 1:].strip():
+        return None
+    callee = re.sub(r"\s+", "", m.group(1))
+    body = call_text[m.end():close]
+    if not body.strip():
+        return callee, []
+    args: List[Tuple[Optional[str], str]] = []
+    for piece in _split_top_level(body):
+        piece = piece.strip()
+        kw = _KWARG_RE.match(piece)
+        args.append((kw.group(1), piece[kw.end():].strip()) if kw else (None, piece))
+    return callee, args
+
+
+def _attach_source_args(src: str, calls: List[GemCall]) -> None:
+    """Give each call the exact text of its arguments, as the SQL Editor sees them.
+
+    A call is matched to the ``{{ ... }}`` span that holds exactly that call;
+    calls nested inside a larger expression keep ``source_args=None``.
+    """
+    scan = _blank_out(r"\{#.*?#\}", src)
+    scan = _blank_out(r"\{%-?\s*raw\s*-?%\}.*?\{%-?\s*endraw\s*-?%\}", scan)
+    spans = [(lineno, lineno + inner.count("\n"), inner)
+             for lineno, inner in _scan_brace_spans(scan)]
+    used = set()
+    for gc in calls:
+        kw_names = [k.key for k in gc.node.kwargs]
+        for idx, (first, last, inner) in enumerate(spans):
+            if idx in used or not first <= gc.lineno <= last:
+                continue
+            parsed = source_args(inner)
+            if parsed is None or parsed[0] not in (gc.fq, gc.gem):
+                continue
+            args = parsed[1]
+            n_pos = len(gc.node.args)
+            if (len(args) != n_pos + len(kw_names)
+                    or any(k is not None for k, _ in args[:n_pos])
+                    or [k for k, _ in args[n_pos:]] != kw_names):
+                continue
+            gc.source_args = args
+            used.add(idx)
+            break
+
+
 def extract_calls(path: str, project: Project, warnings: List[str]) -> List[GemCall]:
+    with open(path, encoding="utf-8") as fh:
+        return extract_calls_from_text(fh.read(), project, warnings)
+
+
+def extract_calls_from_text(src: str, project: Project, warnings: List[str]) -> List[GemCall]:
+    calls = _extract_call_nodes(src, project, warnings)
+    _attach_source_args(src, calls)
+    return calls
+
+
+def _extract_call_nodes(src: str, project: Project, warnings: List[str]) -> List[GemCall]:
     env = _make_env()
-    src = open(path, encoding="utf-8").read()
     default_proj = project.project_name
     registry = project.gems
     calls: List[GemCall] = []
@@ -773,25 +901,38 @@ class ResolvedParam:
 
 
 def resolve_params(call: nodes.Call, sig: Optional[MacroSignature],
-                   warnings: List[str]) -> List[ResolvedParam]:
-    """Name positional args from the signature; keywords keep their own name."""
+                   warnings: List[str],
+                   source: Optional[List[Tuple[Optional[str], str]]] = None) -> List[ResolvedParam]:
+    """Name positional args from the signature; keywords keep their own name.
+
+    Values are the exact ``source`` texts when given, else re-rendered from the AST.
+    """
+    arg_nodes = list(call.args) + [kw.value for kw in call.kwargs]
+    if source is not None and len(source) == len(arg_nodes):
+        values = [text for _, text in source]
+    else:
+        values = [generate_code(n, warnings) for n in arg_nodes]
     params: List[ResolvedParam] = []
-    for idx, arg in enumerate(call.args):
-        value = generate_code(arg, warnings)
+    for idx in range(len(call.args)):
         if sig is not None and idx < sig.arity:
-            params.append(ResolvedParam(sig.args[idx], value, "pos", idx))
+            params.append(ResolvedParam(sig.args[idx], values[idx], "pos", idx))
         else:
-            params.append(ResolvedParam("", value, "pos", idx))
-    for kw in call.kwargs:
-        value = generate_code(kw.value, warnings)
+            params.append(ResolvedParam("", values[idx], "pos", idx))
+    for kw, value in zip(call.kwargs, values[len(call.args):]):
         params.append(ResolvedParam(kw.key, value, "kw", -1))
     return params
 
 
 def validate_params(call: nodes.Call, sig: Optional[MacroSignature],
                     params: List[ResolvedParam], gem: GemInfo,
-                    env: jinja2.Environment) -> List[str]:
-    """Collect all validation errors for a call."""
+                    env: jinja2.Environment,
+                    warnings: Optional[List[str]] = None) -> List[str]:
+    """Collect all validation errors for a call.
+
+    Shape mismatches against a same-named property go to ``warnings``: the gem's
+    loadProperties may convert the value (e.g. a comma string into a list), and
+    typecheck reports it if it does not.
+    """
     errors: List[str] = []
 
     if call.dyn_args is not None:
@@ -858,8 +999,9 @@ def validate_params(call: nodes.Call, sig: Optional[MacroSignature],
         for p, node in zip(params, arg_nodes):
             if p.name and p.name in hints:
                 msg = check_value_shape(node, hints[p.name])
-                if msg:
-                    errors.append(f"parameter {p.name!r}: {msg}")
+                if msg and warnings is not None:
+                    warnings.append(f"parameter {p.name!r}: {msg} (the property of the "
+                                    f"same name has that type; loadProperties must convert it)")
 
     return errors
 
@@ -1021,27 +1163,26 @@ def _literal_of_param(env: jinja2.Environment, params: List["ResolvedParam"],
 def emulate_onchange(gem: "GemInfo", props_obj: Any,
                      resolved_params: List["ResolvedParam"],
                      env: jinja2.Environment, warnings: List[str],
-                     info: Optional[Dict[str, Any]] = None) -> Any:
+                     info: Optional[Dict[str, Any]] = None,
+                     schema_fields: Optional[List[Dict[str, Any]]] = None) -> Any:
     """Run the gem's onChange against a context synthesized from the call.
 
-    The input schema comes from the call's ``schema_columns`` (or ``schema``)
-    and the upstream nodes from ``relation_name``. Returns the new properties.
+    The input schema comes from ``schema_fields`` (a gem folder's schema.json)
+    when given, else from the call's ``schema_columns`` (or ``schema``). The
+    upstream nodes come from ``relation_name``. Returns the new properties.
     """
-    import json as _json
-    from prophecy.cb.sql.Component import (
-        Component, NodePort, NodePorts, SqlNodeMetadata)
-    from prophecy.cb.sql.SqlContext import SqlContext, SqlGraph, NodeConnection
-
-    # ---- synthesize the input-port schema columns from the original call ----
+    # ---- synthesize the input-port schema columns ----
     fields: List[Dict[str, Any]] = []
     sc_lit, sc_present = _literal_of_param(env, resolved_params, "schema_columns")
     s_lit, s_present = _literal_of_param(env, resolved_params, "schema")
     if isinstance(s_lit, str):  # gems usually store schema as a JSON string
         try:
-            s_lit = _json.loads(s_lit)
+            s_lit = json.loads(s_lit)
         except ValueError:
             pass
-    if sc_present:
+    if schema_fields is not None:
+        fields = port_fields(schema_fields)
+    elif sc_present:
         if isinstance(sc_lit, (list, tuple)):
             fields = [{"name": str(n), "dataType": {"type": "string"}}
                       for n in sc_lit]
@@ -1071,7 +1212,23 @@ def emulate_onchange(gem: "GemInfo", props_obj: Any,
         info["columns"] = [f.get("name") for f in fields]
         info["relations"] = relations
 
-    schema_json = _json.dumps({"fields": fields})
+    return run_onchange(gem, props_obj, fields, relations)
+
+
+def port_fields(schema_fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """schema.json entries ({name, dataType}) -> input-port schema fields."""
+    return [{"name": f["name"], "dataType": {"type": f.get("dataType", "string")}}
+            for f in schema_fields]
+
+
+def run_onchange(gem: "GemInfo", props_obj: Any, fields: List[Dict[str, Any]],
+                 relations: List[str]) -> Any:
+    """Run the gem's onChange with one input port per upstream relation."""
+    from prophecy.cb.sql.Component import (
+        Component, NodePort, NodePorts, SqlNodeMetadata)
+    from prophecy.cb.sql.SqlContext import SqlContext, SqlGraph, NodeConnection
+
+    schema_json = json.dumps({"fields": fields})
     inputs = []
     nodes: Dict[str, Any] = {}
     connections = []
@@ -1113,6 +1270,8 @@ class CallResult:
     params: List[Tuple[str, str]] = field(default_factory=list)  # (name, value)
     orig_sql: Optional[str] = None
     regen_sql: Optional[str] = None
+    case: Optional[str] = None  # case name, for results from a cases.yml
+    props: Any = None  # the gem's properties after reopening the code
 
 
 def _sig_default_or_none(sig: Optional[MacroSignature], name: str) -> Optional[str]:
@@ -1122,7 +1281,8 @@ def _sig_default_or_none(sig: Optional[MacroSignature], name: str) -> Optional[s
 
 
 def run_call(gc: GemCall, project: Project, file_path: str,
-             file_warnings: List[str]) -> CallResult:
+             file_warnings: List[str],
+             schema_fields: Optional[List[Dict[str, Any]]] = None) -> CallResult:
     from prophecy.cb.sql.Component import BasicMacroProperties, MacroParameter, MacroProperties
 
     env = _make_env()
@@ -1151,7 +1311,7 @@ def run_call(gc: GemCall, project: Project, file_path: str,
 
     # ---- resolve -------------------------------------------------------------
     try:
-        params = resolve_params(gc.node, sig, warnings)
+        params = resolve_params(gc.node, sig, warnings, gc.source_args)
     except GenerateCodeError as e:
         return result("resolve", False,
                       f"unrenderable argument node {e.node_type} at line {e.lineno}",
@@ -1160,7 +1320,7 @@ def run_call(gc: GemCall, project: Project, file_path: str,
     file_warnings.extend(warnings)
 
     # ---- validate ------------------------------------------------------------
-    errors = validate_params(gc.node, sig, params, gem, env)
+    errors = validate_params(gc.node, sig, params, gem, env, file_warnings)
     if errors:
         return result("validate", False,
                       "validation failed:\n  - " + "\n  - ".join(errors),
@@ -1194,7 +1354,7 @@ def run_call(gc: GemCall, project: Project, file_path: str,
     onchange_info: Dict[str, Any] = {}
     try:
         props = emulate_onchange(gem, props, params, env,
-                                 onchange_warnings, onchange_info)
+                                 onchange_warnings, onchange_info, schema_fields)
     except Exception:
         cols = onchange_info.get("columns", [])
         rels = onchange_info.get("relations", [])
@@ -1258,9 +1418,11 @@ def run_call(gc: GemCall, project: Project, file_path: str,
                       f"regenerated output must contain exactly one call to "
                       f"{gc.fq}, found {len(regen_calls)}\n  output: {apply_out}",
                       params=param_pairs)
+    regen_source = next((c.source_args for c in extract_calls_from_text(apply_out, project, [])
+                         if (c.project, c.gem) == (gc.project, gc.gem)), None)
 
     try:
-        regen_params = resolve_params(regen_calls[0], sig, [])
+        regen_params = resolve_params(regen_calls[0], sig, [], regen_source)
     except GenerateCodeError as e:
         return result("compare", False,
                       f"regenerated call contains an unrenderable argument node "
@@ -1280,15 +1442,19 @@ def run_call(gc: GemCall, project: Project, file_path: str,
         return default is not None and values_equal(env, present, default)
 
     if not all(param_matches(n) for n in set(orig_map) | set(regen_map)):
-        return result(
+        mismatch = result(
             "compare",
             False,
             "generated SQL does not match the original call (run with -v to see the SQL)",
             params=param_pairs,
             orig_sql="{{ " + generate_code(gc.node) + " }}",
             regen_sql="{{ " + generate_code(regen_calls[0]) + " }}")
+        mismatch.props = props
+        return mismatch
 
-    return result("compare", True, "round-trip verified", params=param_pairs)
+    verified = result("compare", True, "round-trip verified", params=param_pairs)
+    verified.props = props
+    return verified
 
 
 # =============================================================================
@@ -1313,6 +1479,7 @@ def test_file(path: str, project_dir: Optional[str] = None) -> FileReport:
         if project_dir is None:
             project_dir = find_project_dir(path)
         project = load_project(project_dir)
+        schema_fields = load_schema(os.path.dirname(path))
     except Exception as e:
         return FileReport(path=path, passed=False, results=[], warnings=[],
                           fatal=f"{type(e).__name__}: {e}")
@@ -1333,7 +1500,7 @@ def test_file(path: str, project_dir: Optional[str] = None) -> FileReport:
     results: List[CallResult] = []
     for gc in gem_calls:
         try:
-            results.append(run_call(gc, project, path, warnings))
+            results.append(run_call(gc, project, path, warnings, schema_fields))
         except Exception:
             # A harness bug must fail the call visibly, never abort the batch.
             results.append(CallResult(
@@ -1343,6 +1510,221 @@ def test_file(path: str, project_dir: Optional[str] = None) -> FileReport:
                         "(bug in code_to_visual_runner.py, not the gem)",
                 traceback=traceback.format_exc(),
             ))
+    passed = all(r.passed for r in results) and not project.errors
+    return FileReport(path=path, passed=passed, results=results, warnings=warnings,
+                      project_errors=list(project.errors))
+
+
+# =============================================================================
+# Per-gem cases: gems/<Gem>/cases.yml + schema.json
+# =============================================================================
+
+CASES_FILE = "cases.yml"
+SCHEMA_FILE = "schema.json"
+DEFAULT_RELATIONS = ["source"]
+
+
+def load_schema(directory: str) -> Optional[List[Dict[str, Any]]]:
+    """Read ``schema.json`` in ``directory``: a list of {"name", "dataType"}; None if absent."""
+    path = os.path.join(directory, SCHEMA_FILE)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, list) or not all(
+            isinstance(f, dict) and isinstance(f.get("name"), str) for f in data):
+        raise ValueError(f"{path}: expected a list of {{\"name\": ..., \"dataType\": ...}} objects")
+    return data
+
+
+def load_cases(path: str) -> Tuple[Dict[str, Any], List[Tuple[int, Dict[str, Any]]]]:
+    """Parse a cases.yml into (document, [(line number, case)]), validating its shape."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    doc = yaml.safe_load(text) or {}
+    cases = doc.get("cases") if isinstance(doc, dict) else None
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("expected a top-level 'cases:' list with at least one case")
+
+    root = yaml.compose(text)
+    case_nodes = next(v for k, v in root.value if k.value == "cases").value
+    seen = set()
+    out = []
+    for node, case in zip(case_nodes, cases):
+        lineno = node.start_mark.line + 1
+        if not isinstance(case, dict) or not isinstance(case.get("name"), str):
+            raise ValueError(f"line {lineno}: each case needs a 'name'")
+        if case["name"] in seen:
+            raise ValueError(f"line {lineno}: duplicate case name {case['name']!r}")
+        seen.add(case["name"])
+        if not isinstance(case.get("properties", {}), dict):
+            raise ValueError(f"line {lineno}: 'properties' must be a mapping")
+        out.append((lineno, case))
+    return doc, out
+
+
+def _plain(value: Any) -> Any:
+    """Dataclasses -> dicts, recursively, so forms compare by value."""
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {f.name: _plain(getattr(value, f.name)) for f in dataclasses.fields(value)}
+    if isinstance(value, (list, tuple)):
+        return [_plain(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    return value
+
+
+def form_diff(before: Any, after: Any) -> List[str]:
+    """Fields whose values differ between two property objects.
+
+    None and "" count as equal: the form shows both as an empty field.
+    """
+    if type(before) is not type(after):
+        return [f"properties type: {type(before).__name__} -> {type(after).__name__}"]
+    diffs = []
+    for f in dataclasses.fields(before):
+        a, b = _plain(getattr(before, f.name)), _plain(getattr(after, f.name))
+        if a != b and not (a in (None, "") and b in (None, "")):
+            diffs.append(f"{f.name}: {a!r} -> {b!r}")
+    return diffs
+
+
+def _concrete_dataclass(cls) -> Optional[type]:
+    """The only dataclass subclass of an abstract field type, else None."""
+    found, todo = [], list(cls.__subclasses__())
+    while todo:
+        sub = todo.pop()
+        todo.extend(sub.__subclasses__())
+        if dataclasses.is_dataclass(sub):
+            found.append(sub)
+    return found[0] if len(found) == 1 else None
+
+
+def _build_abstract_items(value: Any, ann, gem_module: str) -> Any:
+    """Build dicts typed as an abstract class (e.g. List[MatchField]) as its one concrete dataclass."""
+    members = _strip_optional(ann)
+    ann = members[0] if len(members) == 1 else ann
+    if isinstance(value, list) and typing.get_origin(ann) in (list, typing.List):
+        item = (typing.get_args(ann) or [Any])[0]
+        return [_build_abstract_items(v, item, gem_module) for v in value]
+    if isinstance(value, dict) and isinstance(ann, type) and not dataclasses.is_dataclass(ann):
+        concrete = _concrete_dataclass(ann)
+        if concrete is not None:
+            return _construct_dataclass(concrete, value, gem_module)
+    return value
+
+
+def run_case(case: Dict[str, Any], lineno: int, gem: GemInfo, project: Project,
+             path: str, schema_fields: Optional[List[Dict[str, Any]]],
+             relations: List[str], warnings: List[str]) -> CallResult:
+    """Fill in the form, generate the code, reopen it and compare both."""
+    name = case["name"]
+
+    def result(stage, passed, message, tb=None, sql=None, params=None):
+        return CallResult(file=path, lineno=lineno, macro=f"{gem.project_name}.{gem.gem_name}",
+                          stage=stage, passed=passed, message=message, traceback=tb,
+                          params=params or [], orig_sql=sql, case=name)
+
+    values = case.get("properties") or {}
+    known = [f.name for f in dataclasses.fields(gem.properties_cls)]
+    unknown = sorted(set(values) - set(known))
+    if unknown:
+        return result("case", False, f"unknown properties {unknown}; "
+                                     f"{gem.gem_name} has: {', '.join(known)}")
+
+    # ---- fill in the form: the editor runs onChange as the form is edited ----
+    gem_module = type(gem.instance).__module__
+    hints = _field_types(gem.properties_cls)
+    try:
+        values = {k: _build_abstract_items(v, hints.get(k, Any), gem_module)
+                  for k, v in values.items()}
+        form = _construct_dataclass(gem.properties_cls, values, gem_module)
+    except BoundaryRehydrationError as e:
+        lines = str(e).splitlines()
+        return result("case", False, "a nested value in the case is incomplete: "
+                      + lines[0] + "\n" + lines[2].strip())
+    except Exception:
+        return result("case", False, "could not build the gem's properties from the case",
+                      tb=traceback.format_exc())
+    violations: List[str] = []
+    _typecheck_dataclass(form, "", violations)
+    if violations:
+        return result("case", False, "case values do not match the property types:\n  - "
+                      + "\n  - ".join(violations))
+    fields = port_fields(schema_fields) if schema_fields is not None else []
+    try:
+        form = run_onchange(gem, emulate_boundary(form, gem), fields, relations)
+    except Exception:
+        return result("onChange", False, "onChange raised while filling in the form",
+                      tb=traceback.format_exc())
+
+    # ---- generate the code ----
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            sql = gem.instance.apply(form)
+        if not isinstance(sql, str):
+            raise TypeError(f"apply() returned {type(sql).__name__}, expected str")
+    except Exception:
+        return result("apply", False, "apply() raised while generating code from the form",
+                      tb=traceback.format_exc())
+    calls = [c for c in extract_calls_from_text(sql, project, warnings)
+             if (c.project, c.gem) == (gem.project_name, gem.gem_name)]
+    if len(calls) != 1:
+        return result("apply", False, f"generated code must hold exactly one "
+                                      f"{gem.gem_name} call, found {len(calls)}", sql=sql)
+
+    # ---- reopen it in the SQL Editor ----
+    reopened = run_call(calls[0], project, path, warnings, schema_fields)
+    reopened.lineno, reopened.case = lineno, name
+    reopened.orig_sql = reopened.orig_sql or sql
+    if not reopened.passed:
+        return reopened
+    diffs = form_diff(form, reopened.props)
+    if diffs:
+        return result("form", False, "the form changed after reopening the generated code "
+                                     "(filled in -> reopened):\n  - " + "\n  - ".join(diffs),
+                      sql=sql, params=reopened.params)
+    return result("form", True, "form and code round-trip", sql=sql, params=reopened.params)
+
+
+def test_cases_file(path: str, project_dir: Optional[str] = None) -> FileReport:
+    """Run every case of a gem folder's cases.yml (the folder is named after the gem)."""
+    path = os.path.abspath(path)
+    gem_dir = os.path.dirname(path)
+    try:
+        if project_dir is None:
+            project_dir = find_project_dir(path)
+        project = load_project(project_dir)
+        doc, cases = load_cases(path)
+        schema_fields = load_schema(gem_dir)
+    except Exception as e:
+        return FileReport(path=path, passed=False, results=[], warnings=[],
+                          fatal=f"{type(e).__name__}: {e}")
+
+    gem_name = os.path.basename(gem_dir)
+    gem = project.gems.get((project.project_name, gem_name))
+    if gem is None or gem.properties_cls is None:
+        reason = project.failed_gems.get(gem_name, "the folder name must match a gem in gems/")
+        return FileReport(path=path, passed=False, results=[], warnings=[],
+                          fatal=f"cannot test gem {gem_name!r}: {reason}",
+                          project_errors=list(project.errors))
+
+    warnings = [f"[project] {w}" for w in project.warnings]
+    results: List[CallResult] = []
+    for lineno, case in cases:
+        relations = case.get("relations", doc.get("relations", DEFAULT_RELATIONS))
+        try:
+            case_warnings: List[str] = []
+            results.append(run_case(case, lineno, gem, project, path, schema_fields,
+                                    relations, case_warnings))
+            warnings.extend(f"case {case['name']!r}: {w}" for w in dict.fromkeys(case_warnings))
+        except Exception:
+            results.append(CallResult(
+                file=path, lineno=lineno, macro=f"{gem.project_name}.{gem.gem_name}",
+                stage="harness", passed=False, case=case["name"],
+                message="internal error while testing this case "
+                        "(bug in code_to_visual_runner.py, not the gem)",
+                traceback=traceback.format_exc()))
     passed = all(r.passed for r in results) and not project.errors
     return FileReport(path=path, passed=passed, results=results, warnings=warnings,
                       project_errors=list(project.errors))
@@ -1370,8 +1752,11 @@ def print_report(report: FileReport, verbose: bool, out=sys.stdout) -> None:
 
     for r in report.results:
         tag = "PASS" if r.passed else "FAIL"
-        print(f"[{tag}] {os.path.basename(r.file)}:{r.lineno} {r.macro}", file=out)
+        case = f" case {r.case!r}" if r.case else ""
+        print(f"[{tag}] {os.path.basename(r.file)}:{r.lineno} {r.macro}{case}", file=out)
         if verbose:
+            if r.case and r.orig_sql:
+                print(f"  generated: {r.orig_sql}", file=out)
             print("  resolved parameters:", file=out)
             for name, value in r.params:
                 print(f"    {name or '<positional>'} = {value}", file=out)
@@ -1394,11 +1779,11 @@ SKIP_DIRS = {"target", "dbt_packages", ".git", "__pycache__",
 
 
 def expand_paths(paths: List[str]) -> Tuple[List[str], List[str]]:
-    """Expand CLI path args, a directory becomes all *.sql files under it
-    (recursive, sorted, skipping ``SKIP_DIRS``).
+    """Expand CLI path args, a directory becomes all *.sql and cases.yml files
+    under it (recursive, sorted, skipping ``SKIP_DIRS``).
 
-    Returns (sql_files, errors): errors are messages for paths that do not
-    exist or directories that contain no .sql files (loud, never silent).
+    Returns (files, errors): errors are messages for paths that do not exist
+    or directories that contain no testable files (loud, never silent).
     """
     files: List[str] = []
     errors: List[str] = []
@@ -1407,9 +1792,10 @@ def expand_paths(paths: List[str]) -> Tuple[List[str], List[str]]:
             found = []
             for dp, dn, fns in os.walk(path):
                 dn[:] = [d for d in dn if d not in SKIP_DIRS]
-                found.extend(os.path.join(dp, f) for f in fns if f.endswith(".sql"))
+                found.extend(os.path.join(dp, f) for f in fns
+                             if f.endswith(".sql") or f == CASES_FILE)
             if not found:
-                errors.append(f"no .sql files under directory: {path}")
+                errors.append(f"no .sql or {CASES_FILE} files under directory: {path}")
             files.extend(sorted(found))
         elif os.path.isfile(path):
             files.append(path)
@@ -1423,7 +1809,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "files",
         nargs="+",
-        help="one or more sql files to test, or a directory that is searched recursively for *.sql files.")
+        help="sql files or cases.yml files to test, or directories searched recursively for both.")
     parser.add_argument(
         "--project-dir",
         default=None,
@@ -1448,7 +1834,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         any_fatal = True
 
     for f in sql_files:
-        report = test_file(f, args.project_dir)
+        if os.path.basename(f) == CASES_FILE:
+            report = test_cases_file(f, args.project_dir)
+        else:
+            report = test_file(f, args.project_dir)
         print_report(report, args.verbose)
         if report.fatal:
             any_fatal = True
@@ -1466,7 +1855,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("\n" + "=" * 60)
     print("SUMMARY")
     print(f"  files tested : {len(sql_files)}")
-    print(f"  gem calls    : {total_calls}")
+    print(f"  calls+cases  : {total_calls}")
     print(f"  passed       : {total_passed}")
     print(f"  failed       : {total_failed}")
     if all_project_errors:

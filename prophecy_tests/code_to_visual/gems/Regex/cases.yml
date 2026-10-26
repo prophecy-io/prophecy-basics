@@ -1,0 +1,39 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: replace
+    properties:
+      selectedColumnName: text
+      regexExpression: "[0-9]+"
+      outputMethod: replace
+      replacementText: "#"
+      copyUnmatchedText: true
+      caseInsensitive: true
+  - name: tokenize_to_columns
+    properties:
+      selectedColumnName: text
+      regexExpression: "[^,]+"
+      outputMethod: tokenize
+      tokenizeOutputMethod: splitColumns
+      noOfColumns: 3
+      extraColumnsHandling: saveAllRemainingText
+      outputRootName: part
+  - name: tokenize_to_rows
+    properties:
+      selectedColumnName: text
+      regexExpression: "\\w+"
+      outputMethod: tokenize
+      tokenizeOutputMethod: splitRows
+      outputRootName: word
+      allowBlankTokens: true
+  - name: match
+    properties: { selectedColumnName: text, regexExpression: "^[A-Z]{3}-\\d+$", outputMethod: match, matchColumnName: is_code, errorIfNotMatched: true }
+  - name: parse
+    properties:
+      selectedColumnName: text
+      regexExpression: "(\\d{4})-(\\w+)"
+      outputMethod: parse
+      parseColumns:
+        - { columnName: year, dataType: int, rgxExpression: "(\\d{4})" }
+        - { columnName: label, dataType: string, rgxExpression: "(\\w+)" }

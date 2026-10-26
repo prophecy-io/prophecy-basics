@@ -197,8 +197,8 @@ jobs:
       - name: Run unit tests
         run: pytest -v prophecy_tests/code_to_visual
 
-      - name: Round-trip app-generated models
-        run: python prophecy_tests/code_to_visual/code_to_visual_runner.py prophecy_tests/
+      - name: Round-trip gem cases and app-generated models
+        run: python prophecy_tests/code_to_visual/code_to_visual_runner.py prophecy_tests/code_to_visual/
 
   # Snowflake SQL Tests
   # Config inputs (workflow UI) + password (repo secret)

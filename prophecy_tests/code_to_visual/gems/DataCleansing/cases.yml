@@ -1,0 +1,29 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: selected_columns_only
+    properties: { columnNames: [name, age] }
+  - name: replace_nulls
+    properties:
+      columnNames: [name, age, join_date, updated_at]
+      replaceNullTextFields: true
+      replaceNullTextWith: unknown
+      replaceNullForNumericFields: true
+      replaceNullNumericWith: -1
+      replaceNullDateFields: true
+      replaceNullDateWith: "2000-01-01"
+      replaceNullTimeFields: true
+      replaceNullTimeWith: "2000-01-01 00:00:00.0"
+  - name: clean_text
+    properties:
+      columnNames: [name]
+      trimWhiteSpace: true
+      removeTabsLineBreaksAndDuplicateWhitespace: true
+      allWhiteSpace: true
+      cleanLetters: true
+      cleanPunctuations: true
+      cleanNumbers: true
+      modifyCase: makeTitlecase
+  - name: remove_null_rows
+    properties: { removeRowNullAllCols: true, columnNames: [name], modifyCase: makeUppercase }

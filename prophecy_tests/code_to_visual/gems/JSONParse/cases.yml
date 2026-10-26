@@ -1,0 +1,13 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: from_sample_record
+    properties: { columnName: json_col, parsingMethod: parseFromSampleRecord, sampleRecord: '{"a": 1, "b": "x"}' }
+  - name: from_nested_sample_record
+    properties:
+      columnName: json_col
+      parsingMethod: parseFromSampleRecord
+      sampleRecord: '{"user": {"name": "x", "tags": ["a", "b"]}, "score": 1.5}'
+  - name: from_schema
+    properties: { columnName: json_col, parsingMethod: parseFromSchema, sampleSchema: "STRUCT<a: INT, b: STRING>" }

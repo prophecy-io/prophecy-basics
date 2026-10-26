@@ -1,0 +1,8 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: default_names
+    properties: { keyColumns: [id], dataColumns: [q1, q2, q3] }
+  - name: custom_names
+    properties: { keyColumns: [id, region], dataColumns: [q1, q2], customNames: true, nameColumn: quarter, valueColumn: amount }

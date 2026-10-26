@@ -1,0 +1,10 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: all_records
+    properties: { count_method: count_all_records }
+  - name: non_null_records
+    properties: { count_method: count_non_null_records, column_names: [name, email] }
+  - name: distinct_records
+    properties: { count_method: count_distinct_records, column_names: [id] }

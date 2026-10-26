@@ -1,0 +1,7 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "city", "dataType": "String" },
+  { "name": "amount", "dataType": "Double" },
+  { "name": "qty", "dataType": "Integer" },
+  { "name": "created_at", "dataType": "Timestamp" }
+]

@@ -1,0 +1,6 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "name", "dataType": "String" },
+  { "name": "payload", "dataType": "String" },
+  { "name": "secret", "dataType": "Binary" }
+]

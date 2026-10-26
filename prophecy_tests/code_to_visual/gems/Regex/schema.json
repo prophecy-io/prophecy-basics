@@ -1,0 +1,4 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "text", "dataType": "String" }
+]

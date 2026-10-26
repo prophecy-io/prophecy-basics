@@ -1,3 +1,4 @@
+import ast
 import dataclasses
 import json
 
@@ -502,23 +503,23 @@ class Finance(MacroSpec):
             str(props.relation_name),                                                        # relation_name
             q(props.functionType),                                                           # function_type
             q(props.outputColumn if props.outputColumn.strip() != "" else "finance_result"), # output_column
-            q(props.rateCol),                                                                # rate
-            q(props.nperCol),                                                                # nper
-            q(props.pmtCol),                                                                 # pmt
-            q(props.pvCol),                                                                  # pv
-            q(props.fvCol),                                                                  # fv
+            qraw(props.rateCol),                                                             # rate
+            qraw(props.nperCol),                                                             # nper
+            qraw(props.pmtCol),                                                              # pmt
+            qraw(props.pvCol),                                                               # pv
+            qraw(props.fvCol),                                                               # fv
             q(props.paymentType),                                                            # pay_type
-            q(props.principalCol),                                                           # principal
+            qraw(props.principalCol),                                                        # principal
             qraw(value_list),                                                                # value_list
             qraw(date_list),                                                                 # date_list
-            q(props.beginValueCol),                                                          # begin_value
-            q(props.endValueCol),                                                            # end_value
-            q(props.periodsCol),                                                             # periods
-            q(props.nominalRateCol),                                                         # nominal_rate
-            q(props.effectRateCol),                                                          # effect_rate
-            q(props.nperyCol),                                                               # npery
-            q(props.financeRateCol),                                                         # finance_rate
-            q(props.reinvestRateCol),                                                        # reinvest_rate
+            qraw(props.beginValueCol),                                                       # begin_value
+            qraw(props.endValueCol),                                                         # end_value
+            qraw(props.periodsCol),                                                          # periods
+            qraw(props.nominalRateCol),                                                      # nominal_rate
+            qraw(props.effectRateCol),                                                       # effect_rate
+            qraw(props.nperyCol),                                                            # npery
+            qraw(props.financeRateCol),                                                      # finance_rate
+            qraw(props.reinvestRateCol),                                                     # reinvest_rate
             qraw(props.loBoundCol),                                                          # lo_bound
             qraw(props.hiBoundCol),                                                          # hi_bound
             qraw(props.nIterCol),                                                            # n_iter
@@ -529,14 +530,29 @@ class Finance(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
-        m = self.convertToParameterMap(properties.parameters)
+        parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def jload(key):
-            raw = m.get(key, '[]')
+        def _parse_py_literal(raw, default):
+            # apply() emits list params as str(<python value>) (single-quoted
+            # repr), so the inverse is ast.literal_eval — NOT json.loads
+            raw = (raw or "").strip()
+            if not raw:
+                return default
             try:
-                return json.loads(raw.replace("'", '"')) if raw else []
-            except Exception:
-                return []
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return default
+
+        def param(macro_name, property_name):
+            # Macro params are snake_case (rate, value_list, ...); unloadProperties writes the property names
+            return parametersMap.get(macro_name) or parametersMap.get(property_name)
+
+        def column_list(macro_name, property_name):
+            # apply() joins the columns into one comma-separated string
+            raw = parametersMap.get(macro_name)
+            if raw is None:
+                return _parse_py_literal(parametersMap.get(property_name), [])
+            return [c.strip() for c in raw.lstrip("'").rstrip("'").split(",") if c.strip()]
 
         def clean(v, default="0"):
             if v is None or str(v).strip() == "" or str(v).strip() == "''":
@@ -549,30 +565,30 @@ class Finance(MacroSpec):
             return str(v).lstrip("'").rstrip("'")
 
         return Finance.FinanceProperties(
-            relation_name=jload('relation_name'),
-            schema=m.get('schema', ''),
-            functionType=clean(m.get('functionType'), 'FV'),
-            outputColumn=clean(m.get('outputColumn'), 'finance_result'),
-            rateCol=cleancol(m.get('rateCol')),
-            nperCol=cleancol(m.get('nperCol')),
-            pmtCol=cleancol(m.get('pmtCol')),
-            pvCol=cleancol(m.get('pvCol')),
-            fvCol=cleancol(m.get('fvCol')),
-            principalCol=cleancol(m.get('principalCol')),
-            beginValueCol=cleancol(m.get('beginValueCol')),
-            endValueCol=cleancol(m.get('endValueCol')),
-            periodsCol=cleancol(m.get('periodsCol')),
-            nominalRateCol=cleancol(m.get('nominalRateCol')),
-            effectRateCol=cleancol(m.get('effectRateCol')),
-            nperyCol=cleancol(m.get('nperyCol')),
-            financeRateCol=cleancol(m.get('financeRateCol')),
-            reinvestRateCol=cleancol(m.get('reinvestRateCol')),
-            loBoundCol=cleancol(m.get('loBoundCol')),
-            hiBoundCol=cleancol(m.get('hiBoundCol')),
-            nIterCol=cleancol(m.get('nIterCol')),
-            valueColumns=jload('valueColumns'),
-            dateColumns=jload('dateColumns'),
-            paymentType=clean(m.get('paymentType'), '0'),
+            relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
+            schema=parametersMap.get('schema', ''),
+            functionType=clean(param('function_type', 'functionType'), 'FV'),
+            outputColumn=clean(param('output_column', 'outputColumn'), 'finance_result'),
+            rateCol=cleancol(param('rate', 'rateCol')),
+            nperCol=cleancol(param('nper', 'nperCol')),
+            pmtCol=cleancol(param('pmt', 'pmtCol')),
+            pvCol=cleancol(param('pv', 'pvCol')),
+            fvCol=cleancol(param('fv', 'fvCol')),
+            principalCol=cleancol(param('principal', 'principalCol')),
+            beginValueCol=cleancol(param('begin_value', 'beginValueCol')),
+            endValueCol=cleancol(param('end_value', 'endValueCol')),
+            periodsCol=cleancol(param('periods', 'periodsCol')),
+            nominalRateCol=cleancol(param('nominal_rate', 'nominalRateCol')),
+            effectRateCol=cleancol(param('effect_rate', 'effectRateCol')),
+            nperyCol=cleancol(param('npery', 'nperyCol')),
+            financeRateCol=cleancol(param('finance_rate', 'financeRateCol')),
+            reinvestRateCol=cleancol(param('reinvest_rate', 'reinvestRateCol')),
+            loBoundCol=cleancol(param('lo_bound', 'loBoundCol')),
+            hiBoundCol=cleancol(param('hi_bound', 'hiBoundCol')),
+            nIterCol=cleancol(param('n_iter', 'nIterCol')),
+            valueColumns=column_list('value_list', 'valueColumns'),
+            dateColumns=column_list('date_list', 'dateColumns'),
+            paymentType=clean(param('pay_type', 'paymentType'), '0'),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

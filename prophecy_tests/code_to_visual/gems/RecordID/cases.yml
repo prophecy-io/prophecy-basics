@@ -1,0 +1,22 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: incremental_string_defaults
+    properties: { method: incremental_id }
+  - name: incremental_integer_last_column
+    properties:
+      method: incremental_id
+      incremental_id_column_name: row_num
+      incremental_id_type: integer
+      incremental_id_starting_val: 1
+      position: last_column
+  - name: incremental_per_group
+    properties:
+      method: incremental_id
+      generationMethod: groupLevel
+      groupByColumnNames: [city]
+      orders:
+        - { expression: { expression: updated_at, format: sql }, sortType: desc }
+  - name: uuid
+    properties: { method: uuid, incremental_id_column_name: record_uuid }

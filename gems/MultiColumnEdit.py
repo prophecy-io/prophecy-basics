@@ -287,9 +287,18 @@ class MultiColumnEdit(MacroSpec):
             except (ValueError, SyntaxError):
                 return default
 
+        def _schema():
+            # Saved state carries schema; code from apply() only carries the macro's
+            # allColumnNames. Data types are not in the code: onChange restores them.
+            schema = parametersMap.get("schema")
+            if not self._is_empty_schema(schema) and schema != "None":
+                return schema
+            columns = _parse_py_literal(parametersMap.get("allColumnNames"), [])
+            return json.dumps([{"name": c} for c in columns]) if columns else ""
+
         return MultiColumnEdit.MultiColumnEditProperties(
             relation_name=_parse_py_literal(parametersMap.get('relation_name'), []),
-            schema=parametersMap.get("schema"),
+            schema=_schema(),
             columnNames=_parse_py_literal(parametersMap.get("columnNames"), []),
             expressionToBeApplied=parametersMap.get('expressionToBeApplied').lstrip('"').rstrip('"'),
             changeOutputFieldName=parametersMap.get("changeOutputFieldName").lower()
@@ -305,7 +314,7 @@ class MultiColumnEdit(MacroSpec):
             projectName=self.projectName,
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
-                MacroParameter("schema", str(properties.schema)),
+                MacroParameter("schema", properties.schema or ""),
                 MacroParameter("columnNames", json.dumps(properties.columnNames)),
                 MacroParameter(
                     "expressionToBeApplied", str(properties.expressionToBeApplied)
