@@ -36,22 +36,30 @@
 {% endmacro %}
 
 {% macro snowflake__quote_identifier(identifier, quote_char='"') %}
+    {#- Unquote first to avoid double-quoting; then add Snowflake double quotes.
+        No trim on the name: quoted Snowflake identifiers are exact, so leading/trailing spaces are part of it.
+        Unquoting is done inline because unquote_identifiers rendered output can carry template whitespace. -#}
     {%- if identifier is string -%}
-        {# Unquote first to avoid double-quoting; then add Snowflake double quotes #}
-        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) | trim -%}
+        {%- set stripped = identifier | trim -%}
+        {%- if (stripped.startswith('"') and stripped.endswith('"')) or (stripped.startswith("'") and stripped.endswith("'")) -%}
+            {%- set clean_id = stripped[1:-1] -%}
+        {%- else -%}
+            {%- set clean_id = identifier -%}
+        {%- endif -%}
         {{ quote_char }}{{ clean_id }}{{ quote_char }}
     {%- elif identifier is iterable -%}
-        {# List of identifiers - unquote each before quoting #}
         {%- set quoted_identifiers = [] -%}
         {%- for id in identifier -%}
-            {%- set clean_id = prophecy_basics.unquote_identifier(id) | trim -%}
-            {%- do quoted_identifiers.append(quote_char ~ clean_id ~ quote_char) -%}
+            {%- set stripped = id | trim -%}
+            {%- if (stripped.startswith('"') and stripped.endswith('"')) or (stripped.startswith("'") and stripped.endswith("'")) -%}
+                {%- do quoted_identifiers.append(quote_char ~ stripped[1:-1] ~ quote_char) -%}
+            {%- else -%}
+                {%- do quoted_identifiers.append(quote_char ~ id ~ quote_char) -%}
+            {%- endif -%}
         {%- endfor -%}
         {{ quoted_identifiers }}
     {%- else -%}
-        {# Fallback: treat as string #}
-        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) | trim -%}
-        {{ quote_char }}{{ clean_id }}{{ quote_char }}
+        {{ quote_char }}{{ identifier }}{{ quote_char }}
     {%- endif -%}
 {% endmacro %}
 
@@ -101,14 +109,14 @@
 
 {% macro snowflake__unquote_identifier(identifier) %}
     {%- if identifier is string -%}
-        {# Single identifier - unquote if quoted (double or single quotes) #}
+        {# Single identifier - unquote if quoted (double or single quotes); unquoted names are returned as-is #}
         {%- set clean_identifier = identifier | trim -%}
         {%- if clean_identifier.startswith('"') and clean_identifier.endswith('"') -%}
             {{ clean_identifier[1:-1] }}
         {%- elif clean_identifier.startswith("'") and clean_identifier.endswith("'") -%}
             {{ clean_identifier[1:-1] }}
         {%- else -%}
-            {{ clean_identifier }}
+            {{ identifier }}
         {%- endif -%}
     {%- elif identifier is iterable -%}
         {# List of identifiers - return list of unquoted strings #}
@@ -120,7 +128,7 @@
             {%- elif clean_id.startswith("'") and clean_id.endswith("'") -%}
                 {%- do unquoted_identifiers.append(clean_id[1:-1]) -%}
             {%- else -%}
-                {%- do unquoted_identifiers.append(clean_id) -%}
+                {%- do unquoted_identifiers.append(id) -%}
             {%- endif -%}
         {%- endfor -%}
         {{ unquoted_identifiers }}
