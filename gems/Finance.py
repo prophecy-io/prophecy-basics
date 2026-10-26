@@ -488,11 +488,8 @@ class Finance(MacroSpec):
             return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
         def q(val):
-            # Numeric inputs: blank becomes a neutral 0 so the SQL stays valid.
-            return quote("0" if (val is None or str(val).strip() == "") else str(val).strip())
-
-        def qraw(val):
-            # Blank is passed through so the macro applies its own default.
+            # Blank is passed through so the macro applies its own default
+            # (0 for most inputs, 1 for periods / npery, -0.99 / 10 / 60 for the solver).
             return quote("" if val is None else str(val).strip())
 
         value_list = ",".join(props.valueColumns) if props.valueColumns else ""
@@ -509,8 +506,8 @@ class Finance(MacroSpec):
             q(props.fvCol),                                                                  # fv
             q(props.paymentType),                                                            # pay_type
             q(props.principalCol),                                                           # principal
-            qraw(value_list),                                                                # value_list
-            qraw(date_list),                                                                 # date_list
+            q(value_list),                                                                # value_list
+            q(date_list),                                                                 # date_list
             q(props.beginValueCol),                                                          # begin_value
             q(props.endValueCol),                                                            # end_value
             q(props.periodsCol),                                                             # periods
@@ -519,9 +516,9 @@ class Finance(MacroSpec):
             q(props.nperyCol),                                                               # npery
             q(props.financeRateCol),                                                         # finance_rate
             q(props.reinvestRateCol),                                                        # reinvest_rate
-            qraw(props.loBoundCol),                                                          # lo_bound
-            qraw(props.hiBoundCol),                                                          # hi_bound
-            qraw(props.nIterCol),                                                            # n_iter
+            q(props.loBoundCol),                                                          # lo_bound
+            q(props.hiBoundCol),                                                          # hi_bound
+            q(props.nIterCol),                                                            # n_iter
         ]
 
         params = ",".join(arguments)
