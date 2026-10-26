@@ -527,6 +527,28 @@ class Finance(MacroSpec):
         params = ",".join(arguments)
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
+    # Property name -> macro argument name. Parameter keys must match the macro's
+    # signature so code-to-visual parsing (which keys by argument name) round-trips.
+    COLUMN_PARAMS = [
+        ("rateCol", "rate"),
+        ("nperCol", "nper"),
+        ("pmtCol", "pmt"),
+        ("pvCol", "pv"),
+        ("fvCol", "fv"),
+        ("principalCol", "principal"),
+        ("beginValueCol", "begin_value"),
+        ("endValueCol", "end_value"),
+        ("periodsCol", "periods"),
+        ("nominalRateCol", "nominal_rate"),
+        ("effectRateCol", "effect_rate"),
+        ("nperyCol", "npery"),
+        ("financeRateCol", "finance_rate"),
+        ("reinvestRateCol", "reinvest_rate"),
+        ("loBoundCol", "lo_bound"),
+        ("hiBoundCol", "hi_bound"),
+        ("nIterCol", "n_iter"),
+    ]
+
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         # load the component's state given default macro property representation
         m = self.convertToParameterMap(properties.parameters)
@@ -548,31 +570,18 @@ class Finance(MacroSpec):
                 return ""
             return str(v).lstrip("'").rstrip("'")
 
+        def cleanlist(v):
+            return [c.strip() for c in cleancol(v).split(",") if c.strip()]
+
         return Finance.FinanceProperties(
             relation_name=jload('relation_name'),
             schema=m.get('schema', ''),
-            functionType=clean(m.get('functionType'), 'FV'),
-            outputColumn=clean(m.get('outputColumn'), 'finance_result'),
-            rateCol=cleancol(m.get('rateCol')),
-            nperCol=cleancol(m.get('nperCol')),
-            pmtCol=cleancol(m.get('pmtCol')),
-            pvCol=cleancol(m.get('pvCol')),
-            fvCol=cleancol(m.get('fvCol')),
-            principalCol=cleancol(m.get('principalCol')),
-            beginValueCol=cleancol(m.get('beginValueCol')),
-            endValueCol=cleancol(m.get('endValueCol')),
-            periodsCol=cleancol(m.get('periodsCol')),
-            nominalRateCol=cleancol(m.get('nominalRateCol')),
-            effectRateCol=cleancol(m.get('effectRateCol')),
-            nperyCol=cleancol(m.get('nperyCol')),
-            financeRateCol=cleancol(m.get('financeRateCol')),
-            reinvestRateCol=cleancol(m.get('reinvestRateCol')),
-            loBoundCol=cleancol(m.get('loBoundCol')),
-            hiBoundCol=cleancol(m.get('hiBoundCol')),
-            nIterCol=cleancol(m.get('nIterCol')),
-            valueColumns=jload('valueColumns'),
-            dateColumns=jload('dateColumns'),
-            paymentType=clean(m.get('paymentType'), '0'),
+            functionType=clean(m.get('function_type'), 'FV'),
+            outputColumn=clean(m.get('output_column'), 'finance_result'),
+            paymentType=clean(m.get('pay_type'), '0'),
+            valueColumns=cleanlist(m.get('value_list')),
+            dateColumns=cleanlist(m.get('date_list')),
+            **{prop: cleancol(m.get(arg)) for prop, arg in self.COLUMN_PARAMS},
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -583,28 +592,12 @@ class Finance(MacroSpec):
             parameters=[
                 MacroParameter("relation_name", json.dumps(properties.relation_name)),
                 MacroParameter("schema", str(properties.schema)),
-                MacroParameter("functionType", str(properties.functionType)),
-                MacroParameter("outputColumn", str(properties.outputColumn)),
-                MacroParameter("rateCol", str(properties.rateCol)),
-                MacroParameter("nperCol", str(properties.nperCol)),
-                MacroParameter("pmtCol", str(properties.pmtCol)),
-                MacroParameter("pvCol", str(properties.pvCol)),
-                MacroParameter("fvCol", str(properties.fvCol)),
-                MacroParameter("principalCol", str(properties.principalCol)),
-                MacroParameter("beginValueCol", str(properties.beginValueCol)),
-                MacroParameter("endValueCol", str(properties.endValueCol)),
-                MacroParameter("periodsCol", str(properties.periodsCol)),
-                MacroParameter("nominalRateCol", str(properties.nominalRateCol)),
-                MacroParameter("effectRateCol", str(properties.effectRateCol)),
-                MacroParameter("nperyCol", str(properties.nperyCol)),
-                MacroParameter("financeRateCol", str(properties.financeRateCol)),
-                MacroParameter("reinvestRateCol", str(properties.reinvestRateCol)),
-                MacroParameter("loBoundCol", str(properties.loBoundCol)),
-                MacroParameter("hiBoundCol", str(properties.hiBoundCol)),
-                MacroParameter("nIterCol", str(properties.nIterCol)),
-                MacroParameter("valueColumns", json.dumps(properties.valueColumns)),
-                MacroParameter("dateColumns", json.dumps(properties.dateColumns)),
-                MacroParameter("paymentType", str(properties.paymentType)),
+                MacroParameter("function_type", str(properties.functionType)),
+                MacroParameter("output_column", str(properties.outputColumn)),
+                MacroParameter("pay_type", str(properties.paymentType)),
+                MacroParameter("value_list", ",".join(properties.valueColumns)),
+                MacroParameter("date_list", ",".join(properties.dateColumns)),
+                *[MacroParameter(arg, str(getattr(properties, prop))) for prop, arg in self.COLUMN_PARAMS],
             ],
         )
 
