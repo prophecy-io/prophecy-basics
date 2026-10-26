@@ -530,13 +530,13 @@ class TableOperations(MacroSpec):
         # load the component's state given default macro property representation
         parametersMap = self.convertToParameterMap(properties.parameters)
 
-        def text(*names):
+        def text(name):
             # apply() writes '<value>' with only ' escaped (as \'); saved state holds the bare value
-            raw = next((parametersMap.get(n) for n in names if parametersMap.get(n)), None)
-            if raw is None:
+            raw = parametersMap.get(name)
+            if not raw:
                 return ""
             inner = raw[1:-1]
-            if len(raw) >= 2 and raw[0] == raw[-1] == "'" and not re.search(r"(?<!\\)'", inner):
+            if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'") and not re.search(r"(?<!\\)'", inner):
                 return inner.replace("\\'", "'")
             return raw
 
@@ -560,7 +560,7 @@ class TableOperations(MacroSpec):
             path=text("path"),
             useExternalFilePath=parametersMap.get("useExternalFilePath", "false").lower() == "true",
             # Macro param is vacuumRetainNumHours; unloadProperties writes the property name
-            vaccumRetainNumHours=text("vacuumRetainNumHours", "vaccumRetainNumHours"),
+            vaccumRetainNumHours=text("vacuumRetainNumHours") or text("vaccumRetainNumHours"),
             useOptimiseWhere=parametersMap.get("useOptimiseWhere", "false").lower() == "true",
             optimiseWhere=text("optimiseWhere"),
             useOptimiseZOrder=parametersMap.get("useOptimiseZOrder", "false").lower() == "true",
