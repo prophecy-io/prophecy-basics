@@ -1,0 +1,22 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: nulls_with_average
+    properties: { columnNames: [age, salary], replaceIncomingType: null_val, replaceWithType: average }
+  - name: user_value_with_median_and_indicator
+    properties:
+      columnNames: [salary]
+      replaceIncomingType: user
+      incomingUserValue: "-1"
+      replaceWithType: median
+      includeImputedIndicator: true
+  - name: nulls_with_user_value_separate_field
+    properties:
+      columnNames: [age]
+      replaceWithType: user
+      replaceWithUserValue: "30"
+      includeImputedIndicator: true
+      outputImputedAsSeparateField: true
+  - name: nulls_with_mode
+    properties: { columnNames: [age], replaceWithType: mode }

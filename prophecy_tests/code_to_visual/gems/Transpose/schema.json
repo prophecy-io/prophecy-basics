@@ -1,0 +1,7 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "region", "dataType": "String" },
+  { "name": "q1", "dataType": "Double" },
+  { "name": "q2", "dataType": "Double" },
+  { "name": "q3", "dataType": "Double" }
+]

@@ -1,0 +1,19 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: equal_sum
+    properties: { tile_method: equal_sum_tile, number_of_tiles: "4", sum_column_name: amount }
+  - name: equal_records_ordered_per_group
+    properties:
+      tile_method: equal_records_tile
+      number_of_tiles: "10"
+      groupby_column_names: [city]
+      orderByColumns:
+        - { expression: { expression: amount, format: sql }, sortType: desc }
+  - name: smart_tile_verbose
+    properties: { tile_method: smart_tile, smart_tile_column_name: amount, column_output_method_smartTile: output_verbose_column_smartTile }
+  - name: unique_value
+    properties: { tile_method: unique_value_tile, unique_value_column_name: [city] }
+  - name: manual_cutoffs
+    properties: { tile_method: manual_tile, manual_tile_column_name: amount, manual_tiles_cutoff: "100,500,1000" }

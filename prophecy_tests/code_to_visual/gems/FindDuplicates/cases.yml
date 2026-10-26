@@ -1,0 +1,31 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: unique_across_all_columns
+    properties: { generationMethod: allCols, output_type: unique }
+  - name: duplicates_in_selected_columns
+    properties:
+      generationMethod: selectedCols
+      groupByColumnNames: [name, city]
+      output_type: duplicate
+      orderByColumns:
+        - { expression: { expression: updated_at, format: sql }, sortType: desc }
+        - { expression: { expression: id, format: sql }, sortType: asc_nulls_last }
+  - name: group_count_equal_to
+    properties:
+      generationMethod: selectedCols
+      groupByColumnNames: [city]
+      output_type: custom_group_count
+      column_group_rownum_condition: equal_to
+      grouped_count_rownum: "2"
+  - name: row_number_between
+    properties:
+      generationMethod: selectedCols
+      groupByColumnNames: [city]
+      orderByColumns:
+        - { expression: { expression: updated_at, format: sql }, sortType: desc_nulls_first }
+      output_type: custom_row_number
+      column_group_rownum_condition: between
+      lower_limit: "1"
+      upper_limit: "3"

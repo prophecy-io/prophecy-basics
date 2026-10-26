@@ -1,0 +1,22 @@
+[
+  { "name": "rate", "dataType": "Double" },
+  { "name": "nper", "dataType": "Integer" },
+  { "name": "pmt", "dataType": "Double" },
+  { "name": "pv", "dataType": "Double" },
+  { "name": "fv", "dataType": "Double" },
+  { "name": "principal", "dataType": "Double" },
+  { "name": "begin_value", "dataType": "Double" },
+  { "name": "end_value", "dataType": "Double" },
+  { "name": "periods", "dataType": "Integer" },
+  { "name": "nominal_rate", "dataType": "Double" },
+  { "name": "effect_rate", "dataType": "Double" },
+  { "name": "npery", "dataType": "Integer" },
+  { "name": "finance_rate", "dataType": "Double" },
+  { "name": "reinvest_rate", "dataType": "Double" },
+  { "name": "cf0", "dataType": "Double" },
+  { "name": "cf1", "dataType": "Double" },
+  { "name": "cf2", "dataType": "Double" },
+  { "name": "d0", "dataType": "Date" },
+  { "name": "d1", "dataType": "Date" },
+  { "name": "d2", "dataType": "Date" }
+]

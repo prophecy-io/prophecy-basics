@@ -1,0 +1,10 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: add_prefix
+    properties: { columnNames: [first_name, last_name], renameMethod: editPrefixSuffix, editType: Prefix, editWith: new_ }
+  - name: add_suffix
+    properties: { columnNames: [age], renameMethod: editPrefixSuffix, editType: Suffix, editWith: _years }
+  - name: advanced_rename
+    properties: { columnNames: [first_name], renameMethod: advancedRename, customExpression: "concat('x_', column_name)" }

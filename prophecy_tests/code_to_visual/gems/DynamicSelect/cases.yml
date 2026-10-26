@@ -1,0 +1,14 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: select_by_type
+    properties: { selectUsing: SELECT_FIELD_TYPES, strTypeChecked: true, intTypeChecked: true }
+  - name: select_by_many_types
+    properties:
+      selectUsing: SELECT_FIELD_TYPES
+      boolTypeChecked: true
+      doubleTypeChecked: true
+      timestampTypeChecked: true
+  - name: select_by_expression
+    properties: { selectUsing: SELECT_EXPR, customExpression: "column_type == 'string'" }

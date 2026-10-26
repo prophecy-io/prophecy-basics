@@ -1,0 +1,5 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "age", "dataType": "Integer" },
+  { "name": "salary", "dataType": "Double" }
+]

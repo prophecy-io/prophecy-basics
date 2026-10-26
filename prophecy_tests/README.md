@@ -41,7 +41,12 @@ prophecy_tests/
 │   ├── code_to_visual_runner.py  # the tester (CLI)
 │   ├── test_code_to_visual.py    # pytest unit tests for the tester
 │   ├── pytest.ini
-│   └── app_generated/            # SQL Editor-generated models; must all pass
+│   ├── app_generated/            # SQL Editor-generated models; must all pass
+│   └── gems/<Gem>/               # one folder per gem, named exactly like the gem
+│       ├── cases.yml             # form settings to round-trip (see below)
+│       ├── schema.json           # input columns the gem's onChange sees
+│       ├── *.sql                 # optional: code saved by older gem versions
+│       └── test_*.py             # optional: pytest for loadProperties/unloadProperties alone
 ├── run_tests.sh          # Shell test runner
 └── run_tests.py          # Python test runner (cross-platform)
 ```
@@ -204,6 +209,31 @@ def test_my_feature(spark):
     
     # Assertions
     assert result.count() == 1
+```
+
+### Code-to-Visual Cases
+
+These check that a gem's code reopens in the SQL Editor with the same form.
+Each case in `code_to_visual/gems/<Gem>/cases.yml` is a set of form settings,
+using the field names of the gem's properties class. The tester fills in the
+form, generates the code with `apply()`, reopens that code the way the SQL
+Editor does, and fails if either the code or the form comes back different.
+
+```yaml
+cases:
+  - name: npv
+    properties: { functionType: NPV, rateCol: rate, valueColumns: [cf0, cf1, cf2] }
+  - name: two_inputs
+    relations: [orders, customers]   # upstream node names; default is [source]
+    properties: { diag_message: Not supported yet }
+```
+
+`schema.json` lists the input columns as `[{"name": "id", "dataType": "Integer"}, ...]`.
+Run the tester with:
+
+```bash
+python code_to_visual/code_to_visual_runner.py code_to_visual/        # everything
+python code_to_visual/code_to_visual_runner.py -v code_to_visual/gems/Finance
 ```
 
 ### SQL Platform Tests (dbt unit tests)
