@@ -36,23 +36,30 @@
 {% endmacro %}
 
 {% macro snowflake__quote_identifier(identifier, quote_char='"') %}
+    {#- Unquote first to avoid double-quoting; then add Snowflake double quotes.
+        No trim on the name: quoted Snowflake identifiers are exact, so leading/trailing spaces are part of it.
+        Unquoting is done inline because unquote_identifiers rendered output can carry template whitespace. -#}
     {%- if identifier is string -%}
-        {# Unquote first to avoid double-quoting; then add Snowflake double quotes.
-           No trim: quoted Snowflake identifiers are exact, so leading/trailing spaces are part of the name #}
-        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) -%}
+        {%- set stripped = identifier | trim -%}
+        {%- if (stripped.startswith('"') and stripped.endswith('"')) or (stripped.startswith("'") and stripped.endswith("'")) -%}
+            {%- set clean_id = stripped[1:-1] -%}
+        {%- else -%}
+            {%- set clean_id = identifier -%}
+        {%- endif -%}
         {{ quote_char }}{{ clean_id }}{{ quote_char }}
     {%- elif identifier is iterable -%}
-        {# List of identifiers - unquote each before quoting #}
         {%- set quoted_identifiers = [] -%}
         {%- for id in identifier -%}
-            {%- set clean_id = prophecy_basics.unquote_identifier(id) -%}
-            {%- do quoted_identifiers.append(quote_char ~ clean_id ~ quote_char) -%}
+            {%- set stripped = id | trim -%}
+            {%- if (stripped.startswith('"') and stripped.endswith('"')) or (stripped.startswith("'") and stripped.endswith("'")) -%}
+                {%- do quoted_identifiers.append(quote_char ~ stripped[1:-1] ~ quote_char) -%}
+            {%- else -%}
+                {%- do quoted_identifiers.append(quote_char ~ id ~ quote_char) -%}
+            {%- endif -%}
         {%- endfor -%}
         {{ quoted_identifiers }}
     {%- else -%}
-        {# Fallback: treat as string #}
-        {%- set clean_id = prophecy_basics.unquote_identifier(identifier) -%}
-        {{ quote_char }}{{ clean_id }}{{ quote_char }}
+        {{ quote_char }}{{ identifier }}{{ quote_char }}
     {%- endif -%}
 {% endmacro %}
 
