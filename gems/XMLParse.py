@@ -23,13 +23,13 @@ def _jinja_str(value) -> str:
     return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _decode_str(raw) -> str:
+def _decode_str(raw, from_code: bool = True) -> str:
     """A string argument as loadProperties receives it: the call's source text when the gem is read
     back from code ('it\\'s' -> it's), or the plain saved value otherwise."""
     if raw is None:
         return ""
     text = str(raw)
-    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+    if from_code and len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
         try:
             parsed = Environment().parse("{{ " + text + " }}")
             node = parsed.body[0].nodes[0] if len(parsed.body) == 1 else None
@@ -184,6 +184,9 @@ class XMLParse(MacroSpec):
         childElement: str = ""
         # UI only (not a macro argument): whether a sample record generates *_OuterXML columns.
         includeOuterXML: bool = False
+        # UI only, saved but never in the call: the output columns last generated from the sample, so
+        # columns still equal to it keep following the sample (see onChange).
+        generatedColumns: str = ""
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -472,20 +475,26 @@ class XMLParse(MacroSpec):
             relation_name=relation_name
         )
 
-        # Regenerate the output columns from the sample when a setting they depend on changes, but
-        # only while they are empty or still exactly what the previous settings generated: columns
-        # someone edited (or the transpiler wrote) are never overwritten. Clearing them regenerates.
-        old_key = self._generation_key(oldState, oldState.properties)
+        # Keep the output columns in step with the sample while they are generated ones: empty, the
+        # last list generated here, or what the previous settings generate. Columns someone edited
+        # (or the transpiler wrote) are never overwritten; clearing them regenerates. A sample that
+        # is not well-formed yet (mid-typing) changes nothing and keeps the columns generated ones.
         new_key = self._generation_key(newState, newProperties)
         try:
             current = parse_output_columns(newProperties.outputColumns)
         except ValueError:
             current = None
-        if new_key[0] and current is not None and (not current or (
-                old_key != new_key and current == self._generated_columns(old_key))):
-            columns = self._generated_columns(new_key)
-            if columns is not None:
-                newProperties = dataclasses.replace(newProperties, outputColumns=json.dumps(columns))
+        if new_key[0] and current is not None:
+            try:
+                last_generated = parse_output_columns(newProperties.generatedColumns)
+            except ValueError:
+                last_generated = []
+            generated = (not current or current == last_generated
+                         or current == self._generated_columns(self._generation_key(oldState, oldState.properties)))
+            columns = self._generated_columns(new_key) if generated else None
+            if columns is not None and columns != current:
+                newProperties = dataclasses.replace(newProperties, outputColumns=json.dumps(columns),
+                                                    generatedColumns=json.dumps(columns))
         return newState.bindProperties(newProperties)
 
     def _generation_key(self, state: Component, props) -> tuple:
@@ -526,7 +535,9 @@ class XMLParse(MacroSpec):
             _jinja_str(props.parsingMethod),
             _jinja_str(sampleRecord),
             _jinja_str(sampleSchema),
-            json.dumps(output_columns),  # a JSON list is a valid Jinja literal (no nulls are stored)
+            # a JSON list is a valid Jinja literal (no nulls are stored); ensure_ascii=False because Jinja
+            # decodes the two halves of an escaped surrogate pair (an emoji) separately
+            json.dumps(output_columns, ensure_ascii=False),
             "true" if props.includeSourceColumn else "false",
             "true" if props.ignoreErrors else "false",
             _jinja_str(props.childElement),
@@ -536,22 +547,26 @@ class XMLParse(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
+        # Saved properties (unloadProperties) always carry generatedColumns, which the call never
+        # does: only values read back from code are source text to decode.
+        from_code = "generatedColumns" not in parametersMap
         try:
             loaded_columns = parse_output_columns(parametersMap.get("outputColumns"))
         except ValueError:
             loaded_columns = []  # kept as written, so validate reports it
         return XMLParse.XMLParseProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            columnName=_decode_str(parametersMap.get("columnName")),
-            parsingMethod=_decode_str(parametersMap.get("parsingMethod")),
-            sampleRecord=_decode_str(parametersMap.get("sampleRecord")),
-            sampleSchema=_decode_str(parametersMap.get("sampleSchema")),
+            columnName=_decode_str(parametersMap.get("columnName"), from_code),
+            parsingMethod=_decode_str(parametersMap.get("parsingMethod"), from_code),
+            sampleRecord=_decode_str(parametersMap.get("sampleRecord"), from_code),
+            sampleSchema=_decode_str(parametersMap.get("sampleSchema"), from_code),
             # read back from code the list may be a Python-style literal; keep JSON for the dialog
             outputColumns=(json.dumps(loaded_columns) if loaded_columns
                            else parametersMap.get("outputColumns") or ""),
             includeSourceColumn=_load_bool(parametersMap.get("includeSourceColumn"), True),
             ignoreErrors=_load_bool(parametersMap.get("ignoreErrors"), True),
-            childElement=_decode_str(parametersMap.get("childElement")),
+            childElement=_decode_str(parametersMap.get("childElement"), from_code),
+            generatedColumns=parametersMap.get("generatedColumns") or "",
             includeOuterXML=any(
                 isinstance(c, dict) and str(c.get("kind", "")).endswith("_outer") for c in loaded_columns
             ),
@@ -571,6 +586,7 @@ class XMLParse(MacroSpec):
                 MacroParameter("includeSourceColumn", "true" if properties.includeSourceColumn else "false"),
                 MacroParameter("ignoreErrors", "true" if properties.ignoreErrors else "false"),
                 MacroParameter("childElement", properties.childElement or ""),
+                MacroParameter("generatedColumns", properties.generatedColumns or ""),
             ],
         )
 

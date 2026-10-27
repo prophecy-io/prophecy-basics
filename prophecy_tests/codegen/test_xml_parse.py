@@ -245,6 +245,48 @@ def test_transpiler_written_columns_without_a_sample_are_never_touched():
     assert changed(old, dataclasses.replace(old, includeOuterXML=True, childElement="item")).outputColumns == cols
 
 
+def type_into(gem_props, field, text, input_columns=("id", "payload")):
+    """Feed onChange one keystroke at a time, as the dialog does."""
+    gem, p = XMLParse(), gem_props
+    for i in range(1, len(text) + 1):
+        p = gem.onChange(CONTEXT, component(p, input_columns),
+                         component(dataclasses.replace(p, **{field: text[:i]}), input_columns)).properties
+    return p
+
+
+def test_retyping_the_sample_one_key_at_a_time_ends_with_its_columns():
+    """Every prefix of a sample is malformed XML; the columns must not freeze on the old sample."""
+    start = type_into(Props(columnName="payload"), "sampleRecord", "<o><id>1</id></o>")
+    assert names(parse_output_columns(start.outputColumns)) == ["o", "id2"]
+    retyped = type_into(dataclasses.replace(start, sampleRecord=""), "sampleRecord", "<x><y>1</y><y>2</y></x>")
+    assert names(parse_output_columns(retyped.outputColumns)) == ["x", "y", "y_2"]
+    toggled = changed(retyped, dataclasses.replace(retyped, includeOuterXML=True))
+    assert "x_OuterXML" in names(parse_output_columns(toggled.outputColumns))
+
+
+def test_typing_a_child_element_name_ends_with_its_columns():
+    start = Props(columnName="payload", sampleRecord=LISTING)
+    p = type_into(start, "childElement", "row")
+    assert names(parse_output_columns(p.outputColumns)) == ["row", "v"]
+
+
+def test_generated_columns_follow_a_new_clashing_input_column_and_stay_valid():
+    """A Databricks gem never shows outputColumns; generated ones must never fail validation."""
+    gem = XMLParse()
+    p = type_into(Props(columnName="payload"), "sampleRecord", "<o><v>1</v></o>", input_columns=("payload",))
+    assert names(parse_output_columns(p.outputColumns)) == ["o", "v"]
+    p = gem.onChange(CONTEXT, component(p, ("payload",)), component(p, ("payload", "v"))).properties
+    assert names(parse_output_columns(p.outputColumns)) == ["o", "v2"]
+    assert messages(p, ("payload", "v")) == []
+
+
+def test_the_generation_bookkeeping_is_saved_but_never_in_the_call():
+    p = type_into(Props(relation_name=["src"], columnName="payload"), "sampleRecord", "<o><v>1</v></o>")
+    assert p.generatedColumns == p.outputColumns
+    assert "generatedColumns" not in XMLParse().apply(p)
+    assert XMLParse().loadProperties(XMLParse().unloadProperties(p)).generatedColumns == p.generatedColumns
+
+
 def test_a_sample_still_being_typed_leaves_the_columns_alone():
     old = Props(columnName="payload", outputColumns='[{"name": "order", "kind": "root"}]')
     assert changed(old, dataclasses.replace(old, sampleRecord="<order><id>")).outputColumns == old.outputColumns
@@ -260,6 +302,21 @@ def props_with(text):
     return Props(relation_name=["Source_1"], columnName=text, parsingMethod="parseFromSampleRecord",
                  sampleRecord=text, sampleSchema="", outputColumns=json.dumps(cols),
                  includeSourceColumn=False, ignoreErrors=False, childElement=text)
+
+
+def test_column_names_outside_the_basic_plane_reach_the_macro_intact():
+    """json.dumps' default \\ud83d\\ude00 escapes are decoded half by half by Jinja."""
+    cols = [{"name": "rate 😀", "kind": "child", "tag": "r𝔵", "instance": 0}]
+    p = Props(relation_name=["src"], columnName="payload", outputColumns=json.dumps(cols))
+    assert rendered_args(XMLParse().apply(p))[5] == cols
+
+
+@pytest.mark.parametrize("value", ["''", "'quoted'", '"double"'])
+def test_a_saved_value_that_looks_like_a_literal_is_kept_as_is(value):
+    """Saved properties hold the value itself, never source text: nothing is decoded."""
+    p = Props(relation_name=["src"], columnName=value, sampleRecord=value, childElement=value)
+    q = XMLParse().loadProperties(XMLParse().unloadProperties(p))
+    assert (q.columnName, q.sampleRecord, q.childElement) == (value, value, value)
 
 
 def test_a_legacy_gem_writes_an_empty_column_list_and_the_defaults():
