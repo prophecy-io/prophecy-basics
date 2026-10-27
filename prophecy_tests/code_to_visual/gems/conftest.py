@@ -22,7 +22,7 @@ def project():
 def reopen(project):
     """(gem, properties) for ``code`` as the SQL Editor loads it, before onChange.
 
-    Arguments are named from the macro signature and keep their exact source text.
+    Arguments are named from the macro signature; string literals keep their quotes.
     """
     from prophecy.cb.sql.Component import BasicMacroProperties, MacroParameter
 
@@ -31,7 +31,7 @@ def reopen(project):
         assert len(calls) == 1, f"expected one gem call in {code!r}"
         gc = calls[0]
         gem = project.gems[(gc.project, gc.gem)]
-        params = c2v.resolve_params(gc.node, project.signatures.get(gc.gem), [], gc.source_args)
+        params = c2v.resolve_params(gc.node, project.signatures.get(gc.gem), [])
         props = gem.instance.loadProperties(BasicMacroProperties(
             macroName=gem.gem_name, projectName=gem.project_name,
             parameters=[MacroParameter(p.name, p.value) for p in params if p.name]))

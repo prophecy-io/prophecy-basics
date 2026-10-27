@@ -19,9 +19,10 @@ Editor performs when it opens a project:
     apply     -> run the gem's apply to regenerate the call.
     compare   -> reparse the regenerated call and diff it against original.
 
-Argument values are the exact source text of each argument; decoding them is
-each gem's job. Parameters absent from the call are not pre-filled, so a gem
-reading one gets None, exactly as in the SQL Editor.
+Argument values are source text: string literals keep their quotes and escapes
+as written, the rest is re-rendered from the AST, as in the SQL Editor. Decoding
+them is each gem's job. Parameters absent from the call are not pre-filled, so a
+gem reading one gets None, exactly as in the SQL Editor.
 
 Per-gem cases (``gems/<Gem>/cases.yml``) start from the form instead of SQL:
 each case's ``properties`` are filled in, onChange runs, apply() generates the
@@ -50,15 +51,58 @@ from typing import Any, Dict, List, Optional, Tuple
 import jinja2
 import yaml
 from jinja2 import nodes
+from jinja2.lexer import Token, TokenStream
+from jinja2.parser import Parser
 
 
 # =============================================================================
 # jinja environment
 # =============================================================================
 
+class _RawStr(str):
+    """A decoded string token value that also carries its source text."""
+
+    def __new__(cls, value: str, raw: str):
+        s = super().__new__(cls, value)
+        s.raw = raw
+        return s
+
+
+class _RawStringParser(Parser):
+    """Parser that stores each string literal's source text on its Const as ``raw``.
+
+    jinja decodes string tokens, so a plain Const cannot tell '' from "".
+    """
+
+    def __init__(self, environment, source, name=None, filename=None, state=None):
+        super().__init__(environment, source, name, filename, state)
+        raw_strings = (
+            value for _, kind, value in environment.lexer.tokeniter(
+                environment.preprocess(source, name, filename), name, filename, state)
+            if kind == "string")
+        self.stream = TokenStream(
+            (Token(t.lineno, t.type, _RawStr(t.value, next(raw_strings)))
+             if t.type == "string" else t
+             for t in self.stream),
+            name, filename)
+
+    def parse_primary(self, *args, **kwargs):
+        token = self.stream.current
+        node = super().parse_primary(*args, **kwargs)
+        # Implicitly concatenated literals ('a' 'b') are left unannotated.
+        if token.type == "string" and node.value == token.value:
+            node.raw = token.value.raw
+        return node
+
+
+class _Environment(jinja2.Environment):
+    def _parse(self, source, name, filename):
+        return _RawStringParser(self, source, name, filename).parse()
+
+
 def _make_env() -> jinja2.Environment:
     # dbt-only tags (e.g. materialization) are handled by the callers.
-    return jinja2.Environment(extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"])
+    return _Environment(extensions=["jinja2.ext.do", "jinja2.ext.loopcontrols"])
 
 
 # =============================================================================
@@ -81,13 +125,16 @@ _CMP_OPS = {
 }
 
 
-def generate_code(node: nodes.Node, warnings: Optional[List[str]] = None) -> str:
+def generate_code(node: nodes.Node, warnings: Optional[List[str]] = None,
+                  raw_strings: bool = True) -> str:
     """Deterministically render a jinja2 expression node to source text.
 
-    Strings are single quoted, booleans render as true/false, None as none.
-    Unknown node types raise GenerateCodeError.
+    String literals parsed by _make_env keep their source text (quotes and
+    escapes as written) unless raw_strings is False; other strings are single
+    quoted. Booleans render as true/false, None as none. Unknown node types
+    raise GenerateCodeError.
     """
-    g = lambda n: generate_code(n, warnings)
+    g = lambda n: generate_code(n, warnings, raw_strings)
 
     if isinstance(node, nodes.Const):
         v = node.value
@@ -102,6 +149,9 @@ def generate_code(node: nodes.Node, warnings: Optional[List[str]] = None) -> str
                     "replace(\"'\", '\"') will mis-parse "
                     f"{v!r}"
                 )
+            raw = getattr(node, "raw", None)
+            if raw_strings and raw is not None:
+                return raw
             return "'" + v.replace("\\", "\\\\").replace("'", "\\'") + "'"
         return repr(v)  # int / float -> bare
 
@@ -253,7 +303,11 @@ def values_equal(env: jinja2.Environment, text_a: str, text_b: str) -> bool:
     la = literal_value(na)
     lb = literal_value(nb)
     if la is _NON_LITERAL or lb is _NON_LITERAL:
-        return text_a.strip() == text_b.strip()
+        # Quote style is not semantic: ref("t") matches ref('t').
+        try:
+            return generate_code(na, raw_strings=False) == generate_code(nb, raw_strings=False)
+        except GenerateCodeError:
+            return text_a.strip() == text_b.strip()
     return strict_equal(la, lb)
 
 
@@ -663,9 +717,6 @@ class GemCall:
     project: str
     gem: str
     lineno: int
-    # Exact source text of each argument as (keyword or None, text), in call
-    # order; None when it could not be matched to the source.
-    source_args: Optional[List[Tuple[Optional[str], str]]] = None
 
     @property
     def fq(self) -> str:
@@ -728,126 +779,12 @@ def _scan_brace_spans(src: str) -> List[Tuple[int, str]]:
     return spans
 
 
-def _matching_close(text: str, open_idx: int) -> Optional[int]:
-    """Index of the bracket closing ``text[open_idx]``, skipping quoted strings."""
-    depth, quote, i = 0, None, open_idx
-    while i < len(text):
-        c = text[i]
-        if quote:
-            if c == "\\":
-                i += 2
-                continue
-            if c == quote:
-                quote = None
-        elif c in "'\"":
-            quote = c
-        elif c in "([{":
-            depth += 1
-        elif c in ")]}":
-            depth -= 1
-            if depth == 0:
-                return i
-        i += 1
-    return None
-
-
-def _split_top_level(text: str) -> List[str]:
-    """Split ``text`` on commas that are outside quotes and brackets."""
-    parts: List[str] = []
-    depth, quote, start, i = 0, None, 0, 0
-    while i < len(text):
-        c = text[i]
-        if quote:
-            if c == "\\":
-                i += 2
-                continue
-            if c == quote:
-                quote = None
-        elif c in "'\"":
-            quote = c
-        elif c in "([{":
-            depth += 1
-        elif c in ")]}":
-            depth -= 1
-        elif c == "," and depth == 0:
-            parts.append(text[start:i])
-            start = i + 1
-        i += 1
-    parts.append(text[start:])
-    if len(parts) > 1 and not parts[-1].strip():
-        parts.pop()  # trailing comma
-    return parts
-
-
-_CALL_HEAD_RE = re.compile(r"\s*((?:[A-Za-z_]\w*\s*\.\s*)?[A-Za-z_]\w*)\s*\(")
-_KWARG_RE = re.compile(r"([A-Za-z_]\w*)\s*=(?!=)")
-
-
-def source_args(call_text: str) -> Optional[Tuple[str, List[Tuple[Optional[str], str]]]]:
-    """Split ``callee(arg, key=arg)`` source into (callee, [(keyword or None, text)]).
-
-    Returns None unless ``call_text`` is exactly one call expression.
-    """
-    m = _CALL_HEAD_RE.match(call_text)
-    if not m:
-        return None
-    close = _matching_close(call_text, m.end() - 1)
-    if close is None or call_text[close + 1:].strip():
-        return None
-    callee = re.sub(r"\s+", "", m.group(1))
-    body = call_text[m.end():close]
-    if not body.strip():
-        return callee, []
-    args: List[Tuple[Optional[str], str]] = []
-    for piece in _split_top_level(body):
-        piece = piece.strip()
-        kw = _KWARG_RE.match(piece)
-        args.append((kw.group(1), piece[kw.end():].strip()) if kw else (None, piece))
-    return callee, args
-
-
-def _attach_source_args(src: str, calls: List[GemCall]) -> None:
-    """Give each call the exact text of its arguments, as the SQL Editor sees them.
-
-    A call is matched to the ``{{ ... }}`` span that holds exactly that call;
-    calls nested inside a larger expression keep ``source_args=None``.
-    """
-    scan = _blank_out(r"\{#.*?#\}", src)
-    scan = _blank_out(r"\{%-?\s*raw\s*-?%\}.*?\{%-?\s*endraw\s*-?%\}", scan)
-    spans = [(lineno, lineno + inner.count("\n"), inner)
-             for lineno, inner in _scan_brace_spans(scan)]
-    used = set()
-    for gc in calls:
-        kw_names = [k.key for k in gc.node.kwargs]
-        for idx, (first, last, inner) in enumerate(spans):
-            if idx in used or not first <= gc.lineno <= last:
-                continue
-            parsed = source_args(inner)
-            if parsed is None or parsed[0] not in (gc.fq, gc.gem):
-                continue
-            args = parsed[1]
-            n_pos = len(gc.node.args)
-            if (len(args) != n_pos + len(kw_names)
-                    or any(k is not None for k, _ in args[:n_pos])
-                    or [k for k, _ in args[n_pos:]] != kw_names):
-                continue
-            gc.source_args = args
-            used.add(idx)
-            break
-
-
 def extract_calls(path: str, project: Project, warnings: List[str]) -> List[GemCall]:
     with open(path, encoding="utf-8") as fh:
         return extract_calls_from_text(fh.read(), project, warnings)
 
 
 def extract_calls_from_text(src: str, project: Project, warnings: List[str]) -> List[GemCall]:
-    calls = _extract_call_nodes(src, project, warnings)
-    _attach_source_args(src, calls)
-    return calls
-
-
-def _extract_call_nodes(src: str, project: Project, warnings: List[str]) -> List[GemCall]:
     env = _make_env()
     default_proj = project.project_name
     registry = project.gems
@@ -901,17 +838,10 @@ class ResolvedParam:
 
 
 def resolve_params(call: nodes.Call, sig: Optional[MacroSignature],
-                   warnings: List[str],
-                   source: Optional[List[Tuple[Optional[str], str]]] = None) -> List[ResolvedParam]:
-    """Name positional args from the signature; keywords keep their own name.
-
-    Values are the exact ``source`` texts when given, else re-rendered from the AST.
-    """
+                   warnings: List[str]) -> List[ResolvedParam]:
+    """Name positional args from the signature; keywords keep their own name."""
     arg_nodes = list(call.args) + [kw.value for kw in call.kwargs]
-    if source is not None and len(source) == len(arg_nodes):
-        values = [text for _, text in source]
-    else:
-        values = [generate_code(n, warnings) for n in arg_nodes]
+    values = [generate_code(n, warnings) for n in arg_nodes]
     params: List[ResolvedParam] = []
     for idx in range(len(call.args)):
         if sig is not None and idx < sig.arity:
@@ -1311,7 +1241,7 @@ def run_call(gc: GemCall, project: Project, file_path: str,
 
     # ---- resolve -------------------------------------------------------------
     try:
-        params = resolve_params(gc.node, sig, warnings, gc.source_args)
+        params = resolve_params(gc.node, sig, warnings)
     except GenerateCodeError as e:
         return result("resolve", False,
                       f"unrenderable argument node {e.node_type} at line {e.lineno}",
@@ -1418,11 +1348,8 @@ def run_call(gc: GemCall, project: Project, file_path: str,
                       f"regenerated output must contain exactly one call to "
                       f"{gc.fq}, found {len(regen_calls)}\n  output: {apply_out}",
                       params=param_pairs)
-    regen_source = next((c.source_args for c in extract_calls_from_text(apply_out, project, [])
-                         if (c.project, c.gem) == (gc.project, gc.gem)), None)
-
     try:
-        regen_params = resolve_params(regen_calls[0], sig, [], regen_source)
+        regen_params = resolve_params(regen_calls[0], sig, [])
     except GenerateCodeError as e:
         return result("compare", False,
                       f"regenerated call contains an unrenderable argument node "

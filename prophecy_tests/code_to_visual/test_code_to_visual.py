@@ -34,9 +34,14 @@ def call(text):
     "'a'", "1", "-2.5", "true", "none", "[1, 'x']", "(1,)", "{'k': [1, 2]}",
     "x.y[0]", "a ~ b", "a if b else c", "a in b", "a not in b", "x | f(1)",
     "ref('t')", "not a", "a and b or c", "1 + 2",
+    '""', "''", '"x"', '["a", \'b\']', '{"k": "v"}', '"it\'s"', "'it\\'s'", '"a\\nb"',
 ])
 def test_generate_code_round_trips(src):
     assert c2v.generate_code(expr(src)) == src
+
+
+def test_generate_code_can_normalize_quotes():
+    assert c2v.generate_code(expr('ref("t", "")'), raw_strings=False) == "ref('t', '')"
 
 
 def test_generate_code_escapes_quotes_and_warns():
@@ -62,6 +67,8 @@ def test_literal_value_only_accepts_pure_literals():
 @pytest.mark.parametrize("a, b, equal", [
     ("['a','b']", "['a', 'b']", True),
     ('"x"', "'x'", True),
+    ('""', "''", True),
+    ('ref("t")', "ref('t')", True),
     ("1", "'1'", False),
     ("true", "1", False),
     ("1", "1.0", False),
@@ -193,31 +200,18 @@ def test_resolve_names_positionals_from_signature():
     assert errors == []
 
 
-def test_resolve_prefers_exact_source_text():
-    c = call('proj.Gem(["t"], cols=["a"])')
-    source = [(None, '["t"]'), ("cols", '["a"]')]
-    params = c2v.resolve_params(c, SIG, [], source)
-    assert [p.value for p in params] == ['["t"]', '["a"]']
-    assert [p.value for p in c2v.resolve_params(c, SIG, [])] == ["['t']", "['a']"]
+def test_resolve_keeps_string_quoting():
+    params, _ = validate("proj.Gem([\"t\"], '', limit=\"\")")
+    assert [p.value for p in params] == ['["t"]', "''", '""']
 
 
-# ---- exact argument text -----------------------------------------------------
-
-def test_source_args_splits_top_level_arguments():
-    text = """ proj.Gem(['a, b'], "x(1, 2)", {'k': [1, 2]}, limit = 3,) """
-    assert c2v.source_args(text) == ("proj.Gem", [
-        (None, "['a, b']"), (None, '"x(1, 2)"'), (None, "{'k': [1, 2]}"), ("limit", "3")])
-    assert c2v.source_args("proj.Gem()") == ("proj.Gem", [])
-    assert c2v.source_args("proj.Gem(1) ~ 'x'") is None
-    assert c2v.source_args("proj.Gem(a == 1)") == ("proj.Gem", [(None, "a == 1")])
-
-
-def test_extract_attaches_exact_text(tmp_path):
+def test_extract_gives_each_call_its_own_arguments(tmp_path):
     project = c2v.Project(str(tmp_path), "proj", {("proj", "Gem"): GEM}, {})
-    src = "{{\n  proj.Gem(\n    [\"t\"],\n    cols=[ 'a' ]\n  )\n}}\n{{ 'x' ~ proj.Gem(['u'], ['b']) }}"
+    src = ("{{\n  proj.Gem(\n    [\"t\"],\n    cols=[ 'a' ]\n  )\n}}\n"
+           "{{ 'x' ~ proj.Gem(['u'], [\"b\"]) }} {{- proj.Gem(['v'], ['c {# d #}']) -}}")
     calls = c2v.extract_calls_from_text(src, project, [])
-    assert calls[0].source_args == [(None, '["t"]'), ("cols", "[ 'a' ]")]
-    assert calls[1].source_args is None  # nested in a larger expression
+    assert [[p.value for p in c2v.resolve_params(c.node, SIG, [])] for c in calls] == [
+        ['["t"]', "['a']"], ["['u']", '["b"]'], ["['v']", "['c {# d #}']"]]
 
 
 # ---- per-gem cases -----------------------------------------------------------
