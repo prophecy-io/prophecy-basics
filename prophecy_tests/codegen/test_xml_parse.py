@@ -29,7 +29,7 @@ Props = XMLParse.XMLParseProperties
 
 # The dbt macro signature, in order: the SQL Editor names positional arguments from it.
 ARGUMENT_NAMES = ("relation_name", "columnName", "parsingMethod", "sampleRecord", "sampleSchema",
-                  "outputColumns", "includeSourceColumn", "ignoreErrors")
+                  "outputColumns", "includeSourceColumn", "ignoreErrors", "childElement")
 
 ORDER = ("<order><id>7</id><item>A</item><customer><name>N</name></customer>"
          "<item>B</item><item>C</item></order>")
@@ -93,6 +93,24 @@ def test_a_name_already_in_the_input_gets_alteryxs_numeric_suffix():
     assert by_name["order2"]["kind"] == "root"
     assert by_name["id3"] == {"kind": "child", "tag": "id", "instance": 0, "name": "id3"}
     assert by_name["order_OuterXML2"]["kind"] == "root_outer"
+
+
+LISTING = ('<doc><meta><n>1</n></meta><list><row id="1"><v>a</v></row>'
+           '<row id="2"><v>b</v><v>c</v><row id="3"><v>d</v></row></row></list></doc>')
+
+
+def test_a_child_element_is_parsed_in_place_of_the_root_from_its_first_occurrence():
+    cols = output_columns_from_sample(LISTING, ["payload"], include_outer_xml=True, child_element="row")
+    assert names(cols) == ["row", "v", "v_OuterXML", "row_OuterXML"]
+    assert cols[0] == {"kind": "root", "name": "row"}
+
+
+def test_a_child_element_is_found_at_any_depth_but_never_as_the_root():
+    assert names(output_columns_from_sample(LISTING, [], child_element="n")) == ["n"]
+    with pytest.raises(ValueError, match="no <doc> element"):
+        output_columns_from_sample(LISTING, [], child_element="doc")
+    with pytest.raises(ValueError, match="no <missing> element"):
+        output_columns_from_sample(LISTING, [], child_element="missing")
 
 
 def test_a_malformed_sample_is_an_error():
@@ -184,6 +202,12 @@ def test_turning_on_outer_xml_regenerates_the_columns():
         changed(old, dataclasses.replace(old, includeOuterXML=True)).outputColumns))
 
 
+def test_choosing_a_child_element_regenerates_the_columns():
+    old = Props(columnName="payload", sampleRecord=LISTING)
+    p = changed(old, dataclasses.replace(old, childElement="row"))
+    assert names(parse_output_columns(p.outputColumns)) == ["row", "v"]
+
+
 def test_a_sample_still_being_typed_leaves_the_columns_alone():
     old = Props(columnName="payload", outputColumns='[{"name": "order", "kind": "root"}]')
     assert changed(old, dataclasses.replace(old, sampleRecord="<order><id>")).outputColumns == old.outputColumns
@@ -198,19 +222,19 @@ def props_with(text):
     cols = [{"name": f"{text}_col", "kind": "child", "tag": "item", "instance": 1}]
     return Props(relation_name=["Source_1"], columnName=text, parsingMethod="parseFromSampleRecord",
                  sampleRecord=text, sampleSchema="", outputColumns=json.dumps(cols),
-                 includeSourceColumn=False, ignoreErrors=False)
+                 includeSourceColumn=False, ignoreErrors=False, childElement=text)
 
 
 def test_a_legacy_gem_writes_an_empty_column_list_and_the_defaults():
     assert XMLParse().apply(Props(relation_name=["src"], columnName="payload")) == (
-        "{{ prophecy_basics.XMLParse(['src'],'payload','parseFromSampleRecord','','',[],true,true) }}")
+        "{{ prophecy_basics.XMLParse(['src'],'payload','parseFromSampleRecord','','',[],true,true,'') }}")
 
 
 @pytest.mark.parametrize("text", TRICKY)
 def test_the_generated_call_renders_the_exact_values(text):
     args = rendered_args(XMLParse().apply(props_with(text)))
     assert args == (["Source_1"], text, "parseFromSampleRecord", text, "",
-                    [{"name": f"{text}_col", "kind": "child", "tag": "item", "instance": 1}], False, False)
+                    [{"name": f"{text}_col", "kind": "child", "tag": "item", "instance": 1}], False, False, text)
 
 
 @pytest.mark.parametrize("text", TRICKY)
@@ -219,7 +243,8 @@ def test_code_visual_save_cycles_change_nothing(text):
     first = gem.apply(p)
     for _ in range(5):
         p = gem.loadProperties(source_properties(gem.apply(p)))
-        assert (p.columnName, p.sampleRecord, p.includeSourceColumn, p.ignoreErrors) == (text, text, False, False)
+        assert (p.columnName, p.sampleRecord, p.includeSourceColumn, p.ignoreErrors, p.childElement) == (
+            text, text, False, False, text)
         assert parse_output_columns(p.outputColumns) == parse_output_columns(props_with(text).outputColumns)
     assert gem.apply(p) == first
 
@@ -242,7 +267,7 @@ def test_a_call_written_before_output_columns_existed_still_loads():
     old = "{{ prophecy_basics.XMLParse(['src'],'payload','parseFromSampleRecord','','') }}"
     p = XMLParse().loadProperties(source_properties(old))
     assert (p.relation_name, p.columnName, p.parsingMethod, p.outputColumns) == (["src"], "payload", "parseFromSampleRecord", "")
-    assert (p.includeSourceColumn, p.ignoreErrors, p.includeOuterXML) == (True, True, False)
+    assert (p.includeSourceColumn, p.ignoreErrors, p.includeOuterXML, p.childElement) == (True, True, False, "")
 
 
 def test_settings_saved_before_output_columns_existed_still_load():

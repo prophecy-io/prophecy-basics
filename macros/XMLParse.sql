@@ -15,6 +15,9 @@
       per entry (Alteryx XML Parse). Empty → legacy single VARIANT column. Ignored elsewhere.
     - includeSourceColumn (Snowflake, with outputColumns): keep the source XML column.
     - ignoreErrors (Snowflake, with outputColumns): malformed XML gives NULLs instead of failing.
+    - childElement (Snowflake, with outputColumns): parse every outermost element with this tag, at any
+      depth, one output row per occurrence (input rows with none are dropped); the root* kinds then
+      refer to that element. Empty → parse the document's root element.
 
   Adapter Support:
     - default__ (from_xml), snowflake__ (PARSE_XML), duckdb__ (pass-through SELECT *)
@@ -43,7 +46,8 @@
     sampleSchema,
     outputColumns=[],
     includeSourceColumn=true,
-    ignoreErrors=true) -%}
+    ignoreErrors=true,
+    childElement='') -%}
     {{ return(adapter.dispatch('XMLParse', 'prophecy_basics')(relation_name,
     columnName,
     parsingMethod,
@@ -51,7 +55,8 @@
     sampleSchema,
     outputColumns,
     includeSourceColumn,
-    ignoreErrors)) }}
+    ignoreErrors,
+    childElement)) }}
 {% endmacro %}
 
 
@@ -63,7 +68,8 @@
     sampleSchema,
     outputColumns=[],
     includeSourceColumn=true,
-    ignoreErrors=true
+    ignoreErrors=true,
+    childElement=''
 ) %}
 
     {{ log("Parsing XML using method: " ~ parsingMethod, info=True) }}
@@ -114,7 +120,8 @@
     sampleSchema,
     outputColumns=[],
     includeSourceColumn=true,
-    ignoreErrors=true
+    ignoreErrors=true,
+    childElement=''
 ) %}
 
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
@@ -138,6 +145,7 @@
             tag      - child element name (child*)
             instance - 0-based occurrence of tag among the root's children (child*; default 0)
             attr     - attribute name (*_attr)
+          With childElement, root/root_outer/root_attr are the matched element, not the document root.
           Values are strings exactly as written (PARSE_XML's disable_auto_convert = TRUE, so 1.50 stays
           1.50); a child with element children (or mixed content) yields ''.
         -#}
@@ -150,23 +158,27 @@
                 PARSE_XML({{ src }}, TRUE)
             {%- endif -%}
         {%- endset -%}
-        {%- set excluded = [doc] if includeSourceColumn else [doc, src] -%}
+        {%- set el = '"__prophecy_el"' if childElement else doc -%}
+        {%- set helpers = [doc, el, '"__prophecy_seq"', '"__prophecy_path"'] if childElement else [doc] -%}
+        {%- set excluded = helpers if includeSourceColumn else helpers + [src] -%}
         select
             * exclude ({{ excluded | join(', ') }})
             {%- for c in outputColumns %}
             {%- set kind = c['kind'] -%}
             {%- set node -%}
                 {%- if kind.startswith('child') -%}
-                    XMLGET({{ doc }}, '{{ c['tag'] | replace("'", "''") }}', {{ c.get('instance', 0) | int }})
+                    XMLGET({{ el }}, '{{ c['tag'] | replace("'", "''") }}', {{ c.get('instance', 0) | int }})
                 {%- else -%}
-                    {{ doc }}
+                    {{ el }}
                 {%- endif -%}
             {%- endset -%}
             ,
             {%- if kind in ('root', 'child') %}
             IFF(IS_ARRAY({{ node }}:"$") OR IS_OBJECT({{ node }}:"$"), '', {{ node }}:"$"::STRING)
-            {%- elif kind == 'root_outer' %}
+            {%- elif kind == 'root_outer' and not childElement %}
             {{ src }}::STRING
+            {%- elif kind == 'root_outer' %}
+            TO_VARCHAR({{ node }})
             {%- elif kind == 'child_outer' %}
             TO_VARCHAR({{ node }})
             {%- elif kind in ('root_attr', 'child_attr') %}
@@ -175,10 +187,32 @@
             {{ exceptions.raise_compiler_error("XMLParse: unknown output column kind '" ~ kind ~ "'") }}
             {%- endif %} as {{ '"' ~ c['name'] ~ '"' }}
             {%- endfor %}
+        {%- if childElement %}
+        from (
+            {#- every element tagged childElement, keeping only the outermost when they nest -#}
+            with matches as (
+                select s.*, f.seq as "__prophecy_seq", f.path as "__prophecy_path", f.value as {{ el }}
+                from (
+                    select *, {{ parsed }} as {{ doc }}
+                    from {{ relation_list | join(', ') }}
+                ) as s,
+                lateral flatten(input => s.{{ doc }}, recursive => true) as f
+                where get(f.value, '@')::string = '{{ childElement | replace("'", "''") }}'
+            )
+            select * from matches as m
+            where not exists (
+                select 1 from matches as o
+                where o."__prophecy_seq" = m."__prophecy_seq"
+                  and o."__prophecy_path" <> m."__prophecy_path"
+                  and startswith(m."__prophecy_path", o."__prophecy_path")
+            )
+        )
+        {%- else %}
         from (
             select *, {{ parsed }} as {{ doc }}
             from {{ relation_list | join(', ') }}
         )
+        {%- endif %}
     {%- endif -%}
 
 {% endmacro %}
@@ -190,7 +224,8 @@
     sampleSchema,
     outputColumns=[],
     includeSourceColumn=true,
-    ignoreErrors=true) -%}
+    ignoreErrors=true,
+    childElement='') -%}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
     {# Simple XML parsing implementation for DuckDB - returns original data #}
     SELECT * FROM {{ relation_list | join(', ') }}

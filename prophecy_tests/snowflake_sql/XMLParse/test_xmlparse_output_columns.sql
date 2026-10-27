@@ -1,7 +1,8 @@
 -- Test: XMLParse macro - Alteryx-style output columns (Snowflake)
 -- With outputColumns, each entry becomes one string column read from the parsed document:
 -- the root's value, attribute and outer XML, and each child's value, attribute and outer XML by
--- tag and occurrence. Without outputColumns the macro keeps its single VARIANT column.
+-- tag and occurrence. With childElement, every outermost element with that tag becomes its own row
+-- and stands in for the root. Without outputColumns the macro keeps its single VARIANT column.
 --
 -- Values are compared in SQL, not through run_query results: agate would read '007' or '1.50'
 -- as numbers and hide exactly the conversions this test guards against.
@@ -79,6 +80,63 @@ SELECT ROW_ID, XMLGET("PAYLOAD_parsed", 'id'):"$"::VARCHAR AS "id" FROM ({{ prop
 SELECT * FROM (VALUES (1, '007'), (2, '2')) AS E(ROW_ID, "id")
 {% endset %}
 {% do cases.append({"name": "no outputColumns keeps the VARIANT column", "sql": macro_query, "expected": expected}) %}
+
+{% set create_child_src %}
+CREATE OR REPLACE TEMPORARY TABLE XML_PARSE_CHILD_SRC AS
+SELECT * FROM (VALUES
+    (1, '<doc><meta><issued>2024-01-01</issued></meta><list><row id="1"><v>a</v></row><row id="2"><v>b</v><row id="3"><v>c</v></row></row></list></doc>'),
+    (2, '<doc><row id="9"><v>z</v></row></doc>'),
+    (3, '<doc><none/></doc>'),
+    (4, NULL),
+    (5, '<doc><row id="5"></doc>')
+) AS T(ROW_ID, PAYLOAD)
+{% endset %}
+{% do run_query(create_child_src) %}
+
+-- childElement: one row per outermost <row> at any depth (row 3 sits inside row 2 and is not its own
+-- row); the root kinds are the matched element; rows with no <row>, NULL or malformed XML are dropped
+{% set macro_query %}
+SELECT * FROM ({{ prophecy_basics.XMLParse(
+    relation_name=['XML_PARSE_CHILD_SRC'],
+    columnName='PAYLOAD',
+    parsingMethod='',
+    sampleRecord='',
+    sampleSchema='',
+    outputColumns=[{"name": "row", "kind": "root"}, {"name": "row_id", "kind": "root_attr", "attr": "id"}, {"name": "v", "kind": "child", "tag": "v", "instance": 0}, {"name": "row2", "kind": "child", "tag": "row", "instance": 0}, {"name": "row_OuterXML", "kind": "root_outer"}],
+    includeSourceColumn=false,
+    ignoreErrors=true,
+    childElement='row'
+) }}) AS parsed
+{% endset %}
+{% set expected %}
+SELECT * FROM (VALUES
+    (1, '', '1', 'a', NULL, '<row id="1"><v>a</v></row>'),
+    (1, '', '2', 'b', '', '<row id="2"><v>b</v><row id="3"><v>c</v></row></row>'),
+    (2, '', '9', 'z', NULL, '<row id="9"><v>z</v></row>')
+) AS E(ROW_ID, "row", "row_id", "v", "row2", "row_OuterXML")
+{% endset %}
+{% do cases.append({"name": "childElement gives one row per outermost occurrence", "sql": macro_query, "expected": expected,
+    "columns": ["ROW_ID", "row", "row_id", "v", "row2", "row_OuterXML"]}) %}
+
+-- childElement deeper than the root's children, holding a leaf value
+{% set macro_query %}
+SELECT * FROM ({{ prophecy_basics.XMLParse(
+    relation_name=['XML_PARSE_CHILD_SRC'],
+    columnName='PAYLOAD',
+    parsingMethod='',
+    sampleRecord='',
+    sampleSchema='',
+    outputColumns=[{"name": "issued", "kind": "root"}],
+    includeSourceColumn=false,
+    ignoreErrors=true,
+    childElement='issued'
+) }}) AS parsed
+{% endset %}
+{% set expected %}
+SELECT * FROM (VALUES (1, '2024-01-01')) AS E(ROW_ID, "issued")
+{% endset %}
+{% do cases.append({"name": "childElement finds a nested leaf element", "sql": macro_query, "expected": expected,
+    "columns": ["ROW_ID", "issued"]}) %}
 
 {% for case in cases %}
     {% if case.columns is defined %}

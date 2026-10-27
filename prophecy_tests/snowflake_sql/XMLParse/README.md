@@ -14,6 +14,9 @@ dbt tests for the `XMLParse` macro (`macros/XMLParse.sql`) on Snowflake, through
 - malformed XML and NULL input give NULLs (`ignoreErrors`)
 - the source column kept, and dropped with `includeSourceColumn=false`
 - no `outputColumns`: the single VARIANT `<column>_parsed` column, as before
+- `childElement`: one row per outermost occurrence of the tag at any depth (a nested match is
+  not a row of its own), the root kinds read from the matched element, and input rows with no
+  match, NULL or malformed XML dropped; a nested leaf element as the parsed element
 
 ## How These Tests Work
 

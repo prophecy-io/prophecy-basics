@@ -51,16 +51,22 @@ def _unique_name(name: str, used: set) -> str:
     return f"{name}{n}"
 
 
-def output_columns_from_sample(sample_xml: str, input_columns: list, include_outer_xml: bool = False) -> list:
-    """Output columns Alteryx's XML Parse (parse root element, return child values) creates for
-    a sample document, in Alteryx's order: the root value, the first occurrence of every child
+def output_columns_from_sample(sample_xml: str, input_columns: list, include_outer_xml: bool = False,
+                               child_element: str = "") -> list:
+    """Output columns Alteryx's XML Parse (return child values) creates for a sample document, in
+    Alteryx's order, for the root element or, with child_element, for the first element with that
+    tag below the root: the root value, the first occurrence of every child
     tag (each followed by its OuterXML), the root's OuterXML, then the repeated occurrences
     named <tag>_2, <tag>_3, ...  Names that clash with an input column get Alteryx's 2, 3, ...
-    suffix.  Raises ValueError when the sample is not well-formed XML."""
+    suffix.  Raises ValueError when the sample is not well-formed XML or has no child_element."""
     try:
         root = ET.fromstring(sample_xml)
     except ET.ParseError as e:
         raise ValueError(f"Sample record is not well-formed XML: {e}")
+    if child_element:
+        root = next((e for e in root.iter(child_element) if e is not root), None)
+        if root is None:
+            raise ValueError(f"Sample record has no <{child_element}> element below the root")
     used = set(input_columns or [])
     columns = []
 
@@ -169,6 +175,8 @@ class XMLParse(MacroSpec):
         outputColumns: str = ""
         includeSourceColumn: bool = True
         ignoreErrors: bool = True
+        # Parse every element with this tag (one row each) instead of the root; Snowflake only.
+        childElement: str = ""
         # UI only (not a macro argument): whether a sample record generates *_OuterXML columns.
         includeOuterXML: bool = False
 
@@ -261,7 +269,8 @@ class XMLParse(MacroSpec):
                                         "With no output columns, **`XMLParse`** adds one VARIANT column with the suffix **`_parsed`**. "
                                         "Paste a sample record to get one string column per child element instead: "
                                         "the root value, each child's value (repeats as `<tag>_2`, `<tag>_3`, ...) and, "
-                                        "optionally, each element's outer XML.\n"
+                                        "optionally, each element's outer XML. With a specific child element, every "
+                                        "element with that tag becomes its own row and is parsed in place of the root.\n"
                                     )
                                 ]
                             )
@@ -271,6 +280,11 @@ class XMLParse(MacroSpec):
                             .addElement(Checkbox("Include outer XML columns").bindProperty("includeOuterXML"))
                             .addElement(Checkbox("Keep the source XML column").bindProperty("includeSourceColumn"))
                             .addElement(Checkbox("Return nulls for malformed XML instead of failing").bindProperty("ignoreErrors"))
+                        )
+                        .addElement(
+                            TextBox("Specific child element (leave empty to parse the root element)")
+                            .bindPlaceholder("item")
+                            .bindProperty("childElement")
                         )
                         .addElement(
                             TextArea("Sample XML record (generates the output columns)", 10)
@@ -459,12 +473,14 @@ class XMLParse(MacroSpec):
             (old.sampleRecord or "").strip() != sample
             or old.includeOuterXML != new.includeOuterXML
             or old.includeSourceColumn != new.includeSourceColumn
+            or (old.childElement or "") != (new.childElement or "")
         ):
             existing = self._input_column_names(newState)
             if not new.includeSourceColumn:
                 existing = [c for c in existing if c != new.columnName]
             try:
-                columns = output_columns_from_sample(sample, existing, new.includeOuterXML)
+                columns = output_columns_from_sample(sample, existing, new.includeOuterXML,
+                                                     (new.childElement or "").strip())
                 newProperties = dataclasses.replace(newProperties, outputColumns=json.dumps(columns))
             except ValueError:
                 pass  # keep the current columns; the sample is still being typed
@@ -492,6 +508,7 @@ class XMLParse(MacroSpec):
             json.dumps(output_columns),  # a JSON list is a valid Jinja literal (no nulls are stored)
             "true" if props.includeSourceColumn else "false",
             "true" if props.ignoreErrors else "false",
+            _jinja_str(props.childElement),
         ]
         params = ",".join([param for param in arguments])
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
@@ -512,6 +529,7 @@ class XMLParse(MacroSpec):
             outputColumns=parametersMap.get("outputColumns") or "",
             includeSourceColumn=_load_bool(parametersMap.get("includeSourceColumn"), True),
             ignoreErrors=_load_bool(parametersMap.get("ignoreErrors"), True),
+            childElement=_decode_str(parametersMap.get("childElement")),
             includeOuterXML=any(
                 isinstance(c, dict) and str(c.get("kind", "")).endswith("_outer") for c in loaded_columns
             ),
@@ -530,6 +548,7 @@ class XMLParse(MacroSpec):
                 MacroParameter("outputColumns", properties.outputColumns or ""),
                 MacroParameter("includeSourceColumn", "true" if properties.includeSourceColumn else "false"),
                 MacroParameter("ignoreErrors", "true" if properties.ignoreErrors else "false"),
+                MacroParameter("childElement", properties.childElement or ""),
             ],
         )
 
