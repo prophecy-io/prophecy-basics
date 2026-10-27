@@ -149,7 +149,7 @@
           Values are strings exactly as written (PARSE_XML's disable_auto_convert = TRUE, so 1.50 stays
           1.50); a child with element children (or mixed content) yields ''.
         -#}
-        {%- set src = '"' ~ columnName ~ '"' -%}
+        {%- set src = '"' ~ (columnName | replace('"', '""')) ~ '"' -%}
         {%- set doc = '"__prophecy_xml"' -%}
         {%- set parsed -%}
             {%- if ignoreErrors -%}
@@ -182,14 +182,15 @@
             {%- elif kind == 'child_outer' %}
             TO_VARCHAR({{ node }})
             {%- elif kind in ('root_attr', 'child_attr') %}
-            {{ node }}:"@{{ c['attr'] }}"::STRING
+            GET({{ node }}, '@{{ c['attr'] | replace("'", "''") }}')::STRING
             {%- else -%}
             {{ exceptions.raise_compiler_error("XMLParse: unknown output column kind '" ~ kind ~ "'") }}
-            {%- endif %} as {{ '"' ~ c['name'] ~ '"' }}
+            {%- endif %} as {{ '"' ~ (c['name'] | replace('"', '""')) ~ '"' }}
             {%- endfor %}
         {%- if childElement %}
         from (
-            {#- every element tagged childElement, keeping only the outermost when they nest -#}
+            {#- every element tagged childElement, keeping only the outermost when they nest. The
+                not-exists filter is most of this mode's cost (~2.5x the recursive flatten alone). -#}
             with matches as (
                 select s.*, f.seq as "__prophecy_seq", f.path as "__prophecy_path", f.value as {{ el }}
                 from (

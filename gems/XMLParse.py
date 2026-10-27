@@ -63,6 +63,9 @@ def output_columns_from_sample(sample_xml: str, input_columns: list, include_out
         root = ET.fromstring(sample_xml)
     except ET.ParseError as e:
         raise ValueError(f"Sample record is not well-formed XML: {e}")
+    if any(e.tag.startswith("{") for e in root.iter()):
+        raise ValueError("Sample record uses XML namespaces; write the output columns by hand, "
+                         "with tags as prefix:name")
     if child_element:
         root = next((e for e in root.iter(child_element) if e is not root), None)
         if root is None:
@@ -172,6 +175,8 @@ class XMLParse(MacroSpec):
         sampleSchema: Optional[str] = None
         # Snowflake: one output column per entry, as a JSON list of
         # {name, kind, tag?, instance?, attr?} (generated from sampleRecord or set by the transpiler).
+        # The gem cannot tell the warehouse (SqlContext has no provider), so a Databricks gem may also
+        # generate these from its sample record; the Databricks and DuckDB macros ignore them.
         outputColumns: str = ""
         includeSourceColumn: bool = True
         ignoreErrors: bool = True
@@ -270,7 +275,8 @@ class XMLParse(MacroSpec):
                                         "Paste a sample record to get one string column per child element instead: "
                                         "the root value, each child's value (repeats as `<tag>_2`, `<tag>_3`, ...) and, "
                                         "optionally, each element's outer XML. With a specific child element, every "
-                                        "element with that tag becomes its own row and is parsed in place of the root.\n"
+                                        "element with that tag becomes its own row and is parsed in place of the root. "
+                                        "Edited columns are kept when settings change; clear them to regenerate from the sample.\n"
                                     )
                                 ]
                             )
@@ -466,25 +472,39 @@ class XMLParse(MacroSpec):
             relation_name=relation_name
         )
 
-        # Regenerate the output columns when the sample record or the outer-XML choice changes.
-        old, new = oldState.properties, newProperties
-        sample = (new.sampleRecord or "").strip()
-        if sample and (
-            (old.sampleRecord or "").strip() != sample
-            or old.includeOuterXML != new.includeOuterXML
-            or old.includeSourceColumn != new.includeSourceColumn
-            or (old.childElement or "") != (new.childElement or "")
-        ):
-            existing = self._input_column_names(newState)
-            if not new.includeSourceColumn:
-                existing = [c for c in existing if c != new.columnName]
-            try:
-                columns = output_columns_from_sample(sample, existing, new.includeOuterXML,
-                                                     (new.childElement or "").strip())
+        # Regenerate the output columns from the sample when a setting they depend on changes, but
+        # only while they are empty or still exactly what the previous settings generated: columns
+        # someone edited (or the transpiler wrote) are never overwritten. Clearing them regenerates.
+        old_key = self._generation_key(oldState, oldState.properties)
+        new_key = self._generation_key(newState, newProperties)
+        try:
+            current = parse_output_columns(newProperties.outputColumns)
+        except ValueError:
+            current = None
+        if new_key[0] and current is not None and (not current or (
+                old_key != new_key and current == self._generated_columns(old_key))):
+            columns = self._generated_columns(new_key)
+            if columns is not None:
                 newProperties = dataclasses.replace(newProperties, outputColumns=json.dumps(columns))
-            except ValueError:
-                pass  # keep the current columns; the sample is still being typed
         return newState.bindProperties(newProperties)
+
+    def _generation_key(self, state: Component, props) -> tuple:
+        """Everything output_columns_from_sample depends on."""
+        existing = self._input_column_names(state)
+        if not props.includeSourceColumn:
+            existing = [c for c in existing if c != props.columnName]
+        return ((props.sampleRecord or "").strip(), tuple(existing), bool(props.includeOuterXML),
+                (props.childElement or "").strip())
+
+    @staticmethod
+    def _generated_columns(key: tuple):
+        sample, existing, include_outer_xml, child_element = key
+        if not sample:
+            return None
+        try:
+            return output_columns_from_sample(sample, list(existing), include_outer_xml, child_element)
+        except ValueError:
+            return None  # the sample is still being typed
 
     def apply(self, props: XMLParseProperties) -> str:
         # You can now access self.relation_name here
@@ -497,6 +517,7 @@ class XMLParse(MacroSpec):
         try:
             output_columns = parse_output_columns(props.outputColumns)
         except ValueError:
+            # validate reports the bad list as an error; the call stays parseable for the SQL Editor
             output_columns = []
 
         arguments = [
@@ -519,14 +540,16 @@ class XMLParse(MacroSpec):
         try:
             loaded_columns = parse_output_columns(parametersMap.get("outputColumns"))
         except ValueError:
-            loaded_columns = []
+            loaded_columns = []  # kept as written, so validate reports it
         return XMLParse.XMLParseProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             columnName=_decode_str(parametersMap.get("columnName")),
             parsingMethod=_decode_str(parametersMap.get("parsingMethod")),
             sampleRecord=_decode_str(parametersMap.get("sampleRecord")),
             sampleSchema=_decode_str(parametersMap.get("sampleSchema")),
-            outputColumns=parametersMap.get("outputColumns") or "",
+            # read back from code the list may be a Python-style literal; keep JSON for the dialog
+            outputColumns=(json.dumps(loaded_columns) if loaded_columns
+                           else parametersMap.get("outputColumns") or ""),
             includeSourceColumn=_load_bool(parametersMap.get("includeSourceColumn"), True),
             ignoreErrors=_load_bool(parametersMap.get("ignoreErrors"), True),
             childElement=_decode_str(parametersMap.get("childElement")),

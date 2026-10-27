@@ -81,6 +81,35 @@ SELECT * FROM (VALUES (1, '007'), (2, '2')) AS E(ROW_ID, "id")
 {% endset %}
 {% do cases.append({"name": "no outputColumns keeps the VARIANT column", "sql": macro_query, "expected": expected}) %}
 
+-- ignoreErrors=false parses with PARSE_XML directly (valid documents only, or the query fails);
+-- an output name containing a double quote is escaped
+{% set create_valid_src %}
+CREATE OR REPLACE TEMPORARY TABLE XML_PARSE_VALID_SRC AS
+SELECT * FROM (VALUES
+    (1, '<order code="X"><id>007</id></order>'),
+    (2, '<order><id>2</id></order>'),
+    (3, NULL)
+) AS T(ROW_ID, PAYLOAD)
+{% endset %}
+{% do run_query(create_valid_src) %}
+{% set macro_query %}
+SELECT * FROM ({{ prophecy_basics.XMLParse(
+    relation_name=['XML_PARSE_VALID_SRC'],
+    columnName='PAYLOAD',
+    parsingMethod='',
+    sampleRecord='',
+    sampleSchema='',
+    outputColumns=[{"name": "say \"id\"", "kind": "child", "tag": "id", "instance": 0}, {"name": "code", "kind": "root_attr", "attr": "code"}],
+    includeSourceColumn=false,
+    ignoreErrors=false
+) }}) AS parsed
+{% endset %}
+{% set expected %}
+SELECT * FROM (VALUES (1, '007', 'X'), (2, '2', NULL), (3, NULL, NULL)) AS E(ROW_ID, "say ""id""", "code")
+{% endset %}
+{% do cases.append({"name": "ignoreErrors=false and a quoted output name", "sql": macro_query, "expected": expected,
+    "columns": ["ROW_ID", 'say "id"', "code"]}) %}
+
 {% set create_child_src %}
 CREATE OR REPLACE TEMPORARY TABLE XML_PARSE_CHILD_SRC AS
 SELECT * FROM (VALUES

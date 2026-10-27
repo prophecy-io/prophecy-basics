@@ -12,6 +12,7 @@ dbt tests for the `XMLParse` macro (`macros/XMLParse.sql`) on Snowflake, through
 - a child with element children and an empty child (`''`), an entity (`&amp;`)
 - numeric text kept as written (`007`, `1.50`)
 - malformed XML and NULL input give NULLs (`ignoreErrors`)
+- `ignoreErrors=false` on valid documents and NULL; an output name containing `"`
 - the source column kept, and dropped with `includeSourceColumn=false`
 - no `outputColumns`: the single VARIANT `<column>_parsed` column, as before
 - `childElement`: one row per outermost occurrence of the tag at any depth (a nested match is

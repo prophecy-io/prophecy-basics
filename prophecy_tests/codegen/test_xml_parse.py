@@ -20,7 +20,7 @@ from jinja2 import Environment
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "gems"))
-from XMLParse import (XMLParse, BasicMacroProperties, MacroParameter, output_column_errors,
+from XMLParse import (XMLParse, BasicMacroProperties, MacroParameter, _jinja_str, output_column_errors,
                       output_columns_from_sample, parse_output_columns)
 from prophecy.cb.sql.Component import Component, NodePort, NodePorts, SqlNodeMetadata
 from prophecy.cb.sql.SqlContext import SqlContext, SqlGraph
@@ -111,6 +111,11 @@ def test_a_child_element_is_found_at_any_depth_but_never_as_the_root():
         output_columns_from_sample(LISTING, [], child_element="doc")
     with pytest.raises(ValueError, match="no <missing> element"):
         output_columns_from_sample(LISTING, [], child_element="missing")
+
+
+def test_a_namespaced_sample_is_refused_rather_than_guessed():
+    with pytest.raises(ValueError, match="namespaces"):
+        output_columns_from_sample('<o xmlns:p="urn:x"><p:id>1</p:id></o>', [])
 
 
 def test_a_malformed_sample_is_an_error():
@@ -208,6 +213,38 @@ def test_choosing_a_child_element_regenerates_the_columns():
     assert names(parse_output_columns(p.outputColumns)) == ["row", "v"]
 
 
+def generated(sample, outer=False, input_columns=("id", "payload")):
+    return json.dumps(output_columns_from_sample(sample, list(input_columns), include_outer_xml=outer))
+
+
+def test_generated_columns_follow_the_outer_xml_setting():
+    old = Props(columnName="payload", sampleRecord=ORDER, outputColumns=generated(ORDER))
+    p = changed(old, dataclasses.replace(old, includeOuterXML=True))
+    assert p.outputColumns == generated(ORDER, outer=True)
+
+
+def test_edited_columns_survive_changes_to_the_settings_they_came_from():
+    edited = json.dumps([{"name": "order_id", "kind": "child", "tag": "id", "instance": 0}])
+    old = Props(columnName="payload", sampleRecord=ORDER, outputColumns=edited)
+    for new in (dataclasses.replace(old, includeOuterXML=True),
+                dataclasses.replace(old, includeSourceColumn=False),
+                dataclasses.replace(old, childElement="item"),
+                dataclasses.replace(old, sampleRecord="<order><x>1</x></order>")):
+        assert changed(old, new).outputColumns == edited
+
+
+def test_clearing_edited_columns_regenerates_them():
+    edited = Props(columnName="payload", sampleRecord=ORDER, outputColumns='[{"name": "x", "kind": "root"}]')
+    p = changed(edited, dataclasses.replace(edited, outputColumns=""))
+    assert p.outputColumns == generated(ORDER)
+
+
+def test_transpiler_written_columns_without_a_sample_are_never_touched():
+    cols = json.dumps([{"name": "id2", "kind": "child", "tag": "id", "instance": 0}])
+    old = Props(columnName="payload", outputColumns=cols)
+    assert changed(old, dataclasses.replace(old, includeOuterXML=True, childElement="item")).outputColumns == cols
+
+
 def test_a_sample_still_being_typed_leaves_the_columns_alone():
     old = Props(columnName="payload", outputColumns='[{"name": "order", "kind": "root"}]')
     assert changed(old, dataclasses.replace(old, sampleRecord="<order><id>")).outputColumns == old.outputColumns
@@ -268,6 +305,26 @@ def test_a_call_written_before_output_columns_existed_still_loads():
     p = XMLParse().loadProperties(source_properties(old))
     assert (p.relation_name, p.columnName, p.parsingMethod, p.outputColumns) == (["src"], "payload", "parseFromSampleRecord", "")
     assert (p.includeSourceColumn, p.ignoreErrors, p.includeOuterXML, p.childElement) == (True, True, False, "")
+
+
+def test_a_python_style_list_read_back_from_code_is_stored_as_json():
+    call = ("{{ prophecy_basics.XMLParse(['src'],'payload','','','',"
+            "[{'name': 'id', 'kind': 'child', 'tag': 'id', 'instance': 0}],true,true,'') }}")
+    p = XMLParse().loadProperties(source_properties(call))
+    assert json.loads(p.outputColumns) == [{"name": "id", "kind": "child", "tag": "id", "instance": 0}]
+
+
+def test_a_multi_line_sample_reads_back_from_its_literal_unchanged():
+    """The SQL Editor hands loadProperties the literal apply wrote; a pasted sample spans lines."""
+    sample = '<order>\n  <id it\'s="1">c:\\d</id>\n</order>'
+    literal = _jinja_str(sample)
+    assert "\n" in literal  # written as is: Jinja string literals may span lines
+    p = XMLParse().loadProperties(BasicMacroProperties(parameters=[
+        MacroParameter("relation_name", "['src']"), MacroParameter("columnName", "'payload'"),
+        MacroParameter("parsingMethod", "''"), MacroParameter("sampleRecord", literal),
+        MacroParameter("sampleSchema", "''")]))
+    assert p.sampleRecord == sample
+    assert rendered_args(XMLParse().apply(p))[3] == sample
 
 
 def test_settings_saved_before_output_columns_existed_still_load():
