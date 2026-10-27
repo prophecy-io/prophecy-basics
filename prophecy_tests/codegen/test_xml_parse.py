@@ -335,3 +335,37 @@ def test_settings_saved_before_output_columns_existed_still_load():
     p = XMLParse().loadProperties(old)
     assert (p.columnName, p.sampleRecord, p.sampleSchema, p.outputColumns, p.ignoreErrors) == (
         "payload", "", "STRUCT<a: STRING>", "", True)
+
+
+def test_loading_does_not_print_the_parameters(capsys):
+    """The parameters include the whole sample record, which can be customer data."""
+    XMLParse().loadProperties(XMLParse().unloadProperties(props_with("it's")))
+    assert capsys.readouterr().out == ""
+
+
+# ---- the Databricks macro's SQL literals -------------------------------------------------------
+
+def _default_macro(**kwargs):
+    sql = (ROOT / "macros" / "XMLParse.sql").read_text()
+    env = Environment()
+    env.globals.update(log=lambda *a, **k: "",
+                       exceptions=SimpleNamespace(raise_compiler_error=lambda m: (_ for _ in ()).throw(ValueError(m))))
+    args = dict(relation_name=["src"], columnName="payload", parsingMethod="parseFromSampleRecord",
+                sampleRecord="", sampleSchema="")
+    args.update(kwargs)
+    call = "{{ default__XMLParse(" + ", ".join(f"{k}={v!r}" for k, v in args.items()) + ") }}"
+    return " ".join(env.from_string(sql + call).render().split())
+
+
+SPARK_SAMPLE = "<a b='1'>c:\\d\nit's</a>"
+
+
+def test_the_databricks_sample_record_is_a_valid_spark_sql_literal():
+    sql = _default_macro(sampleRecord=SPARK_SAMPLE)
+    assert "schema_of_xml('<a b=\\'1\\'>c:\\\\d it\\'s</a>')" in sql
+
+
+def test_the_databricks_schema_is_a_valid_spark_sql_literal():
+    sql = _default_macro(parsingMethod="parseFromSchema", sampleSchema="STRUCT<`it's`: STRING>")
+    assert "from_xml(`payload`, 'STRUCT<`it\\'s`: STRING>')" in sql
+

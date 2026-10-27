@@ -86,18 +86,21 @@
 
     {%- else -%}
         {%- set quoted_col = "`" ~ columnName ~ "`" -%}
+        {#- Spark SQL string literals escape with a backslash: escape backslashes first, then quotes -#}
+        {%- set schema_literal = sampleSchema | replace("\n", " ") | replace("\\", "\\\\") | replace("'", "\\'") -%}
+        {%- set record_literal = sampleRecord | replace("\n", " ") | replace("\\", "\\\\") | replace("'", "\\'") -%}
         {%- set alias_col = "`" ~ columnName ~ "_parsed`" -%}
 
         {%- if parsingMethod == 'parseFromSchema' -%}
             select
                 *,
-                from_xml({{ quoted_col }}, '{{ sampleSchema | replace("\n", " ") }}') as {{ alias_col }}
+                from_xml({{ quoted_col }}, '{{ schema_literal }}') as {{ alias_col }}
             from {{ relation_list | join(', ') }}
 
         {%- elif parsingMethod == 'parseFromSampleRecord' -%}
             select
                 *,
-                from_xml({{ quoted_col }}, schema_of_xml('{{ sampleRecord | replace("\n", " ") }}')) as {{ alias_col }}
+                from_xml({{ quoted_col }}, schema_of_xml('{{ record_literal }}')) as {{ alias_col }}
             from {{ relation_list | join(', ') }}
 
         {%- elif parsingMethod == 'none' or not parsingMethod -%}

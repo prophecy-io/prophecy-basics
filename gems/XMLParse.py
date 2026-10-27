@@ -536,7 +536,6 @@ class XMLParse(MacroSpec):
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
-        print(f"The name of the parametersMap is {parametersMap}")
         try:
             loaded_columns = parse_output_columns(parametersMap.get("outputColumns"))
         except ValueError:
