@@ -23,6 +23,7 @@ class TestTrainSplit(MacroSpec):
 
     # Split returned on each output port, in port order
     splitNames: list[str] = ["train", "test", "validation"]
+    splitIcons: list[PortIconEnum] = [PortIconEnum.Train, PortIconEnum.Test, PortIconEnum.Validation]
 
     @dataclass(frozen=True)
     class TestTrainSplitProperties(MacroProperties):
@@ -154,7 +155,23 @@ class TestTrainSplit(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what each output port holds: its share of the data, its icon and the input it comes from
+        props = component.properties
+        percentages = [props.train_pct, props.test_pct, props.validation_pct]
+        outputs = list(component.ports.outputs)
+        for idx, (split_name, icon, pct) in enumerate(zip(self.splitNames, self.splitIcons, percentages)):
+            if idx >= len(outputs):
+                break
+            outputs[idx] = dataclasses.replace(
+                outputs[idx],
+                description=f"Contains {pct}% of the data ({split_name})",
+                icon=icon,
+                incomingAliases=list(props.relation_name),
+            )
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def _macro_call(self, props: TestTrainSplitProperties, split_name: str) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -231,4 +248,4 @@ class TestTrainSplit(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
