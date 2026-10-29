@@ -1,0 +1,23 @@
+providerType: "Databricks"
+fields:
+- name: "customer_id"
+  dataType:
+    type: "Bigint"
+- name: "customer_name"
+  dataType:
+    type: "String"
+- name: "email"
+  dataType:
+    type: "String"
+- name: "region"
+  dataType:
+    type: "String"
+- name: "is_active"
+  dataType:
+    type: "Boolean"
+- name: "created_date"
+  dataType:
+    type: "Date"
+- name: "FileName"
+  dataType:
+    type: "String"
