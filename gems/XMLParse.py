@@ -8,6 +8,151 @@ from prophecy.cb.ui.uispec import *
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 
+import ast
+import xml.etree.ElementTree as ET
+
+from jinja2 import Environment, TemplateSyntaxError, nodes
+
+# Kinds of output column the Snowflake macro can extract (see macros/XMLParse.sql).
+XML_OUTPUT_KINDS = ("root", "root_outer", "root_attr", "child", "child_outer", "child_attr")
+
+
+def _jinja_str(value) -> str:
+    """Single-quoted Jinja string literal; quotes and backslashes in the value are escaped."""
+    text = "" if value is None else str(value)
+    return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def _decode_str(raw, from_code: bool = True) -> str:
+    """A string argument as loadProperties receives it: the call's source text when the gem is read
+    back from code ('it\\'s' -> it's), or the plain saved value otherwise."""
+    if raw is None:
+        return ""
+    text = str(raw)
+    if from_code and len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        try:
+            parsed = Environment().parse("{{ " + text + " }}")
+            node = parsed.body[0].nodes[0] if len(parsed.body) == 1 else None
+            if isinstance(node, nodes.Const) and isinstance(node.value, str):
+                return node.value
+        except (TemplateSyntaxError, AttributeError, IndexError):
+            pass
+        return text[1:-1]
+    return text
+
+
+def _unique_name(name: str, used: set) -> str:
+    """Alteryx renames a clashing field X to X2, X3, ..."""
+    if name not in used:
+        return name
+    n = 2
+    while f"{name}{n}" in used:
+        n += 1
+    return f"{name}{n}"
+
+
+def output_columns_from_sample(sample_xml: str, input_columns: list, include_outer_xml: bool = False,
+                               child_element: str = "") -> list:
+    """Output columns Alteryx's XML Parse (return child values) creates for a sample document, in
+    Alteryx's order, for the root element or, with child_element, for the first element with that
+    tag below the root: the root value, the first occurrence of every child
+    tag (each followed by its OuterXML), the root's OuterXML, then the repeated occurrences
+    named <tag>_2, <tag>_3, ...  Names that clash with an input column get Alteryx's 2, 3, ...
+    suffix.  Raises ValueError when the sample is not well-formed XML or has no child_element."""
+    try:
+        root = ET.fromstring(sample_xml)
+    except ET.ParseError as e:
+        raise ValueError(f"Sample record is not well-formed XML: {e}")
+    if any([e.tag.startswith("{") for e in root.iter()]):
+        raise ValueError("Sample record uses XML namespaces; write the output columns by hand, "
+                         "with tags as prefix:name")
+    if child_element:
+        # (no generator expressions: Prophecy's gem parser rejects them)
+        matches = [e for e in root.iter(child_element) if e is not root]
+        root = matches[0] if matches else None
+        if root is None:
+            raise ValueError(f"Sample record has no <{child_element}> element below the root")
+    used = set(input_columns or [])
+    columns = []
+
+    def add(base, entry):
+        name = _unique_name(base, used)
+        used.add(name)
+        columns.append(dict(entry, name=name))
+
+    add(root.tag, {"kind": "root"})
+    seen = {}
+    repeats = []
+    for child in root:
+        instance = seen.get(child.tag, 0)
+        seen[child.tag] = instance + 1
+        if instance == 0:
+            add(child.tag, {"kind": "child", "tag": child.tag, "instance": 0})
+            if include_outer_xml:
+                add(child.tag + "_OuterXML", {"kind": "child_outer", "tag": child.tag, "instance": 0})
+        else:
+            repeats.append((child.tag, instance))
+    if include_outer_xml:
+        add(root.tag + "_OuterXML", {"kind": "root_outer"})
+    for tag, instance in repeats:
+        base = f"{tag}_{instance + 1}"
+        add(base, {"kind": "child", "tag": tag, "instance": instance})
+        if include_outer_xml:
+            add(base + "_OuterXML", {"kind": "child_outer", "tag": tag, "instance": instance})
+    return columns
+
+
+def _load_bool(raw, default: bool) -> bool:
+    if raw is None or str(raw).strip("'\" ") == "":
+        return default
+    return str(raw).strip("'\" ").lower() == "true"
+
+
+def parse_output_columns(raw) -> list:
+    """outputColumns is stored as a JSON string; an empty value means none."""
+    if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+        return []
+    if isinstance(raw, str):
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as e:
+            # A macro call parsed back from code may carry a Python-style literal ({'name': ...}).
+            try:
+                value = ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                raise ValueError(str(e))
+    else:
+        value = raw
+    if not isinstance(value, list):
+        raise ValueError("outputColumns must be a JSON list")
+    return value
+
+
+def output_column_errors(columns: list) -> List[str]:
+    errors = []
+    names = set()
+    for i, c in enumerate(columns):
+        if not isinstance(c, dict):
+            errors.append(f"Output column {i + 1} must be an object")
+            continue
+        name, kind = c.get("name"), c.get("kind")
+        if not name:
+            errors.append(f"Output column {i + 1} has no name")
+        elif name in names:
+            errors.append(f"Output column name '{name}' is used more than once")
+        names.add(name)
+        if kind not in XML_OUTPUT_KINDS:
+            errors.append(f"Output column '{name}' has unknown kind '{kind}'; expected one of {', '.join(XML_OUTPUT_KINDS)}")
+            continue
+        if kind.startswith("child") and not c.get("tag"):
+            errors.append(f"Output column '{name}' needs a tag")
+        if kind.endswith("_attr") and not c.get("attr"):
+            errors.append(f"Output column '{name}' needs an attr")
+        instance = c.get("instance", 0)
+        if not isinstance(instance, int) or isinstance(instance, bool) or instance < 0:
+            errors.append(f"Output column '{name}' instance must be a non-negative integer")
+    return errors
+
 
 class XMLParse(MacroSpec):
     name: str = "XMLParse"
@@ -30,6 +175,20 @@ class XMLParse(MacroSpec):
         parsingMethod: str = "parseFromSampleRecord"
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
+        # One output column per entry, as a JSON list of
+        # {name, kind, tag?, instance?, attr?} (generated from sampleRecord or set by the transpiler).
+        # Used only with parsingMethod "parseToColumns" (Snowflake and Databricks); ignored by the
+        # other modes and by the DuckDB macro.
+        outputColumns: str = ""
+        includeSourceColumn: bool = True
+        ignoreErrors: bool = True
+        # Parse every element with this tag (one row each) instead of the root; Snowflake only.
+        childElement: str = ""
+        # UI only (not a macro argument): whether a sample record generates *_OuterXML columns.
+        includeOuterXML: bool = False
+        # UI only, saved but never in the call: the output columns last generated from the sample, so
+        # columns still equal to it keep following the sample (see onChange).
+        generatedColumns: str = ""
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -46,6 +205,39 @@ class XMLParse(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _column_controls():
+        """Settings of the one-column-per-element mode (Snowflake; Databricks: Parse into columns)."""
+        return (
+            StackLayout(gap="1rem")
+            .addElement(
+                StackLayout(gap="0.5rem")
+                .addElement(Checkbox("Include outer XML columns").bindProperty("includeOuterXML"))
+                .addElement(Checkbox("Keep the source XML column").bindProperty("includeSourceColumn"))
+                .addElement(Checkbox("Return nulls for malformed XML instead of failing").bindProperty("ignoreErrors"))
+            )
+            .addElement(
+                TextBox("Specific child element (leave empty to parse the root element)")
+                .bindPlaceholder("item")
+                .bindProperty("childElement")
+            )
+            .addElement(
+                TextArea("Sample XML record (generates the output columns)", 10)
+                .bindProperty("sampleRecord")
+                .bindPlaceholder("<order><id>1</id><item>A</item><item>B</item></order>")
+            )
+            .addElement(
+                TextArea("Output columns (JSON; edit to rename, drop or add attribute columns)", 10)
+                .bindProperty("outputColumns")
+                .bindPlaceholder(
+                    '[{"name": "order", "kind": "root"}, '
+                    '{"name": "id", "kind": "child", "tag": "id", "instance": 0}, '
+                    '{"name": "item_2", "kind": "child", "tag": "item", "instance": 1}, '
+                    '{"name": "id_type", "kind": "child_attr", "tag": "id", "attr": "type"}]'
+                )
+            )
+        )
+
     def dialog(self) -> Dialog:
         methodRadioGroup = (
             RadioGroup("Parsing method")
@@ -58,6 +250,11 @@ class XMLParse(MacroSpec):
                 "Parse from schema",
                 "parseFromSchema",
                 description="Provide sample schema in SQL struct format to parse the data with",
+            )
+            .addOption(
+                "Parse into columns",
+                "parseToColumns",
+                description="One string column per child element, as Alteryx's XML Parse does",
             )
             .setOptionType("button")
             .setVariant("medium")
@@ -117,10 +314,31 @@ class XMLParse(MacroSpec):
                                 variant="success",
                                 _children=[
                                     Markdown(
-                                        "For the column processed using **`XMLParse`**, a new column is created with the suffix **`_parsed`**\n"
+                                        "**One VARIANT column** adds the parsed document as a column with the suffix **`_parsed`**. "
+                                        "**Parse into columns**: paste a sample record to get one string column per child element: "
+                                        "the root value, each child's value (repeats as `<tag>_2`, `<tag>_3`, ...) and, "
+                                        "optionally, each element's outer XML. With a specific child element, every "
+                                        "element with that tag becomes its own row and is parsed in place of the root. "
+                                        "Edited columns are kept when settings change; clear them to regenerate from the sample.\n"
                                     )
                                 ]
                             )
+                        )
+                        .addElement(
+                            RadioGroup("Output")
+                            .addOption("One VARIANT column", "parseFromSampleRecord",
+                                       description="The parsed document in <column>_parsed")
+                            .addOption("Parse into columns", "parseToColumns",
+                                       description="One string column per child element, as Alteryx's XML Parse does")
+                            .setOptionType("button")
+                            .setVariant("medium")
+                            .setButtonStyle("solid")
+                            .bindProperty("parsingMethod")
+                        )
+                        .addElement(
+                            Condition()
+                            .ifEqual(PropExpr("component.properties.parsingMethod"), StringExpr("parseToColumns"))
+                            .then(self._column_controls())
                         )
                 )
             )
@@ -143,6 +361,14 @@ class XMLParse(MacroSpec):
                         )
                     )
                     .addElement(methodRadioGroup)
+                    .addElement(
+                        Condition()
+                        .ifEqual(
+                            PropExpr("component.properties.parsingMethod"),
+                            StringExpr("parseToColumns"),
+                        )
+                        .then(self._column_controls())
+                    )
                     .addElement(
                         Condition()
                         .ifEqual(
@@ -242,7 +468,42 @@ class XMLParse(MacroSpec):
         #             )
         #         )
 
+        if component.properties.parsingMethod != "parseToColumns":
+            return diagnostics  # the column settings do not apply in the other modes
+        try:
+            output_columns = parse_output_columns(component.properties.outputColumns)
+        except ValueError as e:
+            output_columns = []
+            diagnostics.append(
+                Diagnostic("component.properties.outputColumns", f"Output columns are not valid JSON: {e}", SeverityLevelEnum.Error)
+            )
+        for message in output_column_errors(output_columns):
+            diagnostics.append(Diagnostic("component.properties.outputColumns", message, SeverityLevelEnum.Error))
+        if output_columns:
+            existing = set(self._input_column_names(component))
+            if not component.properties.includeSourceColumn:
+                existing.discard(component.properties.columnName)
+            for c in output_columns:
+                if isinstance(c, dict) and c.get("name") in existing:
+                    diagnostics.append(
+                        Diagnostic(
+                            "component.properties.outputColumns",
+                            f"Output column '{c['name']}' already exists in the input; rename it",
+                            SeverityLevelEnum.Error,
+                        )
+                    )
+
         return diagnostics
+
+    @staticmethod
+    def _input_column_names(component: Component) -> List[str]:
+        try:
+            schema = component.ports.inputs[0].schema
+            if isinstance(schema, str):  # NodePort.schema is typed str; the editor passes a dict
+                schema = json.loads(schema.replace("'", '"'))
+            return [f["name"] for f in schema["fields"]]
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            return []
 
     def onChange(
         self, context: SqlContext, oldState: Component, newState: Component
@@ -253,7 +514,48 @@ class XMLParse(MacroSpec):
             newState.properties,
             relation_name=relation_name
         )
+
+        # Keep the output columns in step with the sample while they are generated ones: empty, the
+        # last list generated here, or what the previous settings generate. Columns someone edited
+        # (or the transpiler wrote) are never overwritten; clearing them regenerates. A sample that
+        # is not well-formed yet (mid-typing) changes nothing and keeps the columns generated ones.
+        new_key = self._generation_key(newState, newProperties)
+        try:
+            current = parse_output_columns(newProperties.outputColumns)
+        except ValueError:
+            current = None
+        # only in "Parse into columns": a gem in another mode (one opened from before this mode existed,
+        # say) must come back from the editor exactly as it was
+        if newProperties.parsingMethod == "parseToColumns" and new_key[0] and current is not None:
+            try:
+                last_generated = parse_output_columns(newProperties.generatedColumns)
+            except ValueError:
+                last_generated = []
+            generated = (not current or current == last_generated
+                         or current == self._generated_columns(self._generation_key(oldState, oldState.properties)))
+            columns = self._generated_columns(new_key) if generated else None
+            if columns is not None and columns != current:
+                newProperties = dataclasses.replace(newProperties, outputColumns=json.dumps(columns),
+                                                    generatedColumns=json.dumps(columns))
         return newState.bindProperties(newProperties)
+
+    def _generation_key(self, state: Component, props) -> tuple:
+        """Everything output_columns_from_sample depends on."""
+        existing = self._input_column_names(state)
+        if not props.includeSourceColumn:
+            existing = [c for c in existing if c != props.columnName]
+        return ((props.sampleRecord or "").strip(), tuple(existing), bool(props.includeOuterXML),
+                (props.childElement or "").strip())
+
+    @staticmethod
+    def _generated_columns(key: tuple):
+        sample, existing, include_outer_xml, child_element = key
+        if not sample:
+            return None
+        try:
+            return output_columns_from_sample(sample, list(existing), include_outer_xml, child_element)
+        except ValueError:
+            return None  # the sample is still being typed
 
     def apply(self, props: XMLParseProperties) -> str:
         # You can now access self.relation_name here
@@ -263,25 +565,53 @@ class XMLParse(MacroSpec):
         sampleRecord: str = props.sampleRecord if props.sampleRecord is not None else ""
         sampleSchema: str = props.sampleSchema if props.sampleSchema is not None else ""
 
+        try:
+            output_columns = parse_output_columns(props.outputColumns)
+        except ValueError:
+            # validate reports the bad list as an error; the call stays parseable for the SQL Editor
+            output_columns = []
+
         arguments = [
             str(props.relation_name),
-            "'" + props.columnName + "'",
-            "'" + props.parsingMethod + "'",
-            "'" + sampleRecord + "'",
-            "'" + sampleSchema + "'",
+            _jinja_str(props.columnName),
+            _jinja_str(props.parsingMethod),
+            _jinja_str(sampleRecord),
+            _jinja_str(sampleSchema),
+            # a JSON list is a valid Jinja literal (no nulls are stored); ensure_ascii=False because Jinja
+            # decodes the two halves of an escaped surrogate pair (an emoji) separately
+            json.dumps(output_columns, ensure_ascii=False),
+            "true" if props.includeSourceColumn else "false",
+            "true" if props.ignoreErrors else "false",
+            _jinja_str(props.childElement),
         ]
         params = ",".join([param for param in arguments])
         return f"{{{{ {resolved_macro_name}({params}) }}}}"
 
     def loadProperties(self, properties: MacroProperties) -> PropertiesType:
         parametersMap = self.convertToParameterMap(properties.parameters)
-        print(f"The name of the parametersMap is {parametersMap}")
+        # Saved properties (unloadProperties) always carry generatedColumns, which the call never
+        # does: only values read back from code are source text to decode.
+        from_code = "generatedColumns" not in parametersMap
+        try:
+            loaded_columns = parse_output_columns(parametersMap.get("outputColumns"))
+        except ValueError:
+            loaded_columns = []  # kept as written, so validate reports it
         return XMLParse.XMLParseProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
-            columnName=parametersMap.get('columnName').lstrip("'").rstrip("'"),
-            parsingMethod=parametersMap.get('parsingMethod').lstrip("'").rstrip("'"),
-            sampleRecord=parametersMap.get("sampleRecord").lstrip("'").rstrip("'"),
-            sampleSchema=parametersMap.get("sampleSchema").lstrip("'").rstrip("'"),
+            columnName=_decode_str(parametersMap.get("columnName"), from_code),
+            parsingMethod=_decode_str(parametersMap.get("parsingMethod"), from_code),
+            sampleRecord=_decode_str(parametersMap.get("sampleRecord"), from_code),
+            sampleSchema=_decode_str(parametersMap.get("sampleSchema"), from_code),
+            # read back from code the list may be a Python-style literal; keep JSON for the dialog
+            outputColumns=(json.dumps(loaded_columns) if loaded_columns
+                           else parametersMap.get("outputColumns") or ""),
+            includeSourceColumn=_load_bool(parametersMap.get("includeSourceColumn"), True),
+            ignoreErrors=_load_bool(parametersMap.get("ignoreErrors"), True),
+            childElement=_decode_str(parametersMap.get("childElement"), from_code),
+            generatedColumns=parametersMap.get("generatedColumns") or "",
+            includeOuterXML=any(
+                [isinstance(c, dict) and str(c.get("kind", "")).endswith("_outer") for c in loaded_columns]
+            ),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:
@@ -294,6 +624,11 @@ class XMLParse(MacroSpec):
                 MacroParameter("parsingMethod", properties.parsingMethod),
                 MacroParameter("sampleRecord", properties.sampleRecord),
                 MacroParameter("sampleSchema", properties.sampleSchema),
+                MacroParameter("outputColumns", properties.outputColumns or ""),
+                MacroParameter("includeSourceColumn", "true" if properties.includeSourceColumn else "false"),
+                MacroParameter("ignoreErrors", "true" if properties.ignoreErrors else "false"),
+                MacroParameter("childElement", properties.childElement or ""),
+                MacroParameter("generatedColumns", properties.generatedColumns or ""),
             ],
         )
 
@@ -306,6 +641,9 @@ class XMLParse(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        if self.props.parsingMethod == "parseToColumns":
+            raise ValueError("XMLParse: 'Parse into columns' runs as SQL (the XMLParse macro); "
+                             "the Python runtime does not support it yet")
         if self.props.parsingMethod == "parseFromSchema":
             if not self.props.sampleSchema or self.props.sampleSchema == "":
                 res = in0
