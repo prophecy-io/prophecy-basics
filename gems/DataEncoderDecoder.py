@@ -677,18 +677,22 @@ class DataEncoderDecoder(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        description = f"{props.enc_dec_method or 'Encode/decode'} on {self._names(props.column_names) or 'selected columns'}"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.ArrowNarrowRight,
-                incomingAliases=list(props.relation_name or []),
-            )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = f"{props.enc_dec_method or 'Encode/decode'} on {self._names(props.column_names) or 'selected columns'}"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.ArrowNarrowRight,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     @staticmethod
     def _names(items) -> str:

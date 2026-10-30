@@ -291,20 +291,24 @@ class TextToColumns(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        target = "rows" if props.split_strategy == "splitRows" else f"{props.noOfColumns} column{'' if props.noOfColumns == 1 else 's'}"
-        delimiter = f" on '{props.delimiter}'" if props.delimiter else ""
-        description = f"{props.columnNames or 'Column'} split{delimiter} into {target}"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.RowsC if props.split_strategy == "splitRows" else PortIconEnum.ColumnsC,
-                incomingAliases=list(props.relation_name or []),
-            )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            target = "rows" if props.split_strategy == "splitRows" else f"{props.noOfColumns} column{'' if props.noOfColumns == 1 else 's'}"
+            delimiter = f" on '{props.delimiter}'" if props.delimiter else ""
+            description = f"{props.columnNames or 'Column'} split{delimiter} into {target}"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.RowsC if props.split_strategy == "splitRows" else PortIconEnum.ColumnsC,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     def _is_regex_delimiter(self, delimiter: str) -> bool:
         # Auto-detect whether the delimiter is meant as a regex pattern or a plain literal.

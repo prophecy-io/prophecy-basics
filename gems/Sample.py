@@ -341,29 +341,33 @@ class Sample(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        description = {
-            "firstN": f"First {props.numberN} rows",
-            "lastN": f"Last {props.numberN} rows",
-            "skipN": f"Rows after the first {props.numberN}",
-            "randomN": f"Random {props.numberN} rows",
-            "randomNPercent": f"Random {props.numberN}% of rows",
-            "nPercent": f"First {props.numberN}% of rows",
-            "oneOfN": f"One row in every {props.numberN}",
-            "oneInN": f"Rows kept with 1 in {props.numberN} chance",
-        }.get(props.currentModeSelection, "Sampled rows")
-        if props.sampleLevelSelection == "sampleGroup":
-            description += " per group"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.PercentB if props.currentModeSelection in ("randomNPercent", "nPercent", "oneInN") else PortIconEnum.FilterLines,
-                incomingAliases=list(props.relation_name or []),
-            )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = {
+                "firstN": f"First {props.numberN} rows",
+                "lastN": f"Last {props.numberN} rows",
+                "skipN": f"Rows after the first {props.numberN}",
+                "randomN": f"Random {props.numberN} rows",
+                "randomNPercent": f"Random {props.numberN}% of rows",
+                "nPercent": f"First {props.numberN}% of rows",
+                "oneOfN": f"One row in every {props.numberN}",
+                "oneInN": f"Rows kept with 1 in {props.numberN} chance",
+            }.get(props.currentModeSelection, "Sampled rows")
+            if props.sampleLevelSelection == "sampleGroup":
+                description += " per group"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.PercentB if props.currentModeSelection in ("randomNPercent", "nPercent", "oneInN") else PortIconEnum.FilterLines,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     def apply(self, props: SampleProperties) -> str:
         # generate the actual macro call given the component's state

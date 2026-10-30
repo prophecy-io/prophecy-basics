@@ -290,18 +290,22 @@ class FuzzyMatch(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        description = f"Fuzzy matched records ({props.matchThresholdPercentage}% similar or more)"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.InnerJoin,
-                incomingAliases=list(props.relation_name or []),
-            )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = f"Fuzzy matched records ({props.matchThresholdPercentage}% similar or more)"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.InnerJoin,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     def apply(self, props: FuzzyMatchProperties) -> str:
         # generate the actual macro call given the component's state

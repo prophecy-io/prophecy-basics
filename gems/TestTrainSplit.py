@@ -158,19 +158,23 @@ class TestTrainSplit(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what each output port holds: its share of the data, its icon and the input it comes from
-        props = component.properties
-        percentages = [props.train_pct, props.test_pct, props.validation_pct]
-        outputs = list(component.ports.outputs)
-        for idx, (split_name, pct) in enumerate(zip(self.splitNames, percentages)):
-            if idx >= len(outputs):
-                break
-            outputs[idx] = dataclasses.replace(
-                outputs[idx],
-                description=f"Contains {pct}% of the data ({split_name})",
-                icon=PortIconEnum.PercentB,
-                incomingAliases=list(props.relation_name),
-            )
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            percentages = [props.train_pct, props.test_pct, props.validation_pct]
+            outputs = list(component.ports.outputs)
+            for idx, (split_name, pct) in enumerate(zip(self.splitNames, percentages)):
+                if idx >= len(outputs):
+                    break
+                outputs[idx] = dataclasses.replace(
+                    outputs[idx],
+                    description=f"Contains {pct}% of the data ({split_name})",
+                    icon=PortIconEnum.PercentB,
+                    incomingAliases=list(props.relation_name),
+                )
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     def _macro_call(self, props: TestTrainSplitProperties, split_name: str) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"

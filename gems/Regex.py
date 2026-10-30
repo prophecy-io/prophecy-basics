@@ -597,18 +597,22 @@ class Regex(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        description = f"Regex {props.outputMethod} on {props.selectedColumnName or 'a column'}"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.RowsC if props.outputMethod == "tokenize" and props.tokenizeOutputMethod == "splitRows" else PortIconEnum.ColumnsC,
-                incomingAliases=list(props.relation_name or []),
-            )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = f"Regex {props.outputMethod} on {props.selectedColumnName or 'a column'}"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.RowsC if props.outputMethod == "tokenize" and props.tokenizeOutputMethod == "splitRows" else PortIconEnum.ColumnsC,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     def infer_data_type_from_pattern(self, regex_pattern):
         """Infer likely data type from regex pattern."""

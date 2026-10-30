@@ -189,24 +189,28 @@ class WeightedAverage(MacroSpec):
 
     def _with_port_hints(self, component: Component) -> Component:
         # Tell the UI what the output port holds, its icon and the inputs it comes from
-        props = component.properties
-        description = (
-            f"Weighted average of {props.valueFieldColumn} by {props.weightFieldColumn}"
-            if props.valueFieldColumn and props.weightFieldColumn
-            else "Weighted average"
-        )
-        if props.groupByColumnNames:
-            description += f" per {self._names(props.groupByColumnNames)}"
-        outputs = [
-            dataclasses.replace(
-                port,
-                description=description,
-                icon=PortIconEnum.Sigma,
-                incomingAliases=list(props.relation_name or []),
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = (
+                f"Weighted average of {props.valueFieldColumn} by {props.weightFieldColumn}"
+                if props.valueFieldColumn and props.weightFieldColumn
+                else "Weighted average"
             )
-            for port in component.ports.outputs
-        ]
-        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+            if props.groupByColumnNames:
+                description += f" per {self._names(props.groupByColumnNames)}"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.Sigma,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
 
     @staticmethod
     def _names(items) -> str:
