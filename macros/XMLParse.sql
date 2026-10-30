@@ -9,18 +9,21 @@
   Parameters:
     - relation_name (list): Source relation(s).
     - columnName: Column to parse; empty → SELECT *.
-    - parsingMethod: 'parseFromSchema' | 'parseFromSampleRecord' | 'none' / empty.
+    - parsingMethod: 'parseFromSchema' | 'parseFromSampleRecord' | 'parseToColumns' | 'none' / empty.
     - sampleRecord, sampleSchema: XML sample or schema string for Spark from_xml.
-    - outputColumns (Snowflake): list of {name, kind, tag?, instance?, attr?}; one string column
-      per entry (Alteryx XML Parse). Empty → legacy single VARIANT column. Ignored elsewhere.
-    - includeSourceColumn (Snowflake, with outputColumns): keep the source XML column.
-    - ignoreErrors (Snowflake, with outputColumns): malformed XML gives NULLs instead of failing.
-    - childElement (Snowflake, with outputColumns): parse every outermost element with this tag, at any
-      depth, one output row per occurrence (input rows with none are dropped); the root* kinds then
-      refer to that element. Empty → parse the document's root element.
+    - parsingMethod 'parseToColumns' (Snowflake, Databricks/Spark): one string column per entry of
+      outputColumns, with the three arguments below. Any other method keeps the legacy output.
+    - outputColumns: list of {name, kind, tag?, instance?, attr?} (Alteryx XML Parse).
+    - includeSourceColumn: keep the source XML column.
+    - ignoreErrors: malformed XML gives NULLs instead of failing.
+    - childElement: parse every outermost element with this tag, at any depth, one output row per
+      occurrence (input rows with none are dropped); the root* kinds then refer to that element.
+      Empty → parse the document's root element. On Databricks the tag must not nest inside itself
+      (the query fails rather than guess).
 
   Adapter Support:
-    - default__ (from_xml), snowflake__ (PARSE_XML), duckdb__ (pass-through SELECT *)
+    - default__ (from_xml; parseToColumns: xpath_* + regex), snowflake__ (PARSE_XML; parseToColumns:
+      XMLGET + FLATTEN), duckdb__ (pass-through SELECT *)
 
   Depends on schema parameter:
     No
@@ -84,6 +87,79 @@
     {%- elif parsingMethod == 'parseFromSampleRecord' and (not sampleRecord or sampleRecord | trim == '') -%}
         select * from {{ relation_list | join(', ') }}
 
+    {%- elif parsingMethod == 'parseToColumns' and not outputColumns -%}
+        select * from {{ relation_list | join(', ') }}
+
+    {%- elif parsingMethod == 'parseToColumns' -%}
+        {#-
+          Alteryx-style XML Parse on Databricks / Spark: the same outputColumns, includeSourceColumn,
+          ignoreErrors and childElement as on Snowflake, enabled by parsingMethod='parseToColumns' (a
+          Databricks gem also carries generated outputColumns; they only apply in this mode).
+          Values come from the xpath_* functions (path literals, one parse per call), trimmed like
+          Snowflake's. XPath cannot print a node, so outer XML is cut out of the document with a regex,
+          which is only trusted when XPath confirms it found exactly the right elements; otherwise the
+          query fails with raise_error rather than return a wrong value. The same holds for
+          childElement, which also needs <tag> not to nest inside another <tag> on Databricks.
+          ignoreErrors: from_xml's corrupt-record column flags malformed XML before any xpath runs.
+        -#}
+        {%- set src = "`" ~ (columnName | replace("`", "``")) ~ "`" -%}
+        {%- set el = "`__prophecy_el`" -%}
+        {%- set doc = el if childElement else src -%}
+        {%- set valid -%}
+            {{ src }} IS NOT NULL AND from_xml({{ src }}, '_c STRING', map('columnNameOfCorruptRecord', '_c'))._c IS NULL
+        {%- endset -%}
+        {%- set ok = 'true' if (childElement or not ignoreErrors) else valid -%}
+        {%- set excluded = ([el] if childElement else []) + ([] if includeSourceColumn else [src]) -%}
+        select
+            {{ '* except (' ~ (excluded | join(', ')) ~ ')' if excluded else '*' }}
+            {%- for c in outputColumns %}
+            {%- set kind = c['kind'] -%}
+            {%- set node = '/*' if kind.startswith('root') else '/*/' ~ c['tag'] ~ '[' ~ ((c.get('instance', 0) | int) + 1) ~ ']' -%}
+            {%- set attr_path = node ~ '/@' ~ c.get('attr', '') -%}
+            ,
+            {%- if kind in ('root', 'child') %}
+            CASE WHEN {{ ok }} AND xpath_boolean({{ doc }}, 'boolean({{ node }})')
+                 THEN regexp_replace(xpath_string({{ doc }}, '{{ node }}[not(*)]'), '^\\s+|\\s+$', '') END
+            {%- elif kind in ('root_attr', 'child_attr') %}
+            CASE WHEN {{ ok }} AND xpath_boolean({{ doc }}, 'boolean({{ attr_path }})')
+                 THEN xpath_string({{ doc }}, '{{ attr_path }}') END
+            {%- elif kind == 'root_outer' %}
+            CAST({{ doc }} AS STRING)
+            {%- elif kind == 'child_outer' %}
+            {%- set tag = c['tag'] -%}
+            {%- set pattern = "(?s)<" ~ (tag | replace(".", "\\\\.")) ~ "(?=[\\\\s/>])(?:[^>\"\\']|\"[^\"]*\"|\\'[^\\']*\\')*?(?:/>|>.*?</" ~ (tag | replace(".", "\\\\.")) ~ "\\\\s*>)" -%}
+            CASE WHEN {{ ok }} AND xpath_boolean({{ doc }}, 'boolean({{ node }})') THEN
+                CASE WHEN NOT xpath_boolean({{ doc }}, 'boolean(/{{ tag }} | /*/*//{{ tag }})')
+                      AND xpath_int({{ doc }}, 'count(/*/{{ tag }})') = size(regexp_extract_all({{ doc }}, '{{ pattern }}', 0))
+                     THEN try_element_at(regexp_extract_all({{ doc }}, '{{ pattern }}', 0), {{ (c.get('instance', 0) | int) + 1 }})
+                     ELSE raise_error('XMLParse: cannot cut out the outer XML of <{{ tag }}> on Databricks: it also appears below another element, as the root, or in a comment or CDATA')
+                END
+            END
+            {%- else -%}
+            {{ exceptions.raise_compiler_error("XMLParse: unknown output column kind '" ~ kind ~ "'") }}
+            {%- endif %} as `{{ c['name'] | replace("`", "``") }}`
+            {%- endfor %}
+        {%- if childElement %}
+        {%- set tag = childElement -%}
+        {%- set pattern = "(?s)<" ~ (tag | replace(".", "\\\\.")) ~ "(?=[\\\\s/>])(?:[^>\"\\']|\"[^\"]*\"|\\'[^\\']*\\')*?(?:/>|>.*?</" ~ (tag | replace(".", "\\\\.")) ~ "\\\\s*>)" -%}
+        from (
+            select *
+            from {{ relation_list | join(', ') }}
+            lateral view explode(
+                CASE WHEN {{ valid if ignoreErrors else src ~ ' IS NOT NULL' }} THEN
+                    CASE WHEN xpath_int({{ src }}, 'count(/*//{{ tag }})') = 0 THEN array()
+                         WHEN NOT xpath_boolean({{ src }}, 'boolean(/{{ tag }} | /*//{{ tag }}//{{ tag }})')
+                              AND xpath_int({{ src }}, 'count(/*//{{ tag }})') = size(regexp_extract_all({{ src }}, '{{ pattern }}', 0))
+                         THEN regexp_extract_all({{ src }}, '{{ pattern }}', 0)
+                         ELSE raise_error('XMLParse: cannot isolate each <{{ tag }}> on Databricks: <{{ tag }}> nests inside another <{{ tag }}>, is the root, or appears in a comment or CDATA')
+                    END
+                END
+            ) __prophecy_matches as {{ el }}
+        )
+        {%- else %}
+        from {{ relation_list | join(', ') }}
+        {%- endif %}
+
     {%- else -%}
         {%- set quoted_col = "`" ~ columnName ~ "`" -%}
         {#- Spark SQL string literals escape with a backslash: escape backslashes first, then quotes -#}
@@ -132,7 +208,7 @@
     {%- if not columnName -%}
         select * from {{ relation_list | join(', ') }}
 
-    {%- elif not outputColumns -%}
+    {%- elif parsingMethod != 'parseToColumns' or not outputColumns -%}
         {#- Legacy behaviour: one VARIANT column holding the parsed document. -#}
         select
             *,

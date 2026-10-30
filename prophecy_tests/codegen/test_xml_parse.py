@@ -25,7 +25,10 @@ from XMLParse import (XMLParse, BasicMacroProperties, MacroParameter, _jinja_str
 from prophecy.cb.sql.Component import Component, NodePort, NodePorts, SqlNodeMetadata
 from prophecy.cb.sql.SqlContext import SqlContext, SqlGraph
 
-Props = XMLParse.XMLParseProperties
+def Props(**kwargs):
+    """The gem's properties in "Parse into columns" mode unless a test says otherwise."""
+    kwargs.setdefault("parsingMethod", "parseToColumns")
+    return XMLParse.XMLParseProperties(**kwargs)
 
 # The dbt macro signature, in order: the SQL Editor names positional arguments from it.
 ARGUMENT_NAMES = ("relation_name", "columnName", "parsingMethod", "sampleRecord", "sampleSchema",
@@ -177,6 +180,10 @@ def test_malformed_json_and_a_clash_with_the_input_are_reported():
         "Output column 'id' already exists in the input; rename it"]
 
 
+def test_the_column_settings_are_not_validated_in_the_other_modes():
+    assert messages(Props(columnName="payload", parsingMethod="parseFromSampleRecord", outputColumns="[")) == []
+
+
 def test_the_source_columns_name_is_free_once_the_source_is_dropped():
     reuse = json.dumps([{"name": "payload", "kind": "root"}])
     assert messages(Props(columnName="payload", outputColumns=reuse)) == [
@@ -287,6 +294,21 @@ def test_the_generation_bookkeeping_is_saved_but_never_in_the_call():
     assert XMLParse().loadProperties(XMLParse().unloadProperties(p)).generatedColumns == p.generatedColumns
 
 
+@pytest.mark.parametrize("mode", ["parseFromSampleRecord", "parseFromSchema", ""])
+def test_a_gem_in_another_mode_comes_back_from_the_editor_unchanged(mode):
+    """Opening a gem from before Parse into columns existed must not add columns to its call: on
+    Snowflake that would switch its output from the VARIANT column to separate columns."""
+    p = Props(relation_name=["src"], columnName="payload", parsingMethod=mode, sampleRecord=ORDER)
+    q = XMLParse().onChange(CONTEXT, component(p), component(p)).properties
+    q = dataclasses.replace(q, relation_name=p.relation_name)  # onChange re-reads inputs from the (empty) graph
+    assert q.outputColumns == "" and XMLParse().apply(q) == XMLParse().apply(p)
+
+
+def test_switching_to_parse_into_columns_generates_the_columns():
+    old = Props(columnName="payload", parsingMethod="parseFromSampleRecord", sampleRecord=ORDER)
+    assert changed(old, dataclasses.replace(old, parsingMethod="parseToColumns")).outputColumns == generated(ORDER)
+
+
 def test_a_sample_still_being_typed_leaves_the_columns_alone():
     old = Props(columnName="payload", outputColumns='[{"name": "order", "kind": "root"}]')
     assert changed(old, dataclasses.replace(old, sampleRecord="<order><id>")).outputColumns == old.outputColumns
@@ -320,7 +342,7 @@ def test_a_saved_value_that_looks_like_a_literal_is_kept_as_is(value):
 
 
 def test_a_legacy_gem_writes_an_empty_column_list_and_the_defaults():
-    assert XMLParse().apply(Props(relation_name=["src"], columnName="payload")) == (
+    assert XMLParse().apply(Props(relation_name=["src"], columnName="payload", parsingMethod="parseFromSampleRecord")) == (
         "{{ prophecy_basics.XMLParse(['src'],'payload','parseFromSampleRecord','','',[],true,true,'') }}")
 
 
@@ -425,4 +447,56 @@ def test_the_databricks_sample_record_is_a_valid_spark_sql_literal():
 def test_the_databricks_schema_is_a_valid_spark_sql_literal():
     sql = _default_macro(parsingMethod="parseFromSchema", sampleSchema="STRUCT<`it's`: STRING>")
     assert "from_xml(`payload`, 'STRUCT<`it\\'s`: STRING>')" in sql
+
+
+# ---- Databricks: parsingMethod "parseToColumns" ------------------------------------------------
+
+def _dialog_text():
+    return json.dumps(XMLParse().dialog().json())
+
+
+def test_the_databricks_dialog_offers_parse_into_columns_with_the_column_settings():
+    text = _dialog_text()
+    assert '"parseToColumns"' in text
+    # the column settings appear twice: the Snowflake dialog and Databricks' Parse into columns
+    for prop in ("outputColumns", "childElement", "includeOuterXML", "includeSourceColumn", "ignoreErrors"):
+        assert text.count(f"component.properties.{prop}") == 2, prop
+
+
+def test_parse_into_columns_round_trips_through_code():
+    p = dataclasses.replace(props_with("payload"), parsingMethod="parseToColumns")
+    q = XMLParse().loadProperties(source_properties(XMLParse().apply(p)))
+    assert q.parsingMethod == "parseToColumns" and XMLParse().apply(q) == XMLParse().apply(p)
+
+
+def test_the_python_runtime_refuses_parse_into_columns_rather_than_return_the_input():
+    gem = XMLParse()
+    gem.props = Props(columnName="payload", parsingMethod="parseToColumns")
+    with pytest.raises(ValueError, match="Parse into columns"):
+        gem.applyPython(None, None)
+
+
+def _snowflake_macro(**kwargs):
+    sql = (ROOT / "macros" / "XMLParse.sql").read_text()
+    env = Environment()
+    env.globals.update(exceptions=SimpleNamespace(raise_compiler_error=lambda m: (_ for _ in ()).throw(ValueError(m))))
+    args = dict(relation_name=["src"], columnName="payload", parsingMethod="parseToColumns", sampleRecord="",
+                sampleSchema="", outputColumns=[{"name": "id", "kind": "child", "tag": "id", "instance": 0}])
+    args.update(kwargs)
+    call = "{{ snowflake__XMLParse(" + ", ".join(f"{k}={v!r}" for k, v in args.items()) + ") }}"
+    return " ".join(env.from_string(sql + call).render().split())
+
+
+def test_snowflake_uses_the_columns_only_in_parse_into_columns():
+    assert "XMLGET" in _snowflake_macro()
+    for mode in ("parseFromSampleRecord", "", "parseFromSchema"):
+        sql = _snowflake_macro(parsingMethod=mode)
+        assert "XMLGET" not in sql and 'PARSE_XML("payload") as "payload_parsed"' in sql, mode
+
+
+def test_databricks_uses_the_columns_only_in_parse_into_columns():
+    cols = [{"name": "id", "kind": "child", "tag": "id", "instance": 0}]
+    assert "xpath_string" in _default_macro(parsingMethod="parseToColumns", outputColumns=cols)
+    assert "xpath_string" not in _default_macro(sampleRecord="<a/>", outputColumns=cols)
+    assert _default_macro(parsingMethod="parseToColumns") == "select * from src"
 

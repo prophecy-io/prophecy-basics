@@ -173,10 +173,10 @@ class XMLParse(MacroSpec):
         parsingMethod: str = "parseFromSampleRecord"
         sampleRecord: Optional[str] = None
         sampleSchema: Optional[str] = None
-        # Snowflake: one output column per entry, as a JSON list of
+        # One output column per entry, as a JSON list of
         # {name, kind, tag?, instance?, attr?} (generated from sampleRecord or set by the transpiler).
-        # The gem cannot tell the warehouse (SqlContext has no provider), so a Databricks gem may also
-        # generate these from its sample record; the Databricks and DuckDB macros ignore them.
+        # Used only with parsingMethod "parseToColumns" (Snowflake and Databricks); ignored by the
+        # other modes and by the DuckDB macro.
         outputColumns: str = ""
         includeSourceColumn: bool = True
         ignoreErrors: bool = True
@@ -203,6 +203,39 @@ class XMLParse(MacroSpec):
                 relation_name.append(upstream_label)
         return relation_name
 
+    @staticmethod
+    def _column_controls():
+        """Settings of the one-column-per-element mode (Snowflake; Databricks: Parse into columns)."""
+        return (
+            StackLayout(gap="1rem")
+            .addElement(
+                StackLayout(gap="0.5rem")
+                .addElement(Checkbox("Include outer XML columns").bindProperty("includeOuterXML"))
+                .addElement(Checkbox("Keep the source XML column").bindProperty("includeSourceColumn"))
+                .addElement(Checkbox("Return nulls for malformed XML instead of failing").bindProperty("ignoreErrors"))
+            )
+            .addElement(
+                TextBox("Specific child element (leave empty to parse the root element)")
+                .bindPlaceholder("item")
+                .bindProperty("childElement")
+            )
+            .addElement(
+                TextArea("Sample XML record (generates the output columns)", 10)
+                .bindProperty("sampleRecord")
+                .bindPlaceholder("<order><id>1</id><item>A</item><item>B</item></order>")
+            )
+            .addElement(
+                TextArea("Output columns (JSON; edit to rename, drop or add attribute columns)", 10)
+                .bindProperty("outputColumns")
+                .bindPlaceholder(
+                    '[{"name": "order", "kind": "root"}, '
+                    '{"name": "id", "kind": "child", "tag": "id", "instance": 0}, '
+                    '{"name": "item_2", "kind": "child", "tag": "item", "instance": 1}, '
+                    '{"name": "id_type", "kind": "child_attr", "tag": "id", "attr": "type"}]'
+                )
+            )
+        )
+
     def dialog(self) -> Dialog:
         methodRadioGroup = (
             RadioGroup("Parsing method")
@@ -215,6 +248,11 @@ class XMLParse(MacroSpec):
                 "Parse from schema",
                 "parseFromSchema",
                 description="Provide sample schema in SQL struct format to parse the data with",
+            )
+            .addOption(
+                "Parse into columns",
+                "parseToColumns",
+                description="One string column per child element, as Alteryx's XML Parse does",
             )
             .setOptionType("button")
             .setVariant("medium")
@@ -274,8 +312,8 @@ class XMLParse(MacroSpec):
                                 variant="success",
                                 _children=[
                                     Markdown(
-                                        "With no output columns, **`XMLParse`** adds one VARIANT column with the suffix **`_parsed`**. "
-                                        "Paste a sample record to get one string column per child element instead: "
+                                        "**One VARIANT column** adds the parsed document as a column with the suffix **`_parsed`**. "
+                                        "**Parse into columns**: paste a sample record to get one string column per child element: "
                                         "the root value, each child's value (repeats as `<tag>_2`, `<tag>_3`, ...) and, "
                                         "optionally, each element's outer XML. With a specific child element, every "
                                         "element with that tag becomes its own row and is parsed in place of the root. "
@@ -285,30 +323,20 @@ class XMLParse(MacroSpec):
                             )
                         )
                         .addElement(
-                            StackLayout(gap="0.5rem")
-                            .addElement(Checkbox("Include outer XML columns").bindProperty("includeOuterXML"))
-                            .addElement(Checkbox("Keep the source XML column").bindProperty("includeSourceColumn"))
-                            .addElement(Checkbox("Return nulls for malformed XML instead of failing").bindProperty("ignoreErrors"))
+                            RadioGroup("Output")
+                            .addOption("One VARIANT column", "parseFromSampleRecord",
+                                       description="The parsed document in <column>_parsed")
+                            .addOption("Parse into columns", "parseToColumns",
+                                       description="One string column per child element, as Alteryx's XML Parse does")
+                            .setOptionType("button")
+                            .setVariant("medium")
+                            .setButtonStyle("solid")
+                            .bindProperty("parsingMethod")
                         )
                         .addElement(
-                            TextBox("Specific child element (leave empty to parse the root element)")
-                            .bindPlaceholder("item")
-                            .bindProperty("childElement")
-                        )
-                        .addElement(
-                            TextArea("Sample XML record (generates the output columns)", 10)
-                            .bindProperty("sampleRecord")
-                            .bindPlaceholder("<order><id>1</id><item>A</item><item>B</item></order>")
-                        )
-                        .addElement(
-                            TextArea("Output columns (JSON; edit to rename, drop or add attribute columns)", 10)
-                            .bindProperty("outputColumns")
-                            .bindPlaceholder(
-                                '[{"name": "order", "kind": "root"}, '
-                                '{"name": "id", "kind": "child", "tag": "id", "instance": 0}, '
-                                '{"name": "item_2", "kind": "child", "tag": "item", "instance": 1}, '
-                                '{"name": "id_type", "kind": "child_attr", "tag": "id", "attr": "type"}]'
-                            )
+                            Condition()
+                            .ifEqual(PropExpr("component.properties.parsingMethod"), StringExpr("parseToColumns"))
+                            .then(self._column_controls())
                         )
                 )
             )
@@ -331,6 +359,14 @@ class XMLParse(MacroSpec):
                         )
                     )
                     .addElement(methodRadioGroup)
+                    .addElement(
+                        Condition()
+                        .ifEqual(
+                            PropExpr("component.properties.parsingMethod"),
+                            StringExpr("parseToColumns"),
+                        )
+                        .then(self._column_controls())
+                    )
                     .addElement(
                         Condition()
                         .ifEqual(
@@ -430,6 +466,8 @@ class XMLParse(MacroSpec):
         #             )
         #         )
 
+        if component.properties.parsingMethod != "parseToColumns":
+            return diagnostics  # the column settings do not apply in the other modes
         try:
             output_columns = parse_output_columns(component.properties.outputColumns)
         except ValueError as e:
@@ -484,7 +522,9 @@ class XMLParse(MacroSpec):
             current = parse_output_columns(newProperties.outputColumns)
         except ValueError:
             current = None
-        if new_key[0] and current is not None:
+        # only in "Parse into columns": a gem in another mode (one opened from before this mode existed,
+        # say) must come back from the editor exactly as it was
+        if newProperties.parsingMethod == "parseToColumns" and new_key[0] and current is not None:
             try:
                 last_generated = parse_output_columns(newProperties.generatedColumns)
             except ValueError:
@@ -599,6 +639,9 @@ class XMLParse(MacroSpec):
         return component.bindProperties(newProperties)
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
+        if self.props.parsingMethod == "parseToColumns":
+            raise ValueError("XMLParse: 'Parse into columns' runs as SQL (the XMLParse macro); "
+                             "the Python runtime does not support it yet")
         if self.props.parsingMethod == "parseFromSchema":
             if not self.props.sampleSchema or self.props.sampleSchema == "":
                 res = in0

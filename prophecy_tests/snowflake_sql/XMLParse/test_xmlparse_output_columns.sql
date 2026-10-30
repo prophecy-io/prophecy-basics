@@ -1,5 +1,5 @@
 -- Test: XMLParse macro - Alteryx-style output columns (Snowflake)
--- With outputColumns, each entry becomes one string column read from the parsed document:
+-- With parsingMethod='parseToColumns', each outputColumns entry becomes one string column read from the parsed document:
 -- the root's value, attribute and outer XML, and each child's value, attribute and outer XML by
 -- tag and occurrence. With childElement, every outermost element with that tag becomes its own row
 -- and stands in for the root. Without outputColumns the macro keeps its single VARIANT column.
@@ -27,7 +27,7 @@ SELECT * FROM (VALUES
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_COLUMNS_SRC'],
     columnName='PAYLOAD',
-    parsingMethod='',
+    parsingMethod='parseToColumns',
     sampleRecord='',
     sampleSchema='',
     outputColumns=[{"name": "order", "kind": "root"}, {"name": "order_code", "kind": "root_attr", "attr": "code"}, {"name": "id", "kind": "child", "tag": "id", "instance": 0}, {"name": "amount", "kind": "child", "tag": "amount", "instance": 0}, {"name": "item", "kind": "child", "tag": "item", "instance": 0}, {"name": "item_2", "kind": "child", "tag": "item", "instance": 1}, {"name": "item_3", "kind": "child", "tag": "item", "instance": 2}, {"name": "item_2_sku", "kind": "child_attr", "tag": "item", "instance": 1, "attr": "sku"}, {"name": "note", "kind": "child", "tag": "note", "instance": 0}, {"name": "customer", "kind": "child", "tag": "customer", "instance": 0}, {"name": "blank", "kind": "child", "tag": "blank", "instance": 0}, {"name": "item_2_OuterXML", "kind": "child_outer", "tag": "item", "instance": 1}, {"name": "customer_OuterXML", "kind": "child_outer", "tag": "customer", "instance": 0}, {"name": "order_OuterXML", "kind": "root_outer"}],
@@ -52,7 +52,7 @@ SELECT * FROM (VALUES
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_COLUMNS_SRC'],
     columnName='PAYLOAD',
-    parsingMethod='',
+    parsingMethod='parseToColumns',
     sampleRecord='',
     sampleSchema='',
     outputColumns=[{"name": "id", "kind": "child", "tag": "id", "instance": 0}],
@@ -96,7 +96,7 @@ SELECT * FROM (VALUES
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_VALID_SRC'],
     columnName='PAYLOAD',
-    parsingMethod='',
+    parsingMethod='parseToColumns',
     sampleRecord='',
     sampleSchema='',
     outputColumns=[{"name": "say \"id\"", "kind": "child", "tag": "id", "instance": 0}, {"name": "code", "kind": "root_attr", "attr": "code"}],
@@ -128,7 +128,7 @@ SELECT * FROM (VALUES
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_CHILD_SRC'],
     columnName='PAYLOAD',
-    parsingMethod='',
+    parsingMethod='parseToColumns',
     sampleRecord='',
     sampleSchema='',
     outputColumns=[{"name": "row", "kind": "root"}, {"name": "row_id", "kind": "root_attr", "attr": "id"}, {"name": "v", "kind": "child", "tag": "v", "instance": 0}, {"name": "row2", "kind": "child", "tag": "row", "instance": 0}, {"name": "row_OuterXML", "kind": "root_outer"}],
@@ -152,7 +152,7 @@ SELECT * FROM (VALUES
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_CHILD_SRC'],
     columnName='PAYLOAD',
-    parsingMethod='',
+    parsingMethod='parseToColumns',
     sampleRecord='',
     sampleSchema='',
     outputColumns=[{"name": "issued", "kind": "root"}],
