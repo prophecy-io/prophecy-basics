@@ -1455,10 +1455,13 @@ sqlOrchestratorPipelines:
   .prophecy/metadata/sqlorchestratorpipeline/all:
     name: all
     schema: null
-    description: Uses every gem with output port hints (description, icon, incoming aliases)
+    description: Uses every gem with output port hints (description, icon, incoming
+      aliases)
     author: ayadav@prophecy.io
     files:
     - .prophecy/ide/pipelines/all.json
     - pipelines/all.py
+    - models/all/all__DataCleansing_1.sql
+    - models/all/schema.yml
     createdAt: '2026-10-30 12:00:00'
 sqlBusinessApps: {}
