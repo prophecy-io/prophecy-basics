@@ -453,7 +453,35 @@ class FindDuplicates(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = {
+            "unique": "Unique rows",
+            "duplicate": "Duplicate rows",
+            "custom_group_count": "Rows whose group count is in range",
+            "custom_row_number": "Rows whose row number is in range",
+        }.get(props.output_type, "Rows")
+        if props.generationMethod == "selectedCols" and props.groupByColumnNames:
+            description += f" by {self._names(props.groupByColumnNames)}"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.Copy if props.output_type == "duplicate" else PortIconEnum.FilterLines,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+
+    @staticmethod
+    def _names(items) -> str:
+        # "a, b, c +2 more"
+        items = [str(i) for i in (items or []) if str(i).strip()]
+        return ", ".join(items[:3]) + (f" +{len(items) - 3} more" if len(items) > 3 else "")
 
     def apply(self, props: FindDuplicatesProperties) -> str:
         # generate the actual macro call given the component's state
@@ -592,7 +620,7 @@ class FindDuplicates(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
 

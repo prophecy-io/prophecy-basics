@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from collections import defaultdict
 from prophecy.cb.sql.Component import *
@@ -487,7 +488,23 @@ class TableOperations(MacroSpec):
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
         # Handle changes in the component's state and return the new state
-        return newState
+        return self._with_port_hints(newState)
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        action = "".join(f" {c.lower()}" if c.isupper() else c for c in (props.action or "tableOperation")).strip()
+        description = action[:1].upper() + action[1:] + (f": {props.tableName}" if props.tableName else "")
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.InfoCircle,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def apply(self, props: TableOperationsProperties) -> str:
         # generate the actual macro call given the component's state

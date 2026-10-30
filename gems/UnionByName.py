@@ -102,7 +102,28 @@ class UnionByName(MacroSpec):
             relation_name=self.get_relation_names(newState, context),
             schemas=self._extract_schemas(newState),
         )
-        return newState.bindProperties(new_props)
+        return self._with_port_hints(newState.bindProperties(new_props))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = f"Union by column name of {self._names(props.relation_name)}"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.FullOuterJoin,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+
+    @staticmethod
+    def _names(items) -> str:
+        # "a, b, c +2 more"
+        items = [str(i) for i in (items or []) if str(i).strip()]
+        return ", ".join(items[:3]) + (f" +{len(items) - 3} more" if len(items) > 3 else "")
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
         diagnostics = super(UnionByName, self).validate(context, component)
@@ -157,7 +178,7 @@ class UnionByName(MacroSpec):
             relation_name=self.get_relation_names(component, context),
             schemas=self._extract_schemas(component),
         )
-        return component.bindProperties(new_props)
+        return self._with_port_hints(component.bindProperties(new_props))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame, in1: DataFrame, *inDFs: DataFrame) -> DataFrame:
         _inputs = [in0, in1]

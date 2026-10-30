@@ -287,7 +287,24 @@ class TextToColumns(MacroSpec):
             newState.properties,
             relation_name=relation_name
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        target = "rows" if props.split_strategy == "splitRows" else f"{props.noOfColumns} column{'' if props.noOfColumns == 1 else 's'}"
+        delimiter = f" on '{props.delimiter}'" if props.delimiter else ""
+        description = f"{props.columnNames or 'Column'} split{delimiter} into {target}"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.RowsC if props.split_strategy == "splitRows" else PortIconEnum.ColumnsC,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def _is_regex_delimiter(self, delimiter: str) -> bool:
         # Auto-detect whether the delimiter is meant as a regex pattern or a plain literal.
@@ -365,7 +382,7 @@ class TextToColumns(MacroSpec):
             component.properties,
             relation_name=relation_name
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         col_name = self.props.columnNames

@@ -132,7 +132,22 @@ class ToDo(MacroSpec):
         newProperties = dataclasses.replace(
             newState.properties, relation_name=relation_name
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = "Placeholder for logic still to be written"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.InfoCircle,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     @staticmethod
     def _jinja_constant(source: Optional[str]) -> Any:
@@ -223,7 +238,7 @@ class ToDo(MacroSpec):
         newProperties = dataclasses.replace(
             component.properties, relation_name=relation_name
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, *inDFs: DataFrame) -> DataFrame:
         message = self.props.diag_message

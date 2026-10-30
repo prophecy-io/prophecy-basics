@@ -189,7 +189,22 @@ class GenerateRows(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = f"Generated rows in {props.column_name}" if props.column_name else "Generated rows"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.RowsC,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def apply(self, props: GenerateRowsProperties) -> str:
 
@@ -291,4 +306,4 @@ class GenerateRows(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))

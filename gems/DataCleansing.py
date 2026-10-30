@@ -340,7 +340,30 @@ class DataCleansing(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = f"Cleaned columns: {self._names(props.columnNames)}" if props.columnNames else "Cleaned rows"
+        if props.removeRowNullAllCols:
+            description += ", all-null rows dropped"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.ArrowNarrowRight,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+
+    @staticmethod
+    def _names(items) -> str:
+        # "a, b, c +2 more"
+        items = [str(i) for i in (items or []) if str(i).strip()]
+        return ", ".join(items[:3]) + (f" +{len(items) - 3} more" if len(items) > 3 else "")
 
     def apply(self, props: DataCleansingProperties) -> str:
 
@@ -504,7 +527,7 @@ class DataCleansing(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         remove_row_null_all_cols = self.props.removeRowNullAllCols

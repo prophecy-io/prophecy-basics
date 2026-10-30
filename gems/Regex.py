@@ -593,8 +593,22 @@ class Regex(MacroSpec):
             relation_name=relation_name,
             parseColumns=parse_columns
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
 
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = f"Regex {props.outputMethod} on {props.selectedColumnName or 'a column'}"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.RowsC if props.outputMethod == "tokenize" and props.tokenizeOutputMethod == "splitRows" else PortIconEnum.ColumnsC,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def infer_data_type_from_pattern(self, regex_pattern):
         """Infer likely data type from regex pattern."""
@@ -784,7 +798,7 @@ class Regex(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         selected_column = self.props.selectedColumnName

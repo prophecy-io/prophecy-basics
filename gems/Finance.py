@@ -478,7 +478,22 @@ class Finance(MacroSpec):
             relation_name=relation_name,
             schema=schema,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        props = component.properties
+        description = f"{props.functionType} result in {props.outputColumn}"
+        outputs = [
+            dataclasses.replace(
+                port,
+                description=description,
+                icon=PortIconEnum.ColumnsC,
+                incomingAliases=list(props.relation_name or []),
+            )
+            for port in component.ports.outputs
+        ]
+        return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
 
     def apply(self, props: FinanceProperties) -> str:
         # Generate the actual macro call given the component's state
@@ -616,7 +631,7 @@ class Finance(MacroSpec):
             relation_name=relation_name,
             schema=schema,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         from pyspark.sql import functions as F
