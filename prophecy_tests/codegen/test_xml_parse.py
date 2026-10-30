@@ -500,3 +500,12 @@ def test_databricks_uses_the_columns_only_in_parse_into_columns():
     assert "xpath_string" not in _default_macro(sampleRecord="<a/>", outputColumns=cols)
     assert _default_macro(parsingMethod="parseToColumns") == "select * from src"
 
+
+def test_the_gem_source_avoids_generator_expressions():
+    """Prophecy's own Python parser (PythonCompiler, used to load gem code into the IDE) rejects
+    generator expressions -- `any(x for x in y)`, `next((x for x in y), None)` -- and the IDE then
+    fails to build the whole prophecy_basics dependency. List comprehensions are fine."""
+    tree = ast.parse((ROOT / "gems" / "XMLParse.py").read_text())
+    lines = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.GeneratorExp)]
+    assert lines == [], f"generator expressions on lines {lines}"
+

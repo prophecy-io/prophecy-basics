@@ -63,11 +63,13 @@ def output_columns_from_sample(sample_xml: str, input_columns: list, include_out
         root = ET.fromstring(sample_xml)
     except ET.ParseError as e:
         raise ValueError(f"Sample record is not well-formed XML: {e}")
-    if any(e.tag.startswith("{") for e in root.iter()):
+    if any([e.tag.startswith("{") for e in root.iter()]):
         raise ValueError("Sample record uses XML namespaces; write the output columns by hand, "
                          "with tags as prefix:name")
     if child_element:
-        root = next((e for e in root.iter(child_element) if e is not root), None)
+        # (no generator expressions: Prophecy's gem parser rejects them)
+        matches = [e for e in root.iter(child_element) if e is not root]
+        root = matches[0] if matches else None
         if root is None:
             raise ValueError(f"Sample record has no <{child_element}> element below the root")
     used = set(input_columns or [])
@@ -608,7 +610,7 @@ class XMLParse(MacroSpec):
             childElement=_decode_str(parametersMap.get("childElement"), from_code),
             generatedColumns=parametersMap.get("generatedColumns") or "",
             includeOuterXML=any(
-                isinstance(c, dict) and str(c.get("kind", "")).endswith("_outer") for c in loaded_columns
+                [isinstance(c, dict) and str(c.get("kind", "")).endswith("_outer") for c in loaded_columns]
             ),
         )
 
