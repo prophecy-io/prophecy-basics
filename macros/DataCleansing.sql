@@ -335,7 +335,7 @@
                 {%- endif -%}
 
                 {%- if cleanLetters -%}
-                    {%- set col_expr = "REGEXP_REPLACE(" ~ col_expr ~ ", '[^A-Za-z]', '')" -%}
+                    {%- set col_expr = "REGEXP_REPLACE(" ~ col_expr ~ ", '[A-Za-z]+', '')" -%}
                 {%- endif -%}
 
                 {%- if cleanPunctuations -%}
@@ -444,12 +444,13 @@
         replaceNullTimeWith="1970-01-01 00:00:00"
 ) %}
 
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
 
     {# ───────────── 1) Row-level filter CTE ───────────── #}
     {% set cleansed_cte %}
         WITH cleansed_data AS (
             SELECT *
-            FROM {{ relation_name }}
+            FROM {{ relation_list | join(', ') }}
             {% if removeRowNullAllCols %}
                 WHERE
                 {%- set conds = [] -%}
@@ -528,7 +529,7 @@
             {% elif modifyCase == 'makeUppercase' %}
                 {% set col_expr = "UPPER(" ~ col_expr ~ ")" %}
             {% elif modifyCase == "makeTitlecase" %}
-                {% set col_expr = "CASE WHEN " ~ col_expr ~ " IS NULL THEN NULL ELSE list_reduce(list_transform(regexp_split_to_array(LOWER(" ~ col_expr ~ "), '[[:space:]]+'), w -> upper(substr(w,1,1)) || substr(w,2)), (acc, x) -> acc || ' ' || x) END" %}
+                {% set col_expr = "array_to_string([upper(substr(w, 1, 1)) || substr(w, 2) for w in regexp_split_to_array(LOWER(" ~ col_expr ~ "), '[[:space:]]+')], ' ')" %}
             {% endif %}
         {% endif %}
 
