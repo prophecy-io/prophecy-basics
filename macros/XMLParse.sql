@@ -116,6 +116,7 @@
             {%- set kind = c['kind'] -%}
             {%- set node = '/*' if kind.startswith('root') else '/*/' ~ c['tag'] ~ '[' ~ ((c.get('instance', 0) | int) + 1) ~ ']' -%}
             {%- set attr_path = node ~ '/@' ~ c.get('attr', '') -%}
+            {%- set qname = "`" ~ (c['name'] | replace("`", "``")) ~ "`" -%}
             ,
             {%- if kind in ('root', 'child') %}
             CASE WHEN {{ ok }} AND xpath_boolean({{ doc }}, 'boolean({{ node }})')
@@ -127,21 +128,25 @@
             CAST({{ doc }} AS STRING)
             {%- elif kind == 'child_outer' %}
             {%- set tag = c['tag'] -%}
-            {%- set pattern = "(?s)<" ~ (tag | replace(".", "\\\\.")) ~ "(?=[\\\\s/>])(?:[^>\"\\']|\"[^\"]*\"|\\'[^\\']*\\')*?(?:/>|>.*?</" ~ (tag | replace(".", "\\\\.")) ~ "\\\\s*>)" -%}
+            {#- the regex is a SQL literal, so Prophecy's macro lexer sees one string token and no backslash
+                in jinja code: \Q..\E quotes the tag (an XML name has no backslash), \x27 is ' -#}
+            {%- set pattern -%}'(?s)<\\Q{{ tag }}\\E(?=[\\s/>])(?:[^>"\\x27]|"[^"]*"|\\x27[^\\x27]*\\x27)*?(?:/>|>.*?</\\Q{{ tag }}\\E\\s*>)'{%- endset -%}
             CASE WHEN {{ ok }} AND xpath_boolean({{ doc }}, 'boolean({{ node }})') THEN
                 CASE WHEN NOT xpath_boolean({{ doc }}, 'boolean(/{{ tag }} | /*/*//{{ tag }})')
-                      AND xpath_int({{ doc }}, 'count(/*/{{ tag }})') = size(regexp_extract_all({{ doc }}, '{{ pattern }}', 0))
-                     THEN try_element_at(regexp_extract_all({{ doc }}, '{{ pattern }}', 0), {{ (c.get('instance', 0) | int) + 1 }})
+                      AND xpath_int({{ doc }}, 'count(/*/{{ tag }})') = size(regexp_extract_all({{ doc }}, {{ pattern }}, 0))
+                     THEN try_element_at(regexp_extract_all({{ doc }}, {{ pattern }}, 0), {{ (c.get('instance', 0) | int) + 1 }})
                      ELSE raise_error('XMLParse: cannot cut out the outer XML of <{{ tag }}> on Databricks: it also appears below another element, as the root, or in a comment or CDATA')
                 END
             END
             {%- else -%}
             {{ exceptions.raise_compiler_error("XMLParse: unknown output column kind '" ~ kind ~ "'") }}
-            {%- endif %} as `{{ c['name'] | replace("`", "``") }}`
+            {%- endif %} as {{ qname }}
             {%- endfor %}
         {%- if childElement %}
         {%- set tag = childElement -%}
-        {%- set pattern = "(?s)<" ~ (tag | replace(".", "\\\\.")) ~ "(?=[\\\\s/>])(?:[^>\"\\']|\"[^\"]*\"|\\'[^\\']*\\')*?(?:/>|>.*?</" ~ (tag | replace(".", "\\\\.")) ~ "\\\\s*>)" -%}
+        {#- the regex is a SQL literal, so Prophecy's macro lexer sees one string token and no backslash
+                in jinja code: \Q..\E quotes the tag (an XML name has no backslash), \x27 is ' -#}
+            {%- set pattern -%}'(?s)<\\Q{{ tag }}\\E(?=[\\s/>])(?:[^>"\\x27]|"[^"]*"|\\x27[^\\x27]*\\x27)*?(?:/>|>.*?</\\Q{{ tag }}\\E\\s*>)'{%- endset -%}
         from (
             select *
             from {{ relation_list | join(', ') }}
@@ -149,8 +154,8 @@
                 CASE WHEN {{ valid if ignoreErrors else src ~ ' IS NOT NULL' }} THEN
                     CASE WHEN xpath_int({{ src }}, 'count(/*//{{ tag }})') = 0 THEN array()
                          WHEN NOT xpath_boolean({{ src }}, 'boolean(/{{ tag }} | /*//{{ tag }}//{{ tag }})')
-                              AND xpath_int({{ src }}, 'count(/*//{{ tag }})') = size(regexp_extract_all({{ src }}, '{{ pattern }}', 0))
-                         THEN regexp_extract_all({{ src }}, '{{ pattern }}', 0)
+                              AND xpath_int({{ src }}, 'count(/*//{{ tag }})') = size(regexp_extract_all({{ src }}, {{ pattern }}, 0))
+                         THEN regexp_extract_all({{ src }}, {{ pattern }}, 0)
                          ELSE raise_error('XMLParse: cannot isolate each <{{ tag }}> on Databricks: <{{ tag }}> nests inside another <{{ tag }}>, is the root, or appears in a comment or CDATA')
                     END
                 END
@@ -259,7 +264,7 @@
             {%- elif kind in ('root_outer', 'child_outer') %}
             {#- Snowflake re-serialises the element and writes ' in attribute values as &apos;; it
                 always quotes attributes with ", so a plain ' is valid and matches the source -#}
-            REPLACE(TO_VARCHAR({{ node }}), '&apos;', '''')
+            REPLACE(TO_VARCHAR({{ node }}), '&apos;', CHR(39))
             {%- elif kind in ('root_attr', 'child_attr') %}
             GET({{ node }}, '@{{ c['attr'] | replace("'", "''") }}')::STRING
             {%- else -%}
