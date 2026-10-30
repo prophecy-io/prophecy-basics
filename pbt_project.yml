@@ -1459,5 +1459,6 @@ sqlOrchestratorPipelines:
     author: ayadav@prophecy.io
     files:
     - .prophecy/ide/pipelines/all.json
+    - pipelines/all.py
     createdAt: '2026-10-30 12:00:00'
 sqlBusinessApps: {}
