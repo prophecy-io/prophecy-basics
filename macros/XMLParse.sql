@@ -256,10 +256,10 @@
             IFF(IS_ARRAY({{ node }}:"$") OR IS_OBJECT({{ node }}:"$"), '', {{ node }}:"$"::STRING)
             {%- elif kind == 'root_outer' and not childElement %}
             {{ src }}::STRING
-            {%- elif kind == 'root_outer' %}
-            TO_VARCHAR({{ node }})
-            {%- elif kind == 'child_outer' %}
-            TO_VARCHAR({{ node }})
+            {%- elif kind in ('root_outer', 'child_outer') %}
+            {#- Snowflake re-serialises the element and writes ' in attribute values as &apos;; it
+                always quotes attributes with ", so a plain ' is valid and matches the source -#}
+            REPLACE(TO_VARCHAR({{ node }}), '&apos;', '''')
             {%- elif kind in ('root_attr', 'child_attr') %}
             GET({{ node }}, '@{{ c['attr'] | replace("'", "''") }}')::STRING
             {%- else -%}

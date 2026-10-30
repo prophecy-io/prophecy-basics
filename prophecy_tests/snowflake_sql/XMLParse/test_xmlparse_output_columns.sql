@@ -11,7 +11,7 @@
 {% set create_src %}
 CREATE OR REPLACE TEMPORARY TABLE XML_PARSE_COLUMNS_SRC AS
 SELECT * FROM (VALUES
-    (1, '<order code="X"><id>007</id><amount>1.50</amount><item sku="a">A</item><item sku="b">B</item><note>x &amp; y</note><customer><name>N</name></customer><blank/></order>'),
+    (1, '<order code="X"><id>007</id><amount>1.50</amount><item sku="a">A</item><item sku="b''c">B</item><note>x &amp; y</note><customer><name>N</name></customer><blank/></order>'),
     (2, '<order><id>2</id></order>'),
     (3, '<order><id>3</order>'),
     (4, NULL),
@@ -22,7 +22,8 @@ SELECT * FROM (VALUES
 
 {% set cases = [] %}
 
--- every kind of output column; malformed XML and NULL give NULLs (ignoreErrors)
+-- every kind of output column (an apostrophe in an attribute stays one in outer XML); malformed XML
+-- and NULL give NULLs (ignoreErrors)
 {% set macro_query %}
 SELECT * FROM ({{ prophecy_basics.XMLParse(
     relation_name=['XML_PARSE_COLUMNS_SRC'],
@@ -37,7 +38,7 @@ SELECT * FROM ({{ prophecy_basics.XMLParse(
 {% endset %}
 {% set expected %}
 SELECT * FROM (VALUES
-    (1, '', 'X', '007', '1.50', 'A', 'B', NULL, 'b', 'x & y', '', '', '<item sku="b">B</item>', '<customer><name>N</name></customer>', '<order code="X"><id>007</id><amount>1.50</amount><item sku="a">A</item><item sku="b">B</item><note>x &amp; y</note><customer><name>N</name></customer><blank/></order>'),
+    (1, '', 'X', '007', '1.50', 'A', 'B', NULL, 'b''c', 'x & y', '', '', '<item sku="b''c">B</item>', '<customer><name>N</name></customer>', '<order code="X"><id>007</id><amount>1.50</amount><item sku="a">A</item><item sku="b''c">B</item><note>x &amp; y</note><customer><name>N</name></customer><blank/></order>'),
     (2, '', NULL, '2', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '<order><id>2</id></order>'),
     (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '<order><id>3</order>'),
     (4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
