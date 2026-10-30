@@ -529,7 +529,7 @@
             {% elif modifyCase == 'makeUppercase' %}
                 {% set col_expr = "UPPER(" ~ col_expr ~ ")" %}
             {% elif modifyCase == "makeTitlecase" %}
-                {% set col_expr = "CASE WHEN " ~ col_expr ~ " IS NULL THEN NULL ELSE list_reduce(list_transform(regexp_split_to_array(LOWER(" ~ col_expr ~ "), '[[:space:]]+'), w -> upper(substr(w,1,1)) || substr(w,2)), (acc, x) -> acc || ' ' || x) END" %}
+                {% set col_expr = "array_to_string([upper(substr(w, 1, 1)) || substr(w, 2) for w in regexp_split_to_array(LOWER(" ~ col_expr ~ "), '[[:space:]]+')], ' ')" %}
             {% endif %}
         {% endif %}
 
