@@ -291,9 +291,14 @@
         ), {{ max_rows }})
     {% endset %}
 
+    {% set except_cols = ['_gen_count'] %}
+    {% if column_exists_in_schema %}
+        {% do except_cols.append(except_col) %}
+    {% endif %}
+
     {% if relation_tables %}
         select
-            payload.* except (_gen_count{% if column_exists_in_schema %}, {{ except_col }}{% endif %}),
+            payload.* except ({{ except_cols | join(', ') }}),
             {{ value_at_offset }} as {{ output_col_alias }}
         from (
             select payload.*, {{ count_sql }} as _gen_count
@@ -369,18 +374,20 @@
             {% do exceptions.raise_compiler_error("GenerateRows on Snowflake needs the input schema (a JSON list of {name, dataType}) when a source relation is given") %}
         {% endif %}
         {% set carried_cols = [] %}
-        {% set output_cols = [] %}
+        {% set carried_select = [] %}
+        {% set output_select = [] %}
         {% for c in schema_parsed %}
             {% set quoted_col = prophecy_basics.quote_identifier(c.name) | trim %}
             {% do carried_cols.append(quoted_col) %}
+            {% do carried_select.append('payload.' ~ quoted_col ~ ', ') %}
             {% if not prophecy_basics.column_names_match(c.name, unquoted_col) %}
-                {% do output_cols.append(quoted_col) %}
+                {% do output_select.append('payload.' ~ quoted_col ~ ', ') %}
             {% endif %}
         {% endfor %}
 
         with recursive gen ({{ carried_cols | join(', ') }}, {{ gen_col }}, _gen_iter) as (
             select
-                {% for col in carried_cols %}payload.{{ col }}, {% endfor %}
+                {{ carried_select | join('') }}
                 {{ init_select }},
                 1
             from {{ relation_tables }} payload
@@ -388,7 +395,7 @@
             union all
 
             select
-                {% for col in carried_cols %}payload.{{ col }}, {% endfor %}
+                {{ carried_select | join('') }}
                 {{ loop_sql }},
                 payload._gen_iter + 1
             from gen payload
@@ -396,7 +403,7 @@
               and ({{ condition_sql }})
         )
         select
-            {% for col in output_cols %}payload.{{ col }}, {% endfor %}
+            {{ output_select | join('') }}
             payload.{{ gen_col }} as {{ output_col_alias }}
         from gen payload
         where {{ condition_sql }}
