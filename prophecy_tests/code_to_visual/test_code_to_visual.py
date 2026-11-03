@@ -1,7 +1,8 @@
 """Tests for code_to_visual_runner.py.
 
 Unit tests of the runner's own logic; they need only jinja2 + pyyaml. The
-end-to-end round trip over app_generated/ is run by CI through the runner CLI.
+end-to-end round trip over app_generated/ and gems/ is run by CI through the
+runner CLI.
 """
 
 import dataclasses
@@ -33,9 +34,14 @@ def call(text):
     "'a'", "1", "-2.5", "true", "none", "[1, 'x']", "(1,)", "{'k': [1, 2]}",
     "x.y[0]", "a ~ b", "a if b else c", "a in b", "a not in b", "x | f(1)",
     "ref('t')", "not a", "a and b or c", "1 + 2",
+    '""', "''", '"x"', '["a", \'b\']', '{"k": "v"}', '"it\'s"', "'it\\'s'", '"a\\nb"',
 ])
 def test_generate_code_round_trips(src):
     assert c2v.generate_code(expr(src)) == src
+
+
+def test_generate_code_can_normalize_quotes():
+    assert c2v.generate_code(expr('ref("t", "")'), raw_strings=False) == "ref('t', '')"
 
 
 def test_generate_code_escapes_quotes_and_warns():
@@ -61,6 +67,8 @@ def test_literal_value_only_accepts_pure_literals():
 @pytest.mark.parametrize("a, b, equal", [
     ("['a','b']", "['a', 'b']", True),
     ('"x"', "'x'", True),
+    ('""', "''", True),
+    ('ref("t")', "ref('t')", True),
     ("1", "'1'", False),
     ("true", "1", False),
     ("1", "1.0", False),
@@ -192,17 +200,96 @@ def test_resolve_names_positionals_from_signature():
     assert errors == []
 
 
+def test_resolve_keeps_string_quoting():
+    params, _ = validate("proj.Gem([\"t\"], '', limit=\"\")")
+    assert [p.value for p in params] == ['["t"]', "''", '""']
+
+
+def test_extract_gives_each_call_its_own_arguments(tmp_path):
+    project = c2v.Project(str(tmp_path), "proj", {("proj", "Gem"): GEM}, {})
+    src = ("{{\n  proj.Gem(\n    [\"t\"],\n    cols=[ 'a' ]\n  )\n}}\n"
+           "{{ 'x' ~ proj.Gem(['u'], [\"b\"]) }} {{- proj.Gem(['v'], ['c {# d #}']) -}}")
+    calls = c2v.extract_calls_from_text(src, project, [])
+    assert [[p.value for p in c2v.resolve_params(c.node, SIG, [])] for c in calls] == [
+        ['["t"]', "['a']"], ["['u']", '["b"]'], ["['v']", "['c {# d #}']"]]
+
+
+# ---- per-gem cases -----------------------------------------------------------
+
+def test_load_cases_reports_line_numbers(tmp_path):
+    path = tmp_path / "cases.yml"
+    path.write_text("cases:\n  - name: a\n    properties: {x: 1}\n  - name: b\n")
+    _, cases = c2v.load_cases(str(path))
+    assert [(lineno, case["name"]) for lineno, case in cases] == [(2, "a"), (4, "b")]
+
+
+@pytest.mark.parametrize("text, fragment", [
+    ("cases: []\n", "at least one case"),
+    ("cases:\n  - properties: {}\n", "needs a 'name'"),
+    ("cases:\n  - name: a\n  - name: a\n", "duplicate case name"),
+    ("cases:\n  - name: a\n    properties: [1]\n", "must be a mapping"),
+])
+def test_load_cases_rejects(tmp_path, text, fragment):
+    path = tmp_path / "cases.yml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match=fragment):
+        c2v.load_cases(str(path))
+
+
+def test_load_schema(tmp_path):
+    assert c2v.load_schema(str(tmp_path)) is None
+    (tmp_path / "schema.json").write_text('[{"name": "id", "dataType": "Integer"}]')
+    assert c2v.load_schema(str(tmp_path)) == [{"name": "id", "dataType": "Integer"}]
+    assert c2v.port_fields(c2v.load_schema(str(tmp_path))) == [
+        {"name": "id", "dataType": {"type": "Integer"}}]
+    (tmp_path / "schema.json").write_text('{"fields": []}')
+    with pytest.raises(ValueError):
+        c2v.load_schema(str(tmp_path))
+
+
+def test_form_diff_compares_nested_values():
+    before = Outer([Inner(1)], "a")
+    assert c2v.form_diff(before, Outer([Inner(1)], "a")) == []
+    assert c2v.form_diff(before, Outer([Inner(2)], "a")) == [
+        "items: [{'n': 1}] -> [{'n': 2}]"]
+    assert c2v.form_diff(Outer([], None), Outer([], "")) == []
+    assert c2v.form_diff(Outer([], None), Outer([], "x")) == ["label: None -> 'x'"]
+
+
+class Shape:
+    pass
+
+
+@dataclasses.dataclass
+class Circle(Shape):
+    r: int = 0
+
+
+def test_abstract_items_are_built_as_their_only_dataclass():
+    built = c2v._build_abstract_items([{"r": 2}], List[Shape], __name__)
+    assert built == [Circle(2)]
+    assert c2v._build_abstract_items({"r": 2}, Inner, __name__) == {"r": 2}
+
+
 @pytest.mark.parametrize("src, fragment", [
     ("proj.Gem(['t'])", "'cols' is missing"),
     ("proj.Gem(['t'], ['a'], 1, 2)", "overflows"),
     ("proj.Gem(['t'], ['a'], cols=['b'])", "supplied 2 times"),
     ("proj.Gem(['t'], ['a'], nope=1)", "unknown keyword"),
-    ("proj.Gem('t', ['a'])", "expected a list"),
     ("proj.Gem(*x)", "*args"),
 ])
 def test_validate_rejects(src, fragment):
     _, errors = validate(src)
     assert any(fragment in e for e in errors), errors
+
+
+def test_validate_only_warns_about_shape():
+    # loadProperties may convert the value, e.g. a comma string into a list
+    c = call("proj.Gem('t', ['a'])")
+    params = c2v.resolve_params(c, SIG, [])
+    warnings = []
+    assert c2v.validate_params(c, SIG, params, GEM, ENV, warnings) == []
+    assert any("expected a list" in w for w in warnings), warnings
 
 
 # ---- extraction ------------------------------------------------------------
@@ -231,11 +318,15 @@ def test_extract_calls_falls_back_and_skips_comments(tmp_path):
 def test_expand_paths(tmp_path):
     (tmp_path / "b.sql").write_text("")
     (tmp_path / "a.sql").write_text("")
+    (tmp_path / "Gem").mkdir()
+    (tmp_path / "Gem" / "cases.yml").write_text("")
+    (tmp_path / "Gem" / "schema.json").write_text("")
     (tmp_path / "target").mkdir()
     (tmp_path / "target" / "c.sql").write_text("")
     (tmp_path / "empty").mkdir()
     files, errors = c2v.expand_paths([str(tmp_path), str(tmp_path / "empty"),
                                       str(tmp_path / "missing")])
-    assert [os.path.basename(f) for f in files] == ["a.sql", "b.sql"]
+    assert [os.path.relpath(f, tmp_path) for f in files] == [
+        os.path.join("Gem", "cases.yml"), "a.sql", "b.sql"]
     assert len(errors) == 2
 

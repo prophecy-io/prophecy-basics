@@ -1,0 +1,39 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: base64_in_place
+    properties: { column_names: [name, payload], enc_dec_method: base64 }
+  - name: unhex_with_prefix
+    properties:
+      column_names: [payload]
+      enc_dec_method: unhex
+      new_column_add_method: prefix_suffix_substitute
+      prefix_suffix_option: Prefix
+      prefix_suffix_added: decoded_
+  - name: encode_charset_with_suffix
+    properties:
+      column_names: [name]
+      enc_dec_method: encode
+      enc_dec_charSet: UTF-16LE
+      new_column_add_method: prefix_suffix_substitute
+      prefix_suffix_option: Suffix
+      prefix_suffix_added: _utf16
+  - name: aes_encrypt_gcm
+    properties:
+      column_names: [payload]
+      enc_dec_method: aes_encrypt
+      aes_enc_dec_mode: GCM
+      aes_enc_dec_secretScope_key: my_scope
+      aes_enc_dec_secretKey_key: aes_key
+      aes_enc_dec_secretScope_aad: my_scope
+      aes_enc_dec_secretKey_aad: aes_aad
+  - name: aes_decrypt_cbc
+    properties:
+      column_names: [secret]
+      enc_dec_method: aes_decrypt
+      aes_enc_dec_mode: CBC
+      aes_enc_dec_secretScope_key: my_scope
+      aes_enc_dec_secretKey_key: aes_key
+      aes_enc_dec_secretScope_iv: my_scope
+      aes_enc_dec_secretKey_iv: aes_iv

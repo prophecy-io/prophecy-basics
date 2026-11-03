@@ -748,9 +748,10 @@ class DataEncoderDecoder(MacroSpec):
             aes_enc_dec_secretScope_iv=parametersMap.get('aes_enc_dec_secretScope_iv').lstrip("'").rstrip("'"),
             aes_enc_dec_secretKey_iv=parametersMap.get('aes_enc_dec_secretKey_iv').lstrip("'").rstrip("'"),
 
-            prefix_suffix_option=parametersMap.get("prefix_suffix_option"),
-            new_column_add_method=parametersMap.get("new_column_add_method"),
-            prefix_suffix_added=parametersMap.get("prefix_suffix_added"),
+            # Macro params are prefix_suffix_opt / change_col_name / prefix_suffix_val; unloadProperties writes the property names
+            prefix_suffix_option=(parametersMap.get("prefix_suffix_opt") or parametersMap.get("prefix_suffix_option") or "Prefix").lstrip("'").rstrip("'"),
+            new_column_add_method=(parametersMap.get("change_col_name") or parametersMap.get("new_column_add_method") or "inplace_substitute").lstrip("'").rstrip("'"),
+            prefix_suffix_added=(parametersMap.get("prefix_suffix_val") or parametersMap.get("prefix_suffix_added") or "").lstrip("'").rstrip("'"),
         )
 
     def unloadProperties(self, properties: PropertiesType) -> MacroProperties:

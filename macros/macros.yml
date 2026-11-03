@@ -204,6 +204,7 @@ macros:
       - name: "sampleSchema"
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
+    macroType: "query"
   - name: "XMLParse"
     arguments:
       - name: "relation_name"

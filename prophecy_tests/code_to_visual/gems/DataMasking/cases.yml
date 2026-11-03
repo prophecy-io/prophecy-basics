@@ -1,0 +1,36 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: sha2_in_place
+    properties: { column_names: [email], masking_method: sha2, sha2_bit_length: "512" }
+  - name: mask_characters
+    properties:
+      column_names: [name, phone]
+      masking_method: mask
+      upper_char_substitute: X
+      lower_char_substitute: x
+      digit_char_substitute: "9"
+      other_char_substitute: "#"
+  - name: mask_keep_nulls
+    properties: { column_names: [name], masking_method: mask, upper_char_substitute: "NULL", lower_char_substitute: "NULL" }
+  - name: md5_with_prefix
+    properties:
+      column_names: [email, phone]
+      masking_method: md5
+      masked_column_add_method: prefix_suffix_substitute
+      prefix_suffix_option: Prefix
+      prefix_suffix_added: masked_
+  - name: sha_with_suffix
+    properties:
+      column_names: [email]
+      masking_method: sha
+      masked_column_add_method: prefix_suffix_substitute
+      prefix_suffix_option: Suffix
+      prefix_suffix_added: _hashed
+  - name: combined_hash
+    properties:
+      column_names: [name, email]
+      masking_method: hash
+      masked_column_add_method: combinedHash_substitute
+      combined_hash_column_name: row_hash

@@ -1,0 +1,36 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: fv
+    properties: { functionType: FV, outputColumn: fv_out, rateCol: rate, nperCol: nper, pmtCol: pmt, pvCol: pv, paymentType: "1" }
+  - name: pv
+    properties: { functionType: PV, rateCol: rate, nperCol: nper, pmtCol: pmt, fvCol: fv }
+  - name: pmt
+    properties: { functionType: PMT, rateCol: rate, nperCol: nper, pvCol: pv, fvCol: fv, paymentType: "1" }
+  - name: nper
+    properties: { functionType: NPER, rateCol: rate, pmtCol: pmt, pvCol: pv, fvCol: fv }
+  - name: rate
+    properties: { functionType: Rate, nperCol: nper, pmtCol: pmt, pvCol: pv, fvCol: fv }
+  - name: npv
+    properties: { functionType: NPV, outputColumn: npv_out, rateCol: rate, valueColumns: [cf0, cf1, cf2] }
+  - name: xnpv
+    properties: { functionType: XNPV, rateCol: rate, valueColumns: [cf0, cf1, cf2], dateColumns: [d0, d1, d2] }
+  - name: irr
+    properties: { functionType: IRR, valueColumns: [cf0, cf1, cf2] }
+  - name: xirr_with_bounds
+    properties: { functionType: XIRR, valueColumns: [cf0, cf1, cf2], dateColumns: [d0, d1, d2], loBoundCol: "-0.5", hiBoundCol: "5", nIterCol: "80" }
+  - name: mirr
+    properties: { functionType: MIRR, financeRateCol: finance_rate, reinvestRateCol: reinvest_rate, valueColumns: [cf0, cf1, cf2] }
+  - name: mxirr
+    properties: { functionType: MXIRR, financeRateCol: finance_rate, reinvestRateCol: reinvest_rate, valueColumns: [cf0, cf1, cf2], dateColumns: [d0, d1, d2] }
+  - name: fv_schedule
+    properties: { functionType: FVSchedule, principalCol: principal, valueColumns: [cf0, cf1] }
+  - name: cagr
+    properties: { functionType: CAGR, beginValueCol: begin_value, endValueCol: end_value, periodsCol: periods }
+  - name: effective_rate
+    properties: { functionType: EffectiveRate, nominalRateCol: nominal_rate, nperyCol: npery }
+  - name: nominal_rate
+    properties: { functionType: NominalRate, effectRateCol: effect_rate, nperyCol: npery }
+  - name: expression_input
+    properties: { functionType: PMT, rateCol: rate / 12, nperCol: nper * 12, pvCol: pv, fvCol: "0" }

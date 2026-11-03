@@ -1,0 +1,13 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: from_sample_record
+    properties: { columnName: xml_col, parsingMethod: parseFromSampleRecord, sampleRecord: "<root><a>1</a><b>x</b></root>" }
+  - name: from_sample_record_with_attributes
+    properties:
+      columnName: xml_col
+      parsingMethod: parseFromSampleRecord
+      sampleRecord: '<order id="7"><item sku="A1">2</item></order>'
+  - name: from_schema
+    properties: { columnName: xml_col, parsingMethod: parseFromSchema, sampleSchema: "STRUCT<a: INT, b: STRING>" }

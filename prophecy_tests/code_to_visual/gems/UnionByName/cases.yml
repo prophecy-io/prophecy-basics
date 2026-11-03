@@ -1,0 +1,12 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Every input gets the columns in schema.json.
+relations: [orders_2024, orders_2025]
+cases:
+  - name: allow_missing_columns
+    properties: { missingColumnOps: allowMissingColumns }
+  - name: by_name_only
+    properties: { missingColumnOps: nameBasedUnionOperation }
+  - name: three_inputs
+    relations: [orders_2023, orders_2024, orders_2025]
+    properties: { missingColumnOps: allowMissingColumns }

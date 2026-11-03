@@ -300,6 +300,13 @@ class TextToColumns(MacroSpec):
             or "\\" in delimiter
         )
 
+    def _unescape_delimiter(self, delimiter: str) -> str:
+        # Undo apply()'s re.escape of a literal delimiter (\| -> |); keep regexes as written.
+        plain = re.sub(r"\\([^A-Za-z0-9])", r"\1", delimiter)
+        if not self._is_regex_delimiter(plain) and re.escape(plain).replace('\\ ', ' ') == delimiter:
+            return plain
+        return delimiter
+
     def apply(self, props: TextToColumnsProperties) -> str:
         # You can now access self.relation_name here
         resolved_macro_name = f"{self.projectName}.{self.name}"
@@ -331,7 +338,7 @@ class TextToColumns(MacroSpec):
         return TextToColumns.TextToColumnsProperties(
             relation_name=json.loads(parametersMap.get('relation_name').replace("'", '"')),
             columnNames=parametersMap.get('columnNames').lstrip("'").rstrip("'"),
-            delimiter=parametersMap.get('delimiter').lstrip('"').rstrip('"'),
+            delimiter=self._unescape_delimiter(parametersMap.get('delimiter').lstrip('"').rstrip('"')),
             split_strategy=parametersMap.get('split_strategy').lstrip("'").rstrip("'"),
             noOfColumns=int(parametersMap.get("noOfColumns")),
             leaveExtraCharLastCol=parametersMap.get('leaveExtraCharLastCol').lstrip("'").rstrip("'"),
