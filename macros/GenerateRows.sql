@@ -13,13 +13,18 @@
     - init_expr, condition_expr, loop_expr: Generator expressions (column_name references the iterated column).
     - column_name: Logical name of the generated column (unquoted for internal __gen_ col).
     - max_rows: Recursion cap (default 100000; empty coerces to 100).
-    - force_mode: Reserved (default 'recursive'); BigQuery uses generate_array path in bigquery__.
+    - force_mode: Reserved (default 'recursive'); currently ignored by every adapter.
 
   Adapter Support:
-    - default__ (recursive CTE, struct payload, EXCEPT), bigquery__ (GENERATE_ARRAY / UNNEST), duckdb__ (recursive, EXCLUDE)
+    - default__ (recursive CTE, struct payload, EXCEPT)
+    - duckdb__ (recursive CTE, flattened payload, EXCLUDE)
+    - snowflake__ (recursive CTE; source columns are listed from `schema`, since Snowflake
+      requires an explicit column list on recursive CTEs)
+    - bigquery__ (no recursion: GENERATE_ARRAY offsets; loop_expr must have a constant step,
+      i.e. `col + step`, `col - step` or DATE_ADD/DATE_SUB/DATETIME_*/TIMESTAMP_*(col, INTERVAL step part))
 
   Depends on schema parameter:
-    Yes
+    Yes (required on Snowflake when a source relation is given)
 
   Macro Call Examples (default__):
     {{ prophecy_basics.GenerateRows([ref('seed')], schema, '1', 'value <= 10', 'value + 1', 'value', 1000, 'recursive') }}
@@ -197,73 +202,220 @@
     max_rows=100000,
     force_mode='recursive'
 ) %}
-    {# Validate required parameters #}
-    {% if init_expr is none or init_expr == '' or condition_expr is none or condition_expr == '' or loop_expr is none or loop_expr == '' or column_name is none or column_name == '' %}
-        select 'ERROR: init_expr, condition_expr, loop_expr, and column_name are required and cannot be empty' as error_message
+    {#
+        BigQuery rejects WITH RECURSIVE anywhere but the top level of a statement, and Prophecy
+        nests every gems SQL inside a CTE, so this adapter cannot recurse. Instead each value is
+        computed from its offset k (init + k * step, or DATE_ADD(init, INTERVAL k * step part)),
+        which needs loop_expr to have a constant step. MONTH/QUARTER/YEAR steps are therefore
+        anchored to init (Jan 31 -> Feb 28/29 -> Mar 31) rather than to the previous value.
+    #}
+    {% for param_name, param_value in [('init_expr', init_expr), ('condition_expr', condition_expr), ('loop_expr', loop_expr), ('column_name', column_name)] %}
+        {% if param_value is none or param_value | trim == '' %}
+            {% do exceptions.raise_compiler_error(param_name ~ " is required") %}
+        {% endif %}
+    {% endfor %}
+
+    {# max_rows defaults to 100 if not provided (set by apply function) #}
+    {% if max_rows is none or max_rows == '' %}
+        {% set max_rows = 100 %}
+    {% endif %}
+    {% set max_rows = max_rows | int %}
+
+    {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
+    {% set relation_tables = relation_list | reject('none') | reject('equalto', '') | join(', ') %}
+
+    {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
+    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
+    {% set ns = namespace(safe_col='', has_specials=false) %}
+    {% for ch in unquoted_col %}
+        {% if ch in allowed %}
+            {% set ns.safe_col = ns.safe_col ~ ch %}
+        {% else %}
+            {% set ns.safe_col = ns.safe_col ~ '_' %}
+            {% set ns.has_specials = true %}
+        {% endif %}
+    {% endfor %}
+    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if ns.has_specials else unquoted_col %}
+    {% set except_col = prophecy_basics.quote_identifier(unquoted_col) | trim %}
+    {% set gen_col = '__gen_' ~ ns.safe_col %}
+
+    {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
+    {% set init_select = prophecy_basics.cast_timestamp_if_needed(init_expr) %}
+
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
     {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+    {% set condition_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, gen_col, preserve_payload=true) %}
+
+    {# --- Closed form of loop_expr: value at offset {idx} --- #}
+    {% set re = modules.re %}
+    {% set col_re = '(?:' ~ re.escape(unquoted_col) ~ '|`' ~ re.escape(unquoted_col) ~ '`)' %}
+    {% set step_re = '(\\d+(?:\\.\\d+)?|payload\\.(?:\\w+|`[^`]+`)|\\(.*\\))' %}
+    {% set date_part_re = '((?i:MICROSECOND|MILLISECOND|SECOND|MINUTE|HOUR|DAY|WEEK|MONTH|QUARTER|YEAR))' %}
+    {% set arithmetic_step = re.match('^\\s*' ~ col_re ~ '\\s*([+-])\\s*' ~ step_re ~ '\\s*$', loop_expr) %}
+    {% set interval_step = re.match('^\\s*((?i:DATETIME|DATE|TIMESTAMP)_(?i:ADD|SUB))\\s*\\(\\s*' ~ col_re ~ '\\s*,\\s*(?i:INTERVAL)\\s+' ~ step_re ~ '\\s+' ~ date_part_re ~ '\\s*\\)\\s*$', loop_expr) %}
+
+    {% set value_template = none %}
+    {% if arithmetic_step %}
+        {% set step_sql = arithmetic_step.group(2) %}
+        {% set value_template = '(' ~ init_select ~ ') ' ~ arithmetic_step.group(1) ~ ' {idx} * (' ~ step_sql ~ ')' %}
+    {% elif interval_step %}
+        {% set step_sql = interval_step.group(2) %}
+        {% set value_template = interval_step.group(1) ~ '(' ~ init_select ~ ', INTERVAL {idx} * (' ~ step_sql ~ ') ' ~ interval_step.group(3) ~ ')' %}
+    {% endif %}
+    {% if value_template is not none and gen_col in prophecy_basics.replace_column_in_expression(step_sql, unquoted_col, gen_col, preserve_payload=true) %}
+        {% set value_template = none %}
+    {% endif %}
+    {% if value_template is none %}
+        {% do exceptions.raise_compiler_error(
+            "GenerateRows on BigQuery needs a loop expression with a constant step: '" ~ unquoted_col ~ " + <step>', '"
+            ~ unquoted_col ~ " - <step>' or DATE_ADD/DATE_SUB/DATETIME_ADD/DATETIME_SUB/TIMESTAMP_ADD/TIMESTAMP_SUB("
+            ~ unquoted_col ~ ", INTERVAL <step> <part>), where <step> is a number, a payload column or a parenthesized "
+            ~ "expression that does not use " ~ unquoted_col ~ ". Got: " ~ loop_expr
+        ) %}
+    {% endif %}
+
+    {#
+        _gen_count is how many leading offsets satisfy the condition, so the output stops at the
+        first failing value exactly like the recursive adapters do (rows are not filtered).
+    #}
+    {% set value_at_offset = value_template | replace('{idx}', '_gen_idx') %}
+    {% set condition_at_probe = condition_sql | replace(gen_col, '(' ~ (value_template | replace('{idx}', '_gen_probe')) ~ ')') %}
+    {% set count_sql %}
+        ifnull((
+            select min(_gen_probe)
+            from unnest(generate_array(0, {{ max_rows - 1 }})) as _gen_probe
+            where not coalesce({{ condition_at_probe }}, false)
+        ), {{ max_rows }})
+    {% endset %}
+
+    {% if relation_tables %}
+        select
+            payload.* except (_gen_count{% if column_exists_in_schema %}, {{ except_col }}{% endif %}),
+            {{ value_at_offset }} as {{ output_col_alias }}
+        from (
+            select payload.*, {{ count_sql }} as _gen_count
+            from {{ relation_tables }} payload
+        ) payload
+        cross join unnest(generate_array(0, payload._gen_count - 1)) as _gen_idx
+    {% else %}
+        select {{ value_at_offset }} as {{ output_col_alias }}
+        from (select {{ count_sql }} as _gen_count) payload
+        cross join unnest(generate_array(0, payload._gen_count - 1)) as _gen_idx
+    {% endif %}
+{% endmacro %}
+
+{% macro snowflake__GenerateRows(
+    relation_name=None,
+    schema='[]',
+    init_expr='1',
+    condition_expr='value <= 10',
+    loop_expr='value + 1',
+    column_name='value',
+    max_rows=100000,
+    force_mode='recursive'
+) %}
+    {% for param_name, param_value in [('init_expr', init_expr), ('condition_expr', condition_expr), ('loop_expr', loop_expr), ('column_name', column_name)] %}
+        {% if param_value is none or param_value | trim == '' %}
+            {% do exceptions.raise_compiler_error(param_name ~ " is required") %}
+        {% endif %}
+    {% endfor %}
+
     {# max_rows defaults to 100 if not provided (set by apply function) #}
     {% if max_rows is none or max_rows == '' %}
         {% set max_rows = 100 %}
     {% endif %}
 
-    {% set alias = "src" %}
     {% set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] %}
-    {% set relation_tables = relation_list | join(', ') if relation_list and relation_list|length > 0 and relation_list[0] else '' %}
+    {% set relation_tables = relation_list | reject('none') | reject('equalto', '') | join(', ') %}
+
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
-    {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
-    {% set internal_col = "__gen_" ~ unquoted_col | replace(' ', '_') %}
-    {% set array_elem_alias = internal_col %}
+    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
+    {% set ns = namespace(safe_col='', has_specials=false) %}
+    {% for ch in unquoted_col %}
+        {% if ch in allowed %}
+            {% set ns.safe_col = ns.safe_col ~ ch %}
+        {% else %}
+            {% set ns.safe_col = ns.safe_col ~ '_' %}
+            {% set ns.has_specials = true %}
+        {% endif %}
+    {% endfor %}
+    {# Unquoted aliases resolve to upper case, matching how downstream SQL refers to them #}
+    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if ns.has_specials else unquoted_col %}
+    {% set gen_col = '__gen_' ~ ns.safe_col %}
 
-    {# Extract init value - evaluate init_expr by replacing column_name with 1 #}
-    {% set init_expr_eval = init_expr | replace(column_name, '1') | trim %}
-    {% set init_value = init_expr_eval | int %}
+    {#
+        Both the anchor source and the recursive reference are aliased `payload`, so user
+        expressions such as payload.qty resolve in every clause; payload.<gen_col> is the
+        previous generated value inside the recursive step.
+    #}
+    {% set prev_value = 'payload.' ~ gen_col %}
+    {% set init_select = prophecy_basics.cast_timestamp_if_needed(init_expr) %}
 
-    {# Extract step value - evaluate loop_expr by replacing column_name with 0 #}
-    {% set step_expr = loop_expr | replace(column_name, '0') | trim %}
-    {% set step_value = step_expr | int %}
-
-    {# Use GENERATE_ARRAY with step - always use array element alias #}
-    {% set computed_expr = array_elem_alias %}
-    {% set condition_expr_sql = condition_expr | replace(column_name, array_elem_alias) %}
-    {% set use_step = true %}
-    {% set array_step = step_value %}
+    {% if '"' in condition_expr and "'" not in condition_expr %}
+        {% set condition_expr_sql = condition_expr.replace('"', "'") %}
+    {% else %}
+        {% set condition_expr_sql = condition_expr %}
+    {% endif %}
+    {% set condition_sql = prophecy_basics.replace_column_in_expression(condition_expr_sql, unquoted_col, prev_value, preserve_payload=true) %}
+    {% set loop_sql = prophecy_basics.replace_column_in_expression(loop_expr, unquoted_col, prev_value, preserve_payload=true) %}
 
     {% if relation_tables %}
-        {# With source table: generate sequence for each input row #}
-        with source_data as (
-            select {{ alias }}.*
-            from {{ relation_tables }} {{ alias }}
-        ),
-        gen as (
+        {# Snowflake requires an explicit column list on recursive CTEs, so source columns come from schema #}
+        {% set schema_parsed = fromjson(schema) if schema is string else schema %}
+        {% if schema_parsed is none or schema_parsed is string or schema_parsed | length == 0 %}
+            {% do exceptions.raise_compiler_error("GenerateRows on Snowflake needs the input schema (a JSON list of {name, dataType}) when a source relation is given") %}
+        {% endif %}
+        {% set carried_cols = [] %}
+        {% set output_cols = [] %}
+        {% for c in schema_parsed %}
+            {% set quoted_col = prophecy_basics.quote_identifier(c.name) | trim %}
+            {% do carried_cols.append(quoted_col) %}
+            {% if not prophecy_basics.column_names_match(c.name, unquoted_col) %}
+                {% do output_cols.append(quoted_col) %}
+            {% endif %}
+        {% endfor %}
+
+        with recursive gen ({{ carried_cols | join(', ') }}, {{ gen_col }}, _gen_iter) as (
             select
-                source_data.*,
-                {{ computed_expr }} as {{ output_col_alias }}
-            from source_data
-            cross join unnest(
-                generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
-            ) as {{ array_elem_alias }}
-            where {{ condition_expr_sql }}
-            limit {{ max_rows | int }}
+                {% for col in carried_cols %}payload.{{ col }}, {% endfor %}
+                {{ init_select }},
+                1
+            from {{ relation_tables }} payload
+
+            union all
+
+            select
+                {% for col in carried_cols %}payload.{{ col }}, {% endfor %}
+                {{ loop_sql }},
+                payload._gen_iter + 1
+            from gen payload
+            where payload._gen_iter < {{ max_rows | int }}
+              and ({{ condition_sql }})
         )
-        select gen.*
-        from gen
+        select
+            {% for col in output_cols %}payload.{{ col }}, {% endfor %}
+            payload.{{ gen_col }} as {{ output_col_alias }}
+        from gen payload
+        where {{ condition_sql }}
     {% else %}
-        {# Without source table: simple sequence generation #}
-        with gen as (
-            select {{ computed_expr }} as {{ output_col_alias }}
-            from unnest(
-                {% if use_step %}
-                    generate_array({{ init_value }}, {{ init_value + max_rows | int * array_step }}, {{ array_step }})
-                {% else %}
-                    generate_array(0, {{ max_rows | int }} - 1)
-                {% endif %}
-            ) as {% if use_step %}{{ array_elem_alias }}{% else %} _iter {% endif %}
-            where {{ condition_expr_sql }}
-            limit {{ max_rows | int }}
+        with recursive gen ({{ gen_col }}, _gen_iter) as (
+            select {{ init_select }}, 1
+
+            union all
+
+            select
+                {{ loop_sql }},
+                payload._gen_iter + 1
+            from gen payload
+            where payload._gen_iter < {{ max_rows | int }}
+              and ({{ condition_sql }})
         )
-        select {{ output_col_alias }}
-        from gen
-    {% endif %}
+        select payload.{{ gen_col }} as {{ output_col_alias }}
+        from gen payload
+        where {{ condition_sql }}
     {% endif %}
 {% endmacro %}
 
