@@ -1,0 +1,6 @@
+[
+  { "name": "id", "dataType": "Integer" },
+  { "name": "name", "dataType": "String" },
+  { "name": "email", "dataType": "String" },
+  { "name": "phone", "dataType": "String" }
+]

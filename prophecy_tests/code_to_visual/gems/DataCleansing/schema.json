@@ -1,0 +1,8 @@
+[
+  { "name": "name", "dataType": "String" },
+  { "name": "age", "dataType": "Integer" },
+  { "name": "salary", "dataType": "Decimal(6, 1)" },
+  { "name": "is_active", "dataType": "Boolean" },
+  { "name": "join_date", "dataType": "Date" },
+  { "name": "updated_at", "dataType": "Timestamp" }
+]

@@ -43,7 +43,7 @@ class RunningTotal(MacroSpec):
         groupByColumnNames: List[str] = field(default_factory=list)
         runningTotalColumnNames: List[str] = field(default_factory=list)
         orderByColumns: List[OrderByRule] = field(default_factory=list)
-        outputPrefix: Optional[str] = None
+        outputPrefix: Optional[str] = "RunTot_"
 
     def get_relation_names(self, component: Component, context: SqlContext):
         relation_name = []
@@ -142,7 +142,7 @@ class RunningTotal(MacroSpec):
                         Step().addElement(
                             StackLayout(height="100%").addElement(
                                 TextBox("Output column prefix (optional)")
-                                .bindPlaceholder("running_total_")
+                                .bindPlaceholder("RunTot_")
                                 .bindProperty("outputPrefix")
                             )
                         )

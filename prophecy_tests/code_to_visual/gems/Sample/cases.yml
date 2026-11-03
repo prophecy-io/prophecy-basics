@@ -1,0 +1,24 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: first_n_ordered
+    properties:
+      currentModeSelection: firstN
+      numberN: 50
+      orderByColumns:
+        - { expression: { expression: salary, format: sql }, sortType: desc }
+  - name: last_n_ordered
+    properties:
+      currentModeSelection: lastN
+      numberN: 10
+      orderByColumns:
+        - { expression: { expression: id, format: sql }, sortType: asc }
+  - name: random_n_with_seed
+    properties: { currentModeSelection: randomN, numberN: 25, randomSeed: 42 }
+  - name: random_percent
+    properties: { currentModeSelection: randomNPercent, numberN: 10 }
+  - name: every_nth_within_group
+    properties: { sampleLevelSelection: sampleGroup, dataColumns: [city], currentModeSelection: oneOfN, numberN: 3 }
+  - name: skip_first_n
+    properties: { currentModeSelection: skipN, numberN: 5 }

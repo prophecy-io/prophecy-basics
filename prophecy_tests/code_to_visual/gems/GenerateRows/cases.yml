@@ -1,0 +1,13 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: counter
+    properties: { init_expr: "1", condition_expr: value <= 10, loop_expr: value + 1, column_name: value }
+  - name: dates_with_row_limit
+    properties:
+      init_expr: start_date
+      condition_expr: day < date_add(start_date, 30)
+      loop_expr: date_add(day, 1)
+      column_name: day
+      max_rows: "500"

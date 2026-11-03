@@ -1,0 +1,21 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: purge_on_name
+    properties:
+      mode: PURGE
+      recordIdCol: id
+      matchFields:
+        - { columnName: name, matchFunction: name }
+  - name: merge_with_score
+    properties:
+      mode: MERGE
+      sourceIdCol: source
+      recordIdCol: id
+      matchThresholdPercentage: 90
+      includeSimilarityScore: true
+      matchFields:
+        - { columnName: address, matchFunction: address }
+        - { columnName: phone, matchFunction: phone }
+        - { columnName: name, matchFunction: exact }
