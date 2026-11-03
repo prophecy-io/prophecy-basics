@@ -131,15 +131,8 @@
     {# Note: condition_expr_sql already has internal_col substituted; above we switch to gen.internal_col for recursive WHERE #}
     {% set recursion_condition = _rec_tmp %}
 
-    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}
-            {% do specials.append(ch) %}
-        {% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
+    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters --- #}
+    {% if modules.re.search('[^A-Za-z0-9_]', unquoted_col) %}
         {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
     {% else %}
         {% set output_col_alias = unquoted_col %}
@@ -225,19 +218,11 @@
     {% set relation_tables = relation_list | reject('none') | reject('equalto', '') | join(', ') %}
 
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set ns = namespace(safe_col='', has_specials=false) %}
-    {% for ch in unquoted_col %}
-        {% if ch in allowed %}
-            {% set ns.safe_col = ns.safe_col ~ ch %}
-        {% else %}
-            {% set ns.safe_col = ns.safe_col ~ '_' %}
-            {% set ns.has_specials = true %}
-        {% endif %}
-    {% endfor %}
-    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if ns.has_specials else unquoted_col %}
+    {% set safe_col = modules.re.sub('[^A-Za-z0-9_]', '_', unquoted_col) %}
+    {% set has_specials = safe_col != unquoted_col %}
+    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if has_specials else unquoted_col %}
     {% set except_col = prophecy_basics.quote_identifier(unquoted_col) | trim %}
-    {% set gen_col = '__gen_' ~ ns.safe_col %}
+    {% set gen_col = '__gen_' ~ safe_col %}
 
     {% set column_exists_in_schema = prophecy_basics.column_exists_in_schema(schema, column_name) %}
     {% set init_select = prophecy_basics.cast_timestamp_if_needed(init_expr) %}
@@ -270,10 +255,13 @@
     {% endif %}
     {% if value_template is none %}
         {% do exceptions.raise_compiler_error(
-            "GenerateRows on BigQuery needs a loop expression with a constant step: '" ~ unquoted_col ~ " + <step>', '"
-            ~ unquoted_col ~ " - <step>' or DATE_ADD/DATE_SUB/DATETIME_ADD/DATETIME_SUB/TIMESTAMP_ADD/TIMESTAMP_SUB("
-            ~ unquoted_col ~ ", INTERVAL <step> <part>), where <step> is a number, a payload column or a parenthesized "
-            ~ "expression that does not use " ~ unquoted_col ~ ". Got: " ~ loop_expr
+            "GenerateRows on BigQuery can't use this in the 'Loop expression' field: " ~ loop_expr ~ ". "
+            ~ "That field says how to get the next value from the previous one, and on BigQuery it must "
+            ~ "add or subtract the same amount every time. "
+            ~ "Try one of these: " ~ unquoted_col ~ " + 1, " ~ unquoted_col ~ " - 100, " ~ unquoted_col ~ " + payload.qty, "
+            ~ "DATE_ADD(" ~ unquoted_col ~ ", INTERVAL 7 DAY), DATE_SUB(" ~ unquoted_col ~ ", INTERVAL 1 MONTH). "
+            ~ "DATETIME_ADD and TIMESTAMP_ADD also work. "
+            ~ "Multiplying (" ~ unquoted_col ~ " * 2), or adding an amount that depends on " ~ unquoted_col ~ " itself, isn't supported."
         ) %}
     {% endif %}
 
@@ -337,19 +325,11 @@
     {% set relation_tables = relation_list | reject('none') | reject('equalto', '') | join(', ') %}
 
     {% set unquoted_col = prophecy_basics.unquote_identifier(column_name) | trim %}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set ns = namespace(safe_col='', has_specials=false) %}
-    {% for ch in unquoted_col %}
-        {% if ch in allowed %}
-            {% set ns.safe_col = ns.safe_col ~ ch %}
-        {% else %}
-            {% set ns.safe_col = ns.safe_col ~ '_' %}
-            {% set ns.has_specials = true %}
-        {% endif %}
-    {% endfor %}
+    {% set safe_col = modules.re.sub('[^A-Za-z0-9_]', '_', unquoted_col) %}
+    {% set has_specials = safe_col != unquoted_col %}
     {# Unquoted aliases resolve to upper case, matching how downstream SQL refers to them #}
-    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if ns.has_specials else unquoted_col %}
-    {% set gen_col = '__gen_' ~ ns.safe_col %}
+    {% set output_col_alias = (prophecy_basics.quote_identifier(unquoted_col) | trim) if has_specials else unquoted_col %}
+    {% set gen_col = '__gen_' ~ safe_col %}
 
     {#
         Both the anchor source and the recursive reference are aliased `payload`, so user
@@ -494,15 +474,8 @@
     {% set recursion_condition_for_gen = recursion_condition | replace('payload.', 'gen.') %}
     {% set condition_expr_sql_for_gen = condition_expr_sql | replace('payload.', 'gen.') %}
 
-    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters (no regex used) --- #}
-    {% set allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' %}
-    {% set specials = [] %}
-    {% for ch in unquoted_col %}
-        {% if ch not in allowed %}
-            {% do specials.append(ch) %}
-        {% endif %}
-    {% endfor %}
-    {% if specials | length > 0 %}
+    {# --- Determine output alias: quote it if it contains non [A-Za-z0-9_] characters --- #}
+    {% if modules.re.search('[^A-Za-z0-9_]', unquoted_col) %}
         {% set output_col_alias = prophecy_basics.quote_identifier(unquoted_col) %}
     {% else %}
         {% set output_col_alias = unquoted_col %}
