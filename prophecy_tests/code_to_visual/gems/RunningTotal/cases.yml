@@ -1,0 +1,17 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: whole_table
+    properties:
+      runningTotalColumnNames: [amount]
+      orderByColumns:
+        - { expression: { expression: created_at, format: sql }, sortType: asc }
+  - name: per_group_with_prefix
+    properties:
+      groupByColumnNames: [city]
+      runningTotalColumnNames: [amount, qty]
+      outputPrefix: rt_
+      orderByColumns:
+        - { expression: { expression: created_at, format: sql }, sortType: desc }
+        - { expression: { expression: id, format: sql }, sortType: asc_nulls_last }

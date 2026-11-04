@@ -16,8 +16,8 @@ class GenerateRows(MacroSpec):
     category: str = "Prepare"
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
-        # ProviderTypeEnum.Snowflake,
-        # ProviderTypeEnum.BigQuery,
+        ProviderTypeEnum.Snowflake,
+        ProviderTypeEnum.BigQuery,
         ProviderTypeEnum.ProphecyManaged
     ]
     dependsOnUpstreamSchema: bool = False
@@ -175,6 +175,9 @@ class GenerateRows(MacroSpec):
         return diagnostics
 
     def onChange(self, context: SqlContext, oldState: Component, newState: Component) -> Component:
+        # No input port: generator-only mode, the macro builds the sequence from scratch
+        if not newState.ports.inputs:
+            return newState.bindProperties(dataclasses.replace(newState.properties, schema="", relation_name=[]))
         if self._is_empty_schema(newState.ports.inputs[0].schema):
             raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(newState.ports.inputs[0].schema) if isinstance(newState.ports.inputs[0].schema, str) else (newState.ports.inputs[0].schema or {}))
@@ -296,6 +299,8 @@ class GenerateRows(MacroSpec):
         )
 
     def updateInputPortSlug(self, component: Component, context: SqlContext):
+        if not component.ports.inputs:
+            return component.bindProperties(dataclasses.replace(component.properties, schema="", relation_name=[]))
         if self._is_empty_schema(component.ports.inputs[0].schema):
             raise ValueError(f"{self.name}: input schema is empty")
         schema = (json.loads(component.ports.inputs[0].schema) if isinstance(component.ports.inputs[0].schema, str) else (component.ports.inputs[0].schema or {}))
