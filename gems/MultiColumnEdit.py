@@ -244,7 +244,32 @@ class MultiColumnEdit(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = f"Edited columns: {self._names(props.columnNames)}" if props.columnNames else "Edits selected columns"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.ColumnsC,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
+
+    @staticmethod
+    def _names(items) -> str:
+        # "a, b, c +2 more"
+        items = [str(i) for i in (items or []) if str(i).strip()]
+        return ", ".join(items[:3]) + (f" +{len(items) - 3} more" if len(items) > 3 else "")
 
     def apply(self, props: MultiColumnEditProperties) -> str:
 
@@ -346,7 +371,7 @@ class MultiColumnEdit(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
 
     def applyPython(self, spark: SparkSession, in0: DataFrame) -> DataFrame:
         new_cols = []
