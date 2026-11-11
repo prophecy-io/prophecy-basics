@@ -29,7 +29,7 @@ RULE_FIELDS = {
 class DataValidation(MacroSpec):
     name: str = "DataValidation"
     projectName: str = "prophecy_basics"
-    category: str = "Transform"
+    category: str = "Custom"
     minNumOfInputPorts: int = 1
     supportedProviderTypes: list[ProviderTypeEnum] = [
         ProviderTypeEnum.Databricks,
