@@ -1,0 +1,30 @@
+# Each case fills in the gem's form with `properties`, generates the code with
+# apply(), reopens it as the SQL Editor does, and checks that the form and the
+# code come back unchanged. Input columns come from schema.json.
+cases:
+  - name: passed_rows_default_settings
+    properties:
+      rules:
+        - { checkType: not_null, columns: [order_id, customer_email] }
+        - { checkType: unique, columns: [order_id] }
+  - name: failed_rows_every_row_check
+    properties:
+      output_mode: failed
+      rules:
+        - { checkType: accepted_values, columns: [status], values: "open, shipped, cancelled" }
+        - { checkType: disallowed_values, columns: [status], values: "returned, lost" }
+        - { checkType: value_range, columns: [amount], minValue: "0", maxValue: "10000", checkName: Positive amount }
+        - { checkType: regex_match, columns: [customer_email], pattern: "[a-z]+@[a-z]+\\.[a-z]+" }
+        - { checkType: expression, expression: ship_date is null or ship_date >= order_date, checkName: Ships after order }
+  - name: all_rows_with_results
+    properties:
+      output_mode: all
+      rules:
+        - { checkType: value_range, columns: [order_date], minValue: "2024-01-01" }
+  - name: summary_and_stop_on_failure
+    properties:
+      output_mode: summary
+      on_failure: fail
+      rules:
+        - { checkType: required_columns, columns: [order_id, amount] }
+        - { checkType: row_count, minValue: "1", maxValue: "1000000" }
