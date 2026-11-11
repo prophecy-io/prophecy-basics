@@ -311,6 +311,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/Imputation.py
     createdAt: '2025-10-13 04:59:46'
+  .prophecy/metadata/sqlmacros/DataValidation:
+    name: DataValidation
+    macroType: query
+    description: null
+    author: adak.debashis@prophecy.io
+    files:
+      - macros/DataValidation.sql
+      - .prophecy/ide/macros/DataValidation.json
+      - macros/macros.yml
+      - gems/DataValidation.py
+    createdAt: '2026-11-03 00:00:00'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
