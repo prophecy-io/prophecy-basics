@@ -268,7 +268,7 @@ class DataValidation(MacroSpec):
             if check_type == "row_count":
                 for bound in (min_value, max_value):
                     if bound and not bound.isdigit():
-                        error(path, f"{label}: row counts must be whole numbers, got '{bound}'")
+                        error(path, f"{label}: minimum and maximum rows must be 0 or a positive whole number (leave one empty for no limit), got '{bound}'")
                 if min_value.isdigit() and max_value.isdigit() and int(min_value) > int(max_value):
                     error(path, f"{label}: the minimum is larger than the maximum")
 

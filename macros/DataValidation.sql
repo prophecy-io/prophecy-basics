@@ -228,7 +228,7 @@
             {%- endif -%}
             {%- for bound in [min_value, max_value] -%}
                 {%- if bound != '' and not modules.re.match('^[0-9]+$', bound) -%}
-                    {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " bounds must be whole numbers, got: " ~ bound) -%}
+                    {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " minimum and maximum rows must be 0 or a positive whole number (leave one empty for no limit), got: " ~ bound) -%}
                 {%- endif -%}
             {%- endfor -%}
             {%- set row_bounds = [] -%}
