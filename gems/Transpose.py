@@ -275,7 +275,34 @@ class Transpose(MacroSpec):
             ),
             relation_name=relation_name,
         )
-        return newState.bindProperties(newProperties)
+        return self._with_port_hints(newState.bindProperties(newProperties))
+
+    def _with_port_hints(self, component: Component) -> Component:
+        # Tell the UI what the output port holds, its icon and the inputs it comes from
+        # Hints are display only: on a CBP without these fields or icons, keep the component as it is
+        try:
+            props = component.properties
+            description = f"{len(props.dataColumns)} columns turned into rows" if props.dataColumns else "Columns turned into rows"
+            if props.keyColumns:
+                description += f", keyed by {self._names(props.keyColumns)}"
+            outputs = [
+                dataclasses.replace(
+                    port,
+                    description=description,
+                    icon=PortIconEnum.RowsC,
+                    incomingAliases=list(props.relation_name or []),
+                )
+                for port in component.ports.outputs
+            ]
+            return component.bindPorts(dataclasses.replace(component.ports, outputs=outputs))
+        except (AttributeError, NameError, TypeError):
+            return component
+
+    @staticmethod
+    def _names(items) -> str:
+        # "a, b, c +2 more"
+        items = [str(i) for i in (items or []) if str(i).strip()]
+        return ", ".join(items[:3]) + (f" +{len(items) - 3} more" if len(items) > 3 else "")
 
     def apply(self, props: TransposeProperties) -> str:
 
@@ -348,4 +375,4 @@ class Transpose(MacroSpec):
             schema=json.dumps(fields_array),
             relation_name=relation_name,
         )
-        return component.bindProperties(newProperties)
+        return self._with_port_hints(component.bindProperties(newProperties))
