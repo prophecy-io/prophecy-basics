@@ -1,0 +1,8 @@
+[
+  { "name": "order_id", "dataType": "Integer" },
+  { "name": "customer_email", "dataType": "String" },
+  { "name": "status", "dataType": "String" },
+  { "name": "amount", "dataType": "Double" },
+  { "name": "order_date", "dataType": "Date" },
+  { "name": "ship_date", "dataType": "Date" }
+]
