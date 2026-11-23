@@ -1,4 +1,4 @@
--- Test: DataValidation macro - row-level checks on an orders table (Snowflake)
+-- Test: DataQuality macro - row-level checks on an orders table (Snowflake)
 -- Each case embeds the macro in a CTE, the way Prophecy-generated models call it, then
 -- compares the output column list and the ordered values (as text) with the expected result.
 -- The schema and columns use upper-case names, as Prophecy reports them for unquoted
@@ -31,7 +31,7 @@ WITH orders AS (
 {% set macro_query %}
 {{ orders_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'passed', 'continue') }}
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'passed', 'continue') }}
 )
 SELECT * FROM validated ORDER BY ORDER_ID, AMOUNT
 {% endset %}
@@ -40,7 +40,7 @@ SELECT * FROM validated ORDER BY ORDER_ID, AMOUNT
 {% set macro_query %}
 {{ orders_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'failed', 'continue') }}
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'failed', 'continue') }}
 )
 SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS FROM validated ORDER BY ORDER_ID, AMOUNT
 {% endset %}
@@ -49,7 +49,7 @@ SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS
 {% set macro_query %}
 {{ orders_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'all', 'continue') }}
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'not_null', 'columns': ['ORDER_ID', 'CUSTOMER_EMAIL']}, {'checkType': 'unique', 'columns': ['ORDER_ID']}, {'checkType': 'accepted_values', 'columns': ['STATUS'], 'values': 'open, shipped, cancelled'}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'maxValue': '10000'}, {'checkType': 'regex_match', 'columns': ['CUSTOMER_EMAIL'], 'pattern': '[a-z]+@[a-z]+[.][a-z]+'}, {'checkType': 'expression', 'expression': 'SHIP_DATE is null or SHIP_DATE >= ORDER_DATE', 'checkName': 'Ships after order'}], 'all', 'continue') }}
 )
 SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS FROM validated ORDER BY ORDER_ID, AMOUNT
 {% endset %}
@@ -58,7 +58,7 @@ SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS
 {% set macro_query %}
 {{ orders_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'disallowed_values', 'columns': ['STATUS'], 'values': 'returned, lost'}, {'checkType': 'value_range', 'columns': ['ORDER_DATE'], 'minValue': '2024-01-06', 'maxValue': '2024-01-08', 'checkName': 'Ordered in the promo week'}], 'failed', 'continue') }}
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'disallowed_values', 'columns': ['STATUS'], 'values': 'returned, lost'}, {'checkType': 'value_range', 'columns': ['ORDER_DATE'], 'minValue': '2024-01-06', 'maxValue': '2024-01-08', 'checkName': 'Ordered in the promo week'}], 'failed', 'continue') }}
 )
 SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS FROM validated ORDER BY ORDER_ID, AMOUNT
 {% endset %}
@@ -67,7 +67,7 @@ SELECT *, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS
 {% set macro_query %}
 {{ orders_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'unique', 'columns': ['ORDER_ID'], 'uniqueMode': 'keep_first', 'orderColumns': [{'column': 'ORDER_DATE', 'direction': 'asc'}, {'column': 'AMOUNT', 'direction': 'desc'}]}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'reasonCode': 'NEGATIVE_AMOUNT'}], 'all', 'continue', '', true) }}
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "ORDER_ID", "dataType": "integer"}, {"name": "CUSTOMER_EMAIL", "dataType": "string"}, {"name": "STATUS", "dataType": "string"}, {"name": "AMOUNT", "dataType": "integer"}, {"name": "ORDER_DATE", "dataType": "date"}, {"name": "SHIP_DATE", "dataType": "date"}]', [{'checkType': 'unique', 'columns': ['ORDER_ID'], 'uniqueMode': 'keep_first', 'orderColumns': [{'column': 'ORDER_DATE', 'direction': 'asc'}, {'column': 'AMOUNT', 'direction': 'desc'}]}, {'checkType': 'value_range', 'columns': ['AMOUNT'], 'minValue': '0', 'reasonCode': 'NEGATIVE_AMOUNT'}], 'all', 'continue', '', true) }}
 )
 SELECT *, array_size(DQ_FAILED_CODES) AS CODE_COUNT, coalesce(array_to_string(DQ_FAILED_CODES, ','), '') AS FAILED_CODES, coalesce(array_to_string(DQ_FAILED_CHECKS, '; '), '') AS FAILED_CHECKS FROM validated ORDER BY ORDER_ID, AMOUNT
 {% endset %}
@@ -76,12 +76,12 @@ SELECT *, array_size(DQ_FAILED_CODES) AS CODE_COUNT, coalesce(array_to_string(DQ
 {% for case in cases %}
     {% set results = run_query(case.sql) %}
     {% if (results.column_names | list) != case.columns %}
-        {{ exceptions.raise_compiler_error("DataValidation test '" ~ case.name ~ "' FAILED: expected columns " ~ case.columns ~ ", got " ~ (results.column_names | list)) }}
+        {{ exceptions.raise_compiler_error("DataQuality test '" ~ case.name ~ "' FAILED: expected columns " ~ case.columns ~ ", got " ~ (results.column_names | list)) }}
     {% endif %}
     {% for col, expected in case.expect.items() %}
         {% set actual = results.columns[col].values() | map('string') | list %}
         {% if actual != expected %}
-            {{ exceptions.raise_compiler_error("DataValidation test '" ~ case.name ~ "' FAILED on column " ~ col ~ ": expected " ~ expected ~ ", got " ~ actual) }}
+            {{ exceptions.raise_compiler_error("DataQuality test '" ~ case.name ~ "' FAILED on column " ~ col ~ ": expected " ~ expected ~ ", got " ~ actual) }}
         {% endif %}
     {% endfor %}
 {% endfor %}

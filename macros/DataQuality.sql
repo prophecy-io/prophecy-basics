@@ -1,5 +1,5 @@
 {#
-  DataValidation Macro Gem
+  DataQuality Macro Gem
   ========================
 
   Runs data quality checks on every row of the input and returns one of: the rows that pass,
@@ -62,13 +62,13 @@
     Only for the required_columns check
 
   Macro Call Examples:
-    {{ prophecy_basics.DataValidation(['orders'], '[{"name": "order_id", "dataType": "Integer"}]',
+    {{ prophecy_basics.DataQuality(['orders'], '[{"name": "order_id", "dataType": "Integer"}]',
         [{'checkType': 'not_null', 'columns': ['order_id']},
          {'checkType': 'unique', 'columns': ['order_id']},
          {'checkType': 'accepted_values', 'columns': ['status'], 'values': 'open, shipped, cancelled'}],
         'passed', 'continue') }}
 
-    {{ prophecy_basics.DataValidation(['orders'], '[]',
+    {{ prophecy_basics.DataQuality(['orders'], '[]',
         [{'checkType': 'value_range', 'columns': ['amount'], 'minValue': '0', 'maxValue': '10000'},
          {'checkType': 'row_count', 'minValue': '1'}],
         'failed', 'fail', '10', true) }}
@@ -91,39 +91,39 @@
       from dq_result
       where _dq_passed
 #}
-{% macro DataValidation(relation_name, schema, rules, output_mode='passed', on_failure='continue', max_failed_rows='', add_failed_codes=false) -%}
-    {{ return(adapter.dispatch('DataValidation', 'prophecy_basics')(relation_name, schema, rules, output_mode, on_failure, max_failed_rows, add_failed_codes)) }}
+{% macro DataQuality(relation_name, schema, rules, output_mode='passed', on_failure='continue', max_failed_rows='', add_failed_codes=false) -%}
+    {{ return(adapter.dispatch('DataQuality', 'prophecy_basics')(relation_name, schema, rules, output_mode, on_failure, max_failed_rows, add_failed_codes)) }}
 {%- endmacro %}
 
 
-{% macro default__DataValidation(relation_name, schema, rules, output_mode='passed', on_failure='continue', max_failed_rows='', add_failed_codes=false) %}
+{% macro default__DataQuality(relation_name, schema, rules, output_mode='passed', on_failure='continue', max_failed_rows='', add_failed_codes=false) %}
     {%- set relation_list = relation_name if relation_name is iterable and relation_name is not string else [relation_name] -%}
     {%- set relation_tables = relation_list | reject('none') | reject('equalto', '') | list -%}
     {%- if relation_tables | length != 1 -%}
-        {%- do exceptions.raise_compiler_error("DataValidation needs exactly one input table") -%}
+        {%- do exceptions.raise_compiler_error("DataQuality needs exactly one input table") -%}
     {%- endif -%}
     {%- set source_table = relation_tables[0] -%}
 
     {#- Helpers are looked up through dispatch so this works both inside the prophecy_basics
         package and when the file is copied into another project. -#}
-    {%- set bare_name = adapter.dispatch('data_validation_bare_name', 'prophecy_basics') -%}
-    {%- set quote_column = adapter.dispatch('data_validation_quote_column', 'prophecy_basics') -%}
-    {%- set quote_text = adapter.dispatch('data_validation_quote', 'prophecy_basics') -%}
-    {%- set to_text = adapter.dispatch('data_validation_to_text', 'prophecy_basics') -%}
-    {%- set full_match = adapter.dispatch('data_validation_full_match', 'prophecy_basics') -%}
-    {%- set raise_if = adapter.dispatch('data_validation_raise_if', 'prophecy_basics') -%}
-    {%- set star_except = adapter.dispatch('data_validation_star_except', 'prophecy_basics') -%}
-    {%- set failed_array = adapter.dispatch('data_validation_failed_array', 'prophecy_basics') -%}
+    {%- set bare_name = adapter.dispatch('data_quality_bare_name', 'prophecy_basics') -%}
+    {%- set quote_column = adapter.dispatch('data_quality_quote_column', 'prophecy_basics') -%}
+    {%- set quote_text = adapter.dispatch('data_quality_quote', 'prophecy_basics') -%}
+    {%- set to_text = adapter.dispatch('data_quality_to_text', 'prophecy_basics') -%}
+    {%- set full_match = adapter.dispatch('data_quality_full_match', 'prophecy_basics') -%}
+    {%- set raise_if = adapter.dispatch('data_quality_raise_if', 'prophecy_basics') -%}
+    {%- set star_except = adapter.dispatch('data_quality_star_except', 'prophecy_basics') -%}
+    {%- set failed_array = adapter.dispatch('data_quality_failed_array', 'prophecy_basics') -%}
 
     {%- if output_mode not in ['passed', 'failed', 'all', 'summary', 'errors'] -%}
-        {%- do exceptions.raise_compiler_error("DataValidation: output_mode must be passed, failed, all, summary or errors, got: " ~ output_mode) -%}
+        {%- do exceptions.raise_compiler_error("DataQuality: output_mode must be passed, failed, all, summary or errors, got: " ~ output_mode) -%}
     {%- endif -%}
     {%- if on_failure not in ['continue', 'block', 'fail'] -%}
-        {%- do exceptions.raise_compiler_error("DataValidation: on_failure must be continue, block or fail, got: " ~ on_failure) -%}
+        {%- do exceptions.raise_compiler_error("DataQuality: on_failure must be continue, block or fail, got: " ~ on_failure) -%}
     {%- endif -%}
     {%- set allowed_failures = '' if max_failed_rows is none else max_failed_rows | string | trim -%}
     {%- if allowed_failures != '' and not modules.re.match('^[0-9]+$', allowed_failures) -%}
-        {%- do exceptions.raise_compiler_error("DataValidation: the allowed number of failing rows must be 0 or a positive whole number (leave it empty to stop on any failure), got: " ~ allowed_failures) -%}
+        {%- do exceptions.raise_compiler_error("DataQuality: the allowed number of failing rows must be 0 or a positive whole number (leave it empty to stop on any failure), got: " ~ allowed_failures) -%}
     {%- endif -%}
     {%- set allowed_failures = allowed_failures or '0' -%}
     {%- set with_codes = add_failed_codes in [true, 'true', 'True'] and output_mode in ['failed', 'all'] -%}
@@ -143,7 +143,7 @@
 
     {%- set rule_list = fromjson(rules) if rules is string else rules -%}
     {%- if rule_list is none or rule_list is mapping or rule_list is not iterable or rule_list | length == 0 -%}
-        {%- do exceptions.raise_compiler_error("DataValidation: add at least one check") -%}
+        {%- do exceptions.raise_compiler_error("DataQuality: add at least one check") -%}
     {%- endif -%}
 
     {%- set type_labels = {
@@ -165,7 +165,7 @@
         {%- set check_type = rule.get('checkType', '') -%}
         {%- set position = 'check ' ~ loop.index ~ ' (' ~ check_type ~ ')' -%}
         {%- if check_type not in type_labels -%}
-            {%- do exceptions.raise_compiler_error("DataValidation: unknown check type in check " ~ loop.index ~ ": " ~ check_type) -%}
+            {%- do exceptions.raise_compiler_error("DataQuality: unknown check type in check " ~ loop.index ~ ": " ~ check_type) -%}
         {%- endif -%}
         {%- set columns = rule.get('columns') or [] -%}
         {%- set columns = [columns] if columns is string else columns -%}
@@ -174,7 +174,7 @@
             {%- do quoted.append(quote_column(col)) -%}
         {%- endfor -%}
         {%- if check_type not in ['expression', 'row_count'] and quoted | length == 0 -%}
-            {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs at least one column") -%}
+            {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs at least one column") -%}
         {%- endif -%}
         {%- set min_value = '' if rule.get('minValue') is none else rule.get('minValue') | string | trim -%}
         {%- set max_value = '' if rule.get('maxValue') is none else rule.get('maxValue') | string | trim -%}
@@ -199,21 +199,21 @@
                     {%- set order_name = (order_column.get('column') or '') | string | trim -%}
                     {%- set order_direction = (order_column.get('direction') or 'desc') | string | trim | lower -%}
                     {%- if order_name == '' -%}
-                        {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " has a sort column with no column chosen") -%}
+                        {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " has a sort column with no column chosen") -%}
                     {%- endif -%}
                     {%- if order_direction not in ['asc', 'desc'] -%}
-                        {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " sort direction must be asc or desc, got: " ~ order_direction) -%}
+                        {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " sort direction must be asc or desc, got: " ~ order_direction) -%}
                     {%- endif -%}
                     {%- do order_parts.append(quote_column(order_name) ~ ' ' ~ order_direction ~ ' nulls last') -%}
                 {%- endfor -%}
                 {%- if order_parts | length == 0 -%}
-                    {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " keeps one row of each key, so it needs at least one column that decides which row to keep") -%}
+                    {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " keeps one row of each key, so it needs at least one column that decides which row to keep") -%}
                 {%- endif -%}
                 {%- set check_sql = '(' ~ (parts | join(' or ')) ~ ') or row_number() over (partition by ' ~ (quoted | join(', ')) ~ ' order by ' ~ (order_parts | join(', ')) ~ ') = 1' -%}
             {%- elif unique_mode == 'fail_all' -%}
                 {%- set check_sql = '(' ~ (parts | join(' or ')) ~ ') or count(*) over (partition by ' ~ (quoted | join(', ')) ~ ') = 1' -%}
             {%- else -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " uniqueMode must be fail_all or keep_first, got: " ~ unique_mode) -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " uniqueMode must be fail_all or keep_first, got: " ~ unique_mode) -%}
             {%- endif -%}
 
         {%- elif check_type in ['accepted_values', 'disallowed_values'] -%}
@@ -224,7 +224,7 @@
                 {%- endif -%}
             {%- endfor -%}
             {%- if literals | length == 0 -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs at least one value") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs at least one value") -%}
             {%- endif -%}
             {%- set operator = 'in' if check_type == 'accepted_values' else 'not in' -%}
             {%- for q in quoted -%}
@@ -234,15 +234,15 @@
 
         {%- elif check_type == 'value_range' -%}
             {%- if min_value == '' and max_value == '' -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs a minimum, a maximum, or both") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs a minimum, a maximum, or both") -%}
             {%- endif -%}
             {%- for col in columns -%}
                 {%- set col_type = column_types.get(bare_name(col) | lower, '') -%}
                 {%- for bound in [min_value, max_value] -%}
                     {%- if bound != '' and col_type in text_types and modules.re.match(number_re, bound) -%}
-                        {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ ": " ~ col ~ " is a text column and cannot be compared with the number " ~ bound ~ ". Convert the column to a number before this gem, or use text bounds.") -%}
+                        {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ ": " ~ col ~ " is a text column and cannot be compared with the number " ~ bound ~ ". Convert the column to a number before this gem, or use text bounds.") -%}
                     {%- elif bound != '' and col_type in number_types and not modules.re.match(number_re, bound) -%}
-                        {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ ": " ~ col ~ " is a number column and cannot be compared with the text " ~ bound ~ ". Use a number as the bound.") -%}
+                        {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ ": " ~ col ~ " is a number column and cannot be compared with the text " ~ bound ~ ". Use a number as the bound.") -%}
                     {%- endif -%}
                 {%- endfor -%}
             {%- endfor -%}
@@ -259,7 +259,7 @@
         {%- elif check_type == 'regex_match' -%}
             {%- set pattern = (rule.get('pattern') or '') | string -%}
             {%- if pattern == '' -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs a pattern") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs a pattern") -%}
             {%- endif -%}
             {%- for q in quoted -%}
                 {%- do parts.append('(' ~ q ~ ' is null or ' ~ full_match(to_text(q), pattern) ~ ')') -%}
@@ -269,13 +269,13 @@
         {%- elif check_type == 'expression' -%}
             {%- set expression = (rule.get('expression') or '') | string | trim -%}
             {%- if expression == '' -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs a SQL condition") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs a SQL condition") -%}
             {%- endif -%}
             {%- set check_sql = expression -%}
 
         {%- elif check_type == 'required_columns' -%}
             {%- if schema is none or schema in ['', '[]'] -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: the required columns check needs the input schema") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: the required columns check needs the input schema") -%}
             {%- endif -%}
             {%- set schema_names = [] -%}
             {%- for f in (fromjson(schema) if schema is string else schema) -%}
@@ -288,7 +288,7 @@
                 {%- endif -%}
             {%- endfor -%}
             {%- if missing and on_failure == 'fail' -%}
-                {%- do exceptions.raise_compiler_error("DataValidation failed: the input is missing required column(s): " ~ (missing | join(', '))) -%}
+                {%- do exceptions.raise_compiler_error("DataQuality failed: the input is missing required column(s): " ~ (missing | join(', '))) -%}
             {%- endif -%}
             {%- set check_sql = 'false' if missing else 'true' -%}
             {%- if missing -%}
@@ -298,11 +298,11 @@
 
         {%- elif check_type == 'row_count' -%}
             {%- if min_value == '' and max_value == '' -%}
-                {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " needs a minimum, a maximum, or both") -%}
+                {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " needs a minimum, a maximum, or both") -%}
             {%- endif -%}
             {%- for bound in [min_value, max_value] -%}
                 {%- if bound != '' and not modules.re.match('^[0-9]+$', bound) -%}
-                    {%- do exceptions.raise_compiler_error("DataValidation: " ~ position ~ " minimum and maximum rows must be 0 or a positive whole number (leave one empty for no limit), got: " ~ bound) -%}
+                    {%- do exceptions.raise_compiler_error("DataQuality: " ~ position ~ " minimum and maximum rows must be 0 or a positive whole number (leave one empty for no limit), got: " ~ bound) -%}
                 {%- endif -%}
             {%- endfor -%}
             {%- set row_bounds = [] -%}
@@ -411,10 +411,10 @@ dq_guard as (
             case
                 {%- if guard_conditions %}
                 when not ({{ guard_conditions | join(' and ') }})
-                    then 'DataValidation failed: the input has ' || {{ to_text('count(*)') }} || ' rows, which is outside the allowed row count'
+                    then 'DataQuality failed: the input has ' || {{ to_text('count(*)') }} || ' rows, which is outside the allowed row count'
                 {%- endif %}
                 when sum(case when _dq_passed then 0 else 1 end) > {{ allowed_failures }}
-                    then 'DataValidation failed: ' || {{ to_text('sum(case when _dq_passed then 0 else 1 end)') }} || ' row(s) failed at least one check'
+                    then 'DataQuality failed: ' || {{ to_text('sum(case when _dq_passed then 0 else 1 end)') }} || ' row(s) failed at least one check'
                     {%- if allowed_failures != '0' %} || ', more than the {{ allowed_failures }} allowed'{% endif %}
             end as _dq_error
         from dq_evaluated
@@ -486,49 +486,49 @@ from dq_result
 
 {# ---------- helpers: the only per-adapter differences ---------- #}
 
-{% macro default__data_validation_to_text(expr) -%}
+{% macro default__data_quality_to_text(expr) -%}
     {{ return('cast(' ~ expr ~ ' as string)') }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_to_text(expr) -%}
+{% macro duckdb__data_quality_to_text(expr) -%}
     {{ return('cast(' ~ expr ~ ' as varchar)') }}
 {%- endmacro %}
 
-{% macro snowflake__data_validation_to_text(expr) -%}
+{% macro snowflake__data_quality_to_text(expr) -%}
     {{ return('to_varchar(' ~ expr ~ ')') }}
 {%- endmacro %}
 
 
 {# Matches when the whole text matches the pattern, not just part of it. #}
-{% macro default__data_validation_full_match(text_expr, pattern) -%}
-    {{ return(text_expr ~ ' rlike ' ~ adapter.dispatch('data_validation_quote', 'prophecy_basics')('^(?:' ~ pattern ~ ')$')) }}
+{% macro default__data_quality_full_match(text_expr, pattern) -%}
+    {{ return(text_expr ~ ' rlike ' ~ adapter.dispatch('data_quality_quote', 'prophecy_basics')('^(?:' ~ pattern ~ ')$')) }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_full_match(text_expr, pattern) -%}
-    {{ return('regexp_full_match(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_validation_quote', 'prophecy_basics')(pattern) ~ ')') }}
+{% macro duckdb__data_quality_full_match(text_expr, pattern) -%}
+    {{ return('regexp_full_match(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_quality_quote', 'prophecy_basics')(pattern) ~ ')') }}
 {%- endmacro %}
 
-{% macro snowflake__data_validation_full_match(text_expr, pattern) -%}
-    {{ return('regexp_like(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_validation_quote', 'prophecy_basics')(pattern) ~ ')') }}
+{% macro snowflake__data_quality_full_match(text_expr, pattern) -%}
+    {{ return('regexp_like(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_quality_quote', 'prophecy_basics')(pattern) ~ ')') }}
 {%- endmacro %}
 
-{% macro bigquery__data_validation_full_match(text_expr, pattern) -%}
-    {{ return('regexp_contains(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_validation_quote', 'prophecy_basics')('^(?:' ~ pattern ~ ')$') ~ ')') }}
+{% macro bigquery__data_quality_full_match(text_expr, pattern) -%}
+    {{ return('regexp_contains(' ~ text_expr ~ ', ' ~ adapter.dispatch('data_quality_quote', 'prophecy_basics')('^(?:' ~ pattern ~ ')$') ~ ')') }}
 {%- endmacro %}
 
 
 {# A SQL string literal for text. DuckDB strings have no backslash escapes, so backslashes stay single there. #}
-{% macro default__data_validation_quote(text) -%}
+{% macro default__data_quality_quote(text) -%}
     {{ return("'" ~ (text | string | replace('\\', '\\\\') | replace("'", "''")) ~ "'") }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_quote(text) -%}
+{% macro duckdb__data_quality_quote(text) -%}
     {{ return("'" ~ (text | string | replace("'", "''")) ~ "'") }}
 {%- endmacro %}
 
 
 {# A column name without surrounding backticks or double quotes. #}
-{% macro default__data_validation_bare_name(name) -%}
+{% macro default__data_quality_bare_name(name) -%}
     {%- set name = name | string | trim -%}
     {%- if name | length > 1 and name[0] in ['`', '"'] and name[-1] == name[0] -%}
         {%- set name = name[1:-1] -%}
@@ -536,54 +536,54 @@ from dq_result
     {{ return(name) }}
 {%- endmacro %}
 
-{% macro default__data_validation_quote_column(name) -%}
-    {{ return('`' ~ adapter.dispatch('data_validation_bare_name', 'prophecy_basics')(name) ~ '`') }}
+{% macro default__data_quality_quote_column(name) -%}
+    {{ return('`' ~ adapter.dispatch('data_quality_bare_name', 'prophecy_basics')(name) ~ '`') }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_quote_column(name) -%}
-    {{ return('"' ~ (adapter.dispatch('data_validation_bare_name', 'prophecy_basics')(name) | replace('"', '""')) ~ '"') }}
+{% macro duckdb__data_quality_quote_column(name) -%}
+    {{ return('"' ~ (adapter.dispatch('data_quality_bare_name', 'prophecy_basics')(name) | replace('"', '""')) ~ '"') }}
 {%- endmacro %}
 
-{% macro snowflake__data_validation_quote_column(name) -%}
-    {{ return('"' ~ (adapter.dispatch('data_validation_bare_name', 'prophecy_basics')(name) | replace('"', '""')) ~ '"') }}
+{% macro snowflake__data_quality_quote_column(name) -%}
+    {{ return('"' ~ (adapter.dispatch('data_quality_bare_name', 'prophecy_basics')(name) | replace('"', '""')) ~ '"') }}
 {%- endmacro %}
 
 
 {# 1 when message_expr is NULL; otherwise stops the query with message_expr as the error text. #}
-{% macro default__data_validation_raise_if(message_expr) -%}
+{% macro default__data_quality_raise_if(message_expr) -%}
     {{ return('case when ' ~ message_expr ~ ' is null then 1 else raise_error(' ~ message_expr ~ ') end') }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_raise_if(message_expr) -%}
+{% macro duckdb__data_quality_raise_if(message_expr) -%}
     {{ return('case when ' ~ message_expr ~ ' is null then 1 else error(' ~ message_expr ~ ') end') }}
 {%- endmacro %}
 
-{% macro bigquery__data_validation_raise_if(message_expr) -%}
+{% macro bigquery__data_quality_raise_if(message_expr) -%}
     {{ return('case when ' ~ message_expr ~ ' is null then 1 else error(' ~ message_expr ~ ') end') }}
 {%- endmacro %}
 
 {# Snowflake has no raise function: casting the message text to a number fails and shows the message. #}
-{% macro snowflake__data_validation_raise_if(message_expr) -%}
+{% macro snowflake__data_quality_raise_if(message_expr) -%}
     {{ return("cast(coalesce(" ~ message_expr ~ ", '1') as int)") }}
 {%- endmacro %}
 
 
-{% macro default__data_validation_star_except(columns) -%}
+{% macro default__data_quality_star_except(columns) -%}
     {{ return('* except (' ~ (columns | join(', ')) ~ ')') }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_star_except(columns) -%}
+{% macro duckdb__data_quality_star_except(columns) -%}
     {{ return('* exclude (' ~ (columns | join(', ')) ~ ')') }}
 {%- endmacro %}
 
-{% macro snowflake__data_validation_star_except(columns) -%}
+{% macro snowflake__data_quality_star_except(columns) -%}
     {{ return('* exclude (' ~ (columns | join(', ')) ~ ')') }}
 {%- endmacro %}
 
 
 {# An array of string labels (check names or reason codes) of the checks a row failed, empty
    when it passed every check. label_checks: list of {column: boolean check column, label: quoted literal}. #}
-{% macro default__data_validation_failed_array(label_checks) -%}
+{% macro default__data_quality_failed_array(label_checks) -%}
     {%- set parts = [] -%}
     {%- for check in label_checks -%}
         {%- do parts.append('case when ' ~ check.column ~ ' then cast(array() as array<string>) else array(' ~ check.label ~ ') end') -%}
@@ -591,7 +591,7 @@ from dq_result
     {{ return('flatten(array(' ~ (parts | join(', ')) ~ '))') }}
 {%- endmacro %}
 
-{% macro duckdb__data_validation_failed_array(label_checks) -%}
+{% macro duckdb__data_quality_failed_array(label_checks) -%}
     {%- set parts = [] -%}
     {%- for check in label_checks -%}
         {%- do parts.append('case when ' ~ check.column ~ ' then cast([] as varchar[]) else [' ~ check.label ~ '] end') -%}
@@ -599,7 +599,7 @@ from dq_result
     {{ return('flatten([' ~ (parts | join(', ')) ~ '])') }}
 {%- endmacro %}
 
-{% macro snowflake__data_validation_failed_array(label_checks) -%}
+{% macro snowflake__data_quality_failed_array(label_checks) -%}
     {%- set parts = [] -%}
     {%- for check in label_checks -%}
         {%- do parts.append('case when ' ~ check.column ~ ' then null else ' ~ check.label ~ ' end') -%}
@@ -607,7 +607,7 @@ from dq_result
     {{ return('array_compact(array_construct(' ~ (parts | join(', ')) ~ '))') }}
 {%- endmacro %}
 
-{% macro bigquery__data_validation_failed_array(label_checks) -%}
+{% macro bigquery__data_quality_failed_array(label_checks) -%}
     {%- set parts = [] -%}
     {%- for check in label_checks -%}
         {%- do parts.append('case when ' ~ check.column ~ ' then array<string>[] else [' ~ check.label ~ '] end') -%}

@@ -90,8 +90,8 @@ class FullHeightAlertBox(AlertBox):
         return properties
 
 
-class DataValidation(MacroSpec):
-    name: str = "DataValidation"
+class DataQuality(MacroSpec):
+    name: str = "DataQuality"
     projectName: str = "prophecy_basics"
     category: str = "Custom"
     minNumOfInputPorts: int = 1
@@ -124,7 +124,7 @@ class DataValidation(MacroSpec):
         _row_id: Optional[str] = None
 
     @dataclass(frozen=True)
-    class DataValidationProperties(MacroProperties):
+    class DataQualityProperties(MacroProperties):
         relation_name: List[str] = field(default_factory=list)
         schema: str = ""
         rules: List[ValidationRule] = field(default_factory=list)
@@ -152,12 +152,12 @@ class DataValidation(MacroSpec):
     def _is_empty_schema(schema) -> bool:
         return schema is None or (isinstance(schema, str) and not schema.strip())
 
-    def _add_rule(self, state: Component[DataValidationProperties], check_type: str = "not_null"):
+    def _add_rule(self, state: Component[DataQualityProperties], check_type: str = "not_null"):
         rules = list(state.properties.rules)
         rules.append(self.AddValidationRule(checkType=check_type))
         return state.bindProperties(dataclasses.replace(state.properties, rules=rules))
 
-    def onButtonClick(self, state: Component[DataValidationProperties]):
+    def onButtonClick(self, state: Component[DataQualityProperties]):
         return self._add_rule(state)
 
     def _add_rule_handler(self, check_type: str):
@@ -506,7 +506,7 @@ class DataValidation(MacroSpec):
         def panel(element):
             return StepContainer().addElement(Step().addElement(element))
 
-        return Dialog("DataValidation").addElement(
+        return Dialog("DataQuality").addElement(
             ColumnsLayout(gap="1rem", height="100%")
             .addColumn(Ports(allowOutputRename=True), "content")
             .addColumn(
@@ -524,7 +524,7 @@ class DataValidation(MacroSpec):
         return getattr(rule, key, default)
 
     def validate(self, context: SqlContext, component: Component) -> List[Diagnostic]:
-        diagnostics = super(DataValidation, self).validate(context, component)
+        diagnostics = super(DataQuality, self).validate(context, component)
         props = component.properties
 
         def error(path, message):
@@ -610,7 +610,7 @@ class DataValidation(MacroSpec):
                   f"Failing rows allowed must be 0 or a positive whole number (leave it empty to allow none), got '{max_failed_rows}'")
         if len(component.ports.outputs) > len(self.portOutputModes):
             error("component.ports.outputs",
-                  f"DataValidation has at most {len(self.portOutputModes)} outputs: passed rows, failed rows and errors")
+                  f"DataQuality has at most {len(self.portOutputModes)} outputs: passed rows, failed rows and errors")
         return diagnostics
 
     def _schema_and_relations(self, component: Component, context: SqlContext):
@@ -707,7 +707,7 @@ class DataValidation(MacroSpec):
         max_failed_rows = (props.max_failed_rows or "").strip() if props.on_failure in ("block", "fail") else ""
         return max_failed_rows, bool(props.add_failed_codes)
 
-    def _macro_call(self, props: DataValidationProperties, output_mode: str) -> str:
+    def _macro_call(self, props: DataQualityProperties, output_mode: str) -> str:
         resolved_macro_name = f"{self.projectName}.{self.name}"
         max_failed_rows, add_failed_codes = self._failure_settings(props)
         # repr() emits Python literals that Jinja parses as-is and loadProperties reads back with ast.literal_eval
@@ -722,11 +722,11 @@ class DataValidation(MacroSpec):
         ]
         return f"{{{{ {resolved_macro_name}({', '.join(arguments)}) }}}}"
 
-    def apply(self, props: DataValidationProperties) -> str:
+    def apply(self, props: DataQualityProperties) -> str:
         # Used when the gem has a single output port
         return self._macro_call(props, props.output_mode)
 
-    def applyMulti(self, props: DataValidationProperties, outputPorts: list[str]) -> list[str]:
+    def applyMulti(self, props: DataQualityProperties, outputPorts: list[str]) -> list[str]:
         # One macro call per output port: out0 = passed rows, out1 = failed rows, out2 = errors
         if len(outputPorts) <= 1:
             return [self.apply(props)]
@@ -756,7 +756,7 @@ class DataValidation(MacroSpec):
                         sortType=str(order_column.get("direction") or "desc"),
                     ))
             columns = rule.get("columns") or []
-            rules.append(DataValidation.AddValidationRule(
+            rules.append(DataQuality.AddValidationRule(
                 checkType=str(rule.get("checkType", "not_null")),
                 columns=[columns] if isinstance(columns, str) else [str(c) for c in columns],
                 values=str(rule.get("values") or ""),
@@ -771,7 +771,7 @@ class DataValidation(MacroSpec):
             ))
 
         max_failed_rows = _parse_py_literal(parametersMap.get("max_failed_rows"), "")
-        return DataValidation.DataValidationProperties(
+        return DataQuality.DataQualityProperties(
             relation_name=_parse_py_literal(parametersMap.get("relation_name"), []),
             schema=_parse_py_literal(parametersMap.get("schema"), ""),
             rules=rules,

@@ -1,4 +1,4 @@
--- Test: DataValidation macro - what happens when checks fail (DuckDB)
+-- Test: DataQuality macro - what happens when checks fail (DuckDB)
 -- Each case embeds the macro in a CTE, the way Prophecy-generated models call it, then
 -- compares the output column list and the ordered values (as text) with the expected result.
 --
@@ -23,7 +23,7 @@ WITH shipments AS (
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'required_columns', 'columns': ['shipment_id', 'weight_kg']}, {'checkType': 'row_count', 'minValue': '5'}, {'checkType': 'regex_match', 'columns': ['shipment_id'], 'pattern': 'SH-[0-9]{4}'}, {'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10', 'checkName': 'Parcel weight limit', 'reasonCode': 'OVERWEIGHT'}], 'summary', 'continue') }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'required_columns', 'columns': ['shipment_id', 'weight_kg']}, {'checkType': 'row_count', 'minValue': '5'}, {'checkType': 'regex_match', 'columns': ['shipment_id'], 'pattern': 'SH-[0-9]{4}'}, {'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10', 'checkName': 'Parcel weight limit', 'reasonCode': 'OVERWEIGHT'}], 'summary', 'continue') }}
 )
 SELECT * FROM validated ORDER BY check_number
 {% endset %}
@@ -32,7 +32,7 @@ SELECT * FROM validated ORDER BY check_number
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'required_columns', 'columns': ['shipment_id', 'weight_kg']}, {'checkType': 'row_count', 'minValue': '5'}, {'checkType': 'regex_match', 'columns': ['shipment_id'], 'pattern': 'SH-[0-9]{4}'}, {'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10', 'checkName': 'Parcel weight limit', 'reasonCode': 'OVERWEIGHT'}], 'errors', 'continue') }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'required_columns', 'columns': ['shipment_id', 'weight_kg']}, {'checkType': 'row_count', 'minValue': '5'}, {'checkType': 'regex_match', 'columns': ['shipment_id'], 'pattern': 'SH-[0-9]{4}'}, {'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10', 'checkName': 'Parcel weight limit', 'reasonCode': 'OVERWEIGHT'}], 'errors', 'continue') }}
 )
 SELECT * FROM validated ORDER BY check_number
 {% endset %}
@@ -41,7 +41,7 @@ SELECT * FROM validated ORDER BY check_number
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'passed', 'block') }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'passed', 'block') }}
 )
 SELECT * FROM validated ORDER BY shipment_id
 {% endset %}
@@ -50,7 +50,7 @@ SELECT * FROM validated ORDER BY shipment_id
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'passed', 'block', '1', false) }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'passed', 'block', '1', false) }}
 )
 SELECT * FROM validated ORDER BY shipment_id
 {% endset %}
@@ -59,7 +59,7 @@ SELECT * FROM validated ORDER BY shipment_id
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'not_null', 'columns': ['shipment_id', 'country']}, {'checkType': 'unique', 'columns': ['shipment_id']}, {'checkType': 'row_count', 'minValue': '1', 'maxValue': '1000'}], 'passed', 'fail') }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'not_null', 'columns': ['shipment_id', 'country']}, {'checkType': 'unique', 'columns': ['shipment_id']}, {'checkType': 'row_count', 'minValue': '1', 'maxValue': '1000'}], 'passed', 'fail') }}
 )
 SELECT * FROM validated ORDER BY shipment_id
 {% endset %}
@@ -68,7 +68,7 @@ SELECT * FROM validated ORDER BY shipment_id
 {% set macro_query %}
 {{ shipments_cte }},
 validated AS (
-    {{ prophecy_basics.DataValidation(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'all', 'fail', '1', false) }}
+    {{ prophecy_basics.DataQuality(['shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'value_range', 'columns': ['weight_kg'], 'maxValue': '10'}], 'all', 'fail', '1', false) }}
 )
 SELECT * FROM validated ORDER BY shipment_id
 {% endset %}
@@ -80,7 +80,7 @@ no_shipments AS (
     SELECT * FROM shipments WHERE weight_kg < 0
 ),
 validated AS (
-    {{ prophecy_basics.DataValidation(['no_shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'not_null', 'columns': ['shipment_id']}, {'checkType': 'row_count', 'maxValue': '10'}], 'passed', 'fail', '', false) }}
+    {{ prophecy_basics.DataQuality(['no_shipments'], '[{"name": "shipment_id", "dataType": "string"}, {"name": "country", "dataType": "string"}, {"name": "weight_kg", "dataType": "integer"}]', [{'checkType': 'not_null', 'columns': ['shipment_id']}, {'checkType': 'row_count', 'maxValue': '10'}], 'passed', 'fail', '', false) }}
 )
 SELECT * FROM validated ORDER BY shipment_id
 {% endset %}
@@ -89,12 +89,12 @@ SELECT * FROM validated ORDER BY shipment_id
 {% for case in cases %}
     {% set results = run_query(case.sql) %}
     {% if (results.column_names | list) != case.columns %}
-        {{ exceptions.raise_compiler_error("DataValidation test '" ~ case.name ~ "' FAILED: expected columns " ~ case.columns ~ ", got " ~ (results.column_names | list)) }}
+        {{ exceptions.raise_compiler_error("DataQuality test '" ~ case.name ~ "' FAILED: expected columns " ~ case.columns ~ ", got " ~ (results.column_names | list)) }}
     {% endif %}
     {% for col, expected in case.expect.items() %}
         {% set actual = results.columns[col].values() | map('string') | list %}
         {% if actual != expected %}
-            {{ exceptions.raise_compiler_error("DataValidation test '" ~ case.name ~ "' FAILED on column " ~ col ~ ": expected " ~ expected ~ ", got " ~ actual) }}
+            {{ exceptions.raise_compiler_error("DataQuality test '" ~ case.name ~ "' FAILED on column " ~ col ~ ": expected " ~ expected ~ ", got " ~ actual) }}
         {% endif %}
     {% endfor %}
 {% endfor %}

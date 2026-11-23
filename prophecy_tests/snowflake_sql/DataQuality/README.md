@@ -1,7 +1,10 @@
-# DataValidation Macro Tests (DuckDB)
+# DataQuality Macro Tests (Snowflake)
 
-dbt tests for the `DataValidation` macro (`macros/DataValidation.sql`) on DuckDB, through the
-`duckdb__` adapter.
+dbt tests for the `DataQuality` macro (`macros/DataQuality.sql`) on Snowflake, through the
+`snowflake__` adapter.
+
+Columns are upper case, as Prophecy reports unquoted Snowflake columns, so default check
+names (for example `Not null: ORDER_ID, CUSTOMER_EMAIL`) and result columns are upper case too.
 
 ## Test Files
 
@@ -35,7 +38,7 @@ A dbt test cannot catch a query that stops with an error, so the failing side of
 pipeline" is not in these files. It was checked by hand on DuckDB: one failing row, more
 failing rows than allowed, every row failing (so no row passes), a filter after the gem, and
 an empty input below the minimum row count all stop the query with a
-`DataValidation failed: ...` message. A missing required column, or a value range that
+`DataQuality failed: ...` message. A missing required column, or a value range that
 compares a text column with a number, stops it at compile time.
 
 Every call uses the argument format the gem generates, so it also round-trips through the
@@ -47,11 +50,11 @@ code-to-visual tester.
 
 ```bash
 # From project root (excludes venv to avoid conflicts)
-mkdir -p tests/duckdb_sql
-find prophecy_tests/duckdb_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/duckdb_sql/ \;
+mkdir -p tests/snowflake_sql
+find prophecy_tests/snowflake_sql -mindepth 1 -maxdepth 1 -type d ! -name "venv" -exec cp -r {} tests/snowflake_sql/ \;
 
 # Then run tests
-cd prophecy_tests/duckdb_sql
+cd prophecy_tests/snowflake_sql
 source venv/bin/activate
 dbt test --project-dir ../.. --profiles-dir .
 ```
@@ -60,4 +63,4 @@ See parent README (`../README.md`) for full setup instructions.
 
 ## Status
 
-✅ Both tests passing
+⚠️ Not yet run against a live Snowflake account

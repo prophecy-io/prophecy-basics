@@ -667,7 +667,7 @@ macros:
         type: "value"
         description: "{\"ProphecyType\": \"value\"}"
     macroType: "query"
-  - name: "DataValidation"
+  - name: "DataQuality"
     arguments:
       - name: "relation_name"
         type: "value"
