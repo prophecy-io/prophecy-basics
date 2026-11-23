@@ -1,6 +1,6 @@
 name: prophecy_basics
 description: ''
-version: 1.0.22
+version: 1.0.23.dev0
 author: abhisheks+e2etests@prophecy.io
 language: sql
 buildSystem: ''
@@ -311,6 +311,17 @@ sqlMacros:
       - macros/macros.yml
       - gems/Imputation.py
     createdAt: '2025-10-13 04:59:46'
+  .prophecy/metadata/sqlmacros/DataQuality:
+    name: DataQuality
+    macroType: query
+    description: null
+    author: adak.debashis@prophecy.io
+    files:
+      - macros/DataQuality.sql
+      - .prophecy/ide/macros/DataQuality.json
+      - macros/macros.yml
+      - gems/DataQuality.py
+    createdAt: '2026-11-03 00:00:00'
 sqlSeeds: {}
 sqlSources: {}
 sqlUnreferencedSources: {}
